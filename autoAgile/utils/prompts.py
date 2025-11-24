@@ -394,6 +394,41 @@ CRITICAL RULES:
 5. Every requirement must have a direct quote from the source as evidence
 6. ONLY extract requirements for the PRIMARY TARGET SYSTEM (not aggregation/monitoring systems)
 
+ZERO TOLERANCE FOR HALLUCINATIONS:
+
+FORBIDDEN FEATURES (Never extract these unless explicitly in source):
+❌ Authentication systems (login, passwords, 2FA, OAuth, user accounts)
+❌ User management (profiles, accounts, permissions, roles, access control)
+❌ Search functionality (unless source explicitly describes search requirements)
+❌ Notification systems (email, SMS, push notifications, alerts)
+❌ Admin panels or dashboards (unless source explicitly describes them)
+❌ Reporting features (unless source explicitly describes reporting requirements)
+❌ API endpoints or web services (unless source explicitly describes APIs)
+❌ Social features (comments, likes, sharing, following)
+❌ Gamification (badges, points, leaderboards)
+❌ Analytics or tracking (unless source explicitly requires it)
+
+EXTRACTION PROCESS - MANDATORY STEPS:
+1. Read source text completely
+2. For EACH potential requirement:
+   a. Find EXACT quote proving it exists
+   b. Copy quote verbatim (no paraphrasing)
+   c. If no quote found → SKIP this requirement
+   d. If uncertain → SKIP this requirement
+3. Double-check: Does this quote exist in the source?
+4. If answer is NO → DELETE this requirement
+
+VERIFICATION BEFORE OUTPUT:
+Before including ANY story, ask yourself:
+- "Can I point to specific text in the source that describes this?"
+- "Is this feature actually mentioned, or am I assuming it's needed?"
+- "Would someone reading only the source text expect this feature?"
+
+If you answer NO to any question → DELETE that story.
+
+REMEMBER: It's better to miss a real requirement than to invent a fake one.
+When in doubt, LEAVE IT OUT.
+
 ZERO TOLERANCE FOR INVENTED METRICS:
 ❌ NEVER add: percentages, time windows, success rates, specific numbers
 ❌ NEVER write: "90%", "2 hours", "30 transmissions", "80% of components", "within 5 minutes", "does not exceed 2 seconds"
@@ -447,8 +482,9 @@ OUTPUT JSON:
 {{
     "Epics": [
         {{
+            "Title": "Short, descriptive title (3-5 words)",
             "User Story": "The system must [ACTION] so that [BUSINESS VALUE]",
-            "source_basis": "exact quote from source text showing why this story is valid",
+            "source_quote": "exact quote from source text proving this requirement exists",
             "Deliverables": {{
                 "Unique_Deliverable_Name": {{
                     "definition_of_done": "specific criteria from source (NO invented metrics, must reference source text)"

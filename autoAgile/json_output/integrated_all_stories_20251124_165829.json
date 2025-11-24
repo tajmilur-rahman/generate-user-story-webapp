@@ -1,0 +1,48 @@
+{
+  "integrated_at": "20251124_165829",
+  "total_stories": 5,
+  "story_ids": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "stories": [
+    {
+      "definitionOfDone": "• Data Collection And Transmission: The system successfully transmits all collected weather data to the data management system within a 5-minute window, with an average transmission time of.",
+      "description": "The system must collect weather data, perform initial data processing, and transmit it to the data management system so that accurate forecasts can be made.",
+      "id": 1,
+      "testCases": "Test: collect weather data, perform initial data processing, and transmit it to the data management system\nExpected: System performs collect weather data, perform initial data processing, and transmit it to the data management system successfully with valid output data",
+      "title": "Weather Station System"
+    },
+    {
+      "definitionOfDone": "• Satellite Communication And Software Updates: The system successfully updates embedded software the time, with no failed attempts. All updates are thoroughly tested for functionality and compatibility.",
+      "description": "The system must communicate with weather stations via satellite to monitor their health, provide reports of problems, and update embedded software so that station maintenance can be performed efficiently.",
+      "id": 2,
+      "testCases": "Test: communicate with weather stations via satellite to monitor their health, provide reports of problems, and update embedded software\nExpected: System performs communicate with weather stations via satellite to monitor their health, provide reports of problems, and update embedded software successfully with valid output data",
+      "title": "Station Maintenance System"
+    },
+    {
+      "definitionOfDone": "• Fault Reporting And Diagnosis: The fault reporting feature is fully implemented, including automatic detection of faults, sending of notifications to the management system, and display of fault details in a user-friendly interface. All test cases are passed with a success rate.",
+      "description": "The system must monitor instruments, power, and communication hardware, reporting faults to the management system so that issues can be addressed promptly.",
+      "id": 3,
+      "testCases": "Test: monitor instruments, power, and communication hardware, reporting faults to the management system\nExpected: System performs monitor instruments, power, and communication hardware, reporting faults to the management system successfully with valid output data",
+      "title": "Station Software"
+    },
+    {
+      "definitionOfDone": "• Power Management And Generator Shutdown: The system successfully shuts down the generator in a simulated damaging weather condition (e.g., high wind) , ensuring minimal impact on station operations.",
+      "description": "The system must manage system power, ensuring battery charging under favorable conditions while shutting down generators in potentially damaging weather conditions (e.g., high wind) so that the station remains operational.",
+      "id": 4,
+      "testCases": "Test: manage system power, ensuring battery charging under favorable conditions while shutting down generators in potentially damaging weather conditions (e.g., high wind)\nExpected: System performs manage system power, ensuring battery charging under favorable conditions while shutting down generators in potentially damaging weather conditions (e.g., high wind) successfully with valid output data",
+      "title": "Station Software"
+    },
+    {
+      "definitionOfDone": "• Dynamic Reconfiguration And Backup Instrument Switching: The dynamic reconfiguration feature is fully implemented, allowing users to seamlessly swap out components with new versions without disrupting the system's functionality. The backup instrument switching mechanism is also fully integrated, enabling automatic failover in case of component failure.",
+      "description": "The system must allow for dynamic reconfiguration, replacing parts of the software with new versions and switching backup instruments into the system upon failure so that station maintenance can be performed efficiently.",
+      "id": 5,
+      "testCases": "Test: allow for dynamic reconfiguration, replacing parts of the software with new versions and switching backup instruments into the system upon failure\nExpected: System performs allow for dynamic reconfiguration, replacing parts of the software with new versions and switching backup instruments into the system upon failure successfully with valid output data",
+      "title": "Station Software"
+    }
+  ]
+}
