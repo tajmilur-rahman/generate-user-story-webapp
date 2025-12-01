@@ -303,9 +303,10 @@ def validate_user_story_format(story):
     if not has_valid_keyword:
         return False, "User story doesn't contain action keywords (must/shall/can/should/will)"
     
-    # Check for "so that" clause (business value)
+    # Check for "so that" clause (business value) - WARNING only, not rejection
     if 'so that' not in user_story.lower():
-        return False, "User story missing 'so that' clause for business value"
+        logger.warning(f"Story {story_id}: Missing 'so that' clause - business value unclear")
+        # Don't reject - just warn
     
     # Check title is not empty and not too short
     title = story.get('Title', '').strip()

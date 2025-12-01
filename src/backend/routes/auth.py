@@ -7,8 +7,7 @@ from flask import Blueprint, redirect, url_for, session, request, jsonify, rende
 from flask_login import login_user, logout_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
 from datetime import datetime
-from models import User
-from database import db
+from backend.models import User, db
 
 auth_bp = Blueprint('auth', __name__)
 logger = logging.getLogger(__name__)
@@ -30,7 +29,7 @@ def init_oauth(app):
             'scope': 'openid email profile'
         }
     )
-    logger.info("[OK] Google OAuth initialized")
+    logger.debug("Google OAuth initialized")
 
 @auth_bp.route('/login')
 def login():

@@ -11,8 +11,9 @@ from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from langchain_groq import ChatGroq
 
-from utils.helpers import allowed_file
-from services.story_service import convert_stories_to_frontend_format
+
+from backend.utils.helpers import allowed_file
+from backend.services.story_service import convert_stories_to_frontend_format
 from autoAgile.utils.prompts import (
     extract_text_from_docx, refine_doc, extract_functionarity,
     extract_epics, get_epics, generate_test_cases, refine_requirements, rat

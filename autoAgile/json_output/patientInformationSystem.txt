@@ -1,0 +1,107 @@
+{
+    "requirements": [
+        {
+            "id": 1,
+            "statement": "to generate management information that enables health service managers to assess performance against local and government targets",
+            "source_quote": "To generate management information that enables health service managers to assess performance against local and government targets.",
+            "confidence": "high"
+        },
+        {
+            "id": 2,
+            "statement": "to provide medical staff with timely information to support the treatment of patients",
+            "source_quote": "To provide medical staff with timely information to support the treatment of patients.",
+            "confidence": "high"
+        },
+        {
+            "id": 3,
+            "statement": "to record information about patients, including name, address, age, next of kin, etc., consultations (date, doctor seen, subjective impressions of the patient, etc.), conditions, and treatments",
+            "source_quote": "The MHC-PMS is used to record information about patients, including name, address, age, next of kin, etc., consultations (date, doctor seen, subjective impressions of the patient, etc.), conditions, and treatments.",
+            "confidence": "high"
+        },
+        {
+            "id": 4,
+            "statement": "to provide individual care management to clinicians, including creating records for patients, editing information in the system, viewing patient history, and supporting data summaries",
+            "source_quote": "Individual Care Management: Clinicians can create records for patients, edit information in the system, view patient history, and support data summaries to help doctors quickly learn about a patient's key problems and treatments.",
+            "confidence": "high"
+        },
+        {
+            "id": 5,
+            "statement": "to monitor patient records regularly and issue warnings if possible problems are detected",
+            "source_quote": "Patient Monitoring: The system regularly monitors patient records and issues warnings if possible problems are detected.",
+            "confidence": "high"
+        },
+        {
+            "id": 6,
+            "statement": "to generate administrative reports showing the number of patients treated at each clinic, patients entering and leaving the care system, patients sectioned, prescribed drugs, and their costs",
+            "source_quote": "Administrative Reporting: The system generates monthly management reports showing the number of patients treated at each clinic, patients entering and leaving the care system, patients sectioned, prescribed drugs, and their costs.",
+            "confidence": "high"
+        },
+        {
+            "id": 7,
+            "statement": "to ensure staff always act in accordance with the law and record decisions for judicial review if necessary",
+            "source_quote": "",
+            "confidence": "medium"
+        },
+        {
+            "id": 8,
+            "statement": "patient information must be confidential and never disclosed to anyone apart from authorized medical staff and the patient themselves",
+            "source_quote": "",
+            "confidence": "high"
+        },
+        {
+            "id": 9,
+            "statement": "the system is safety-critical, as some mental illnesses can cause patients to become suicidal or a danger to others",
+            "source_quote": "",
+            "confidence": "medium"
+        }
+    ],
+    "User Stories": [
+        {
+            "Title": "Patient Management System",
+            "User Story": "The system must generate management information that enables health service managers to assess performance against local and government targets so that they can make informed decisions.",
+            "source_quote": "To generate management information that enables health service managers to assess performance against local and government targets.",
+            "Deliverables": {
+                "management_information_report": {
+                    "definition_of_done": "The system generates a report with the following metrics: total patients treated, patients by clinic, patients entering/leaving, patients sectioned, prescribed drugs, and drug costs. The report is formatted according to standard health service reporting guidelines."
+                }
+            }
+        },
+        {
+            "Title": "Patient Care Management",
+            "User Story": "The system must provide individual care management to clinicians, including creating records for patients, editing information in the system, viewing patient history, and supporting data summaries so that they can deliver high-quality care.",
+            "source_quote": "Individual Care Management: Clinicians can create records for patients, edit information in the system, view patient history, and support data summaries to help doctors quickly learn about a patient's key problems and treatments.",
+            "Deliverables": {}
+        },
+        {
+            "Title": "Patient Monitoring",
+            "User Story": "The system must monitor patient records regularly and issue warnings if possible problems are detected so that patients receive timely interventions.",
+            "source_quote": "Patient Monitoring: The system regularly monitors patient records and issues warnings if possible problems are detected.",
+            "Deliverables": {
+                "Patient Monitoring System": {
+                    "definition_of_done": "The system alerts clinicians to potential health risks and enables them to take prompt action. All alerts are triggered by automated rules based on patient data, and warnings are sent via secure channels."
+                }
+            }
+        },
+        {
+            "Title": "Data Confidentiality",
+            "User Story": "The system must ensure patient information is confidential and never disclosed to anyone apart from authorized medical staff and the patient themselves so that patients' trust is maintained.",
+            "source_quote": "Patient information must be confidential and never disclosed to anyone apart from authorized medical staff and the patient themselves.",
+            "Deliverables": {
+                "Data Encryption System": {
+                    "definition_of_done": "The system encrypts patient data using a secure algorithm (e.g. AES) with a minimum key length of 256 bits, and the encryption is enabled by default for all data storage and transmission."
+                }
+            }
+        },
+        {
+            "Title": "System Safety",
+            "User Story": "The system must be safety-critical, as some mental illnesses can cause patients to become suicidal or a danger to others so that patients receive timely and effective interventions.",
+            "source_quote": "",
+            "Deliverables": {
+                "Safety-Critical System Design": {
+                    "definition_of_done": "The system design includes: at least two independent fail-safe mechanisms, redundant systems for critical components, and clear documentation of safety protocols."
+                }
+            }
+        }
+    ],
+    "testCases": []
+}

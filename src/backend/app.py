@@ -12,41 +12,51 @@ from flask_login import LoginManager
 from dotenv import load_dotenv
 
 # Configure logging
+# Create logs directory if it doesn't exist
+log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data', 'logs')
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, 'app.log')
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('app.log'),
+        logging.FileHandler(log_file),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
-env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+# Look for .env in project root (two levels up from this file)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+env_path = os.path.join(project_root, '.env')
 load_dotenv(dotenv_path=env_path)
 
-if os.path.exists(env_path):
-    print(f"[OK] .env file found: {env_path}")
-else:
+# Only show .env status if not found
+if not os.path.exists(env_path):
     print(f"[WARNING] .env file NOT found at: {env_path}")
     print(f"   Note: .env is optional - will use defaults (Ollama)")
 
-# Add project root to path
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
+# Add paths to sys.path for backwards compatibility with old imports
+# This allows old import statements to still work
+sys.path.insert(0, project_root)  # For autoAgile imports
+sys.path.insert(0, os.path.join(project_root, 'src'))  # For new backend imports
 
-from routes import register_routes
-from database import db, init_db
-from models import User
-from routes.auth import init_oauth
+# Import from new structure
+from backend.routes import register_routes
+from backend.models import db, init_db, User
+from backend.routes.auth import init_oauth
 
 def create_app():
-    # Configure Flask to serve static files and templates
+    # Configure Flask to serve static files and templates from new locations
+    static_folder = os.path.join(project_root, 'src', 'frontend', 'static')
+    template_folder = os.path.join(project_root, 'src', 'frontend', 'templates')
+    
     app = Flask(__name__, 
-                static_folder='assets',
+                static_folder=static_folder,
                 static_url_path='/assets',
-                template_folder='pages')
+                template_folder=template_folder)
     CORS(app)  # Enable CORS for frontend
 
     # Configuration
@@ -58,7 +68,10 @@ def create_app():
     
     # Authentication configuration
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///users.db')
+    
+    # Database path in project root/instance directory
+    db_path = os.path.join(project_root, 'instance', 'users.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', f'sqlite:///{db_path}')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     # Session configuration
@@ -85,7 +98,8 @@ def create_app():
     # Create database tables
     with app.app_context():
         db.create_all()
-        logger.info("[OK] Database tables created")
+        # Only log to file, not console
+        logger.debug("Database tables created")
     
     # Register routes
     register_routes(app)
