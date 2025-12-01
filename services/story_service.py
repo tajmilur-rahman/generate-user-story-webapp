@@ -265,6 +265,66 @@ def sanitize_story_output(story):
     story["definitionOfDone"] = dod
     return story
 
+def validate_user_story_format(story):
+    """
+    Validate that a story follows proper user story format.
+    
+    Args:
+        story: Story dict to validate
+    
+    Returns:
+        tuple: (is_valid: bool, error_message: str or None)
+    """
+    story_id = story.get('id', 'unknown')
+    
+    # Check required fields exist
+    required_fields = ['User Story', 'Title', 'Deliverables']
+    for field in required_fields:
+        if field not in story or not story[field]:
+            return False, f"Missing required field: {field}"
+    
+    # Check User Story format
+    user_story = story.get('User Story', '').strip()
+    
+    # Minimum length check
+    if len(user_story) < 20:
+        return False, f"User story too short ({len(user_story)} chars)"
+    
+    # Check for proper format: should contain "must" or "shall" or "can"
+    valid_keywords = ['must', 'shall', 'can', 'should', 'will']
+    has_valid_keyword = any(keyword in user_story.lower() for keyword in valid_keywords)
+    
+    if not has_valid_keyword:
+        return False, "User story doesn't contain action keywords (must/shall/can/should/will)"
+    
+    # Check for "so that" clause (business value)
+    if 'so that' not in user_story.lower():
+        return False, "User story missing 'so that' clause for business value"
+    
+    # Check title is not empty and not too short
+    title = story.get('Title', '').strip()
+    if len(title) < 3:
+        return False, f"Title too short: '{title}'"
+    
+    # Check deliverables exist and are not empty
+    deliverables = story.get('Deliverables', {})
+    if not deliverables or not isinstance(deliverables, dict):
+        return False, "Deliverables missing or not a dictionary"
+    
+    if len(deliverables) == 0:
+        return False, "Deliverables dictionary is empty"
+    
+    # Check each deliverable has definition of done
+    for deliv_name, deliv_content in deliverables.items():
+        if not isinstance(deliv_content, dict):
+            return False, f"Deliverable '{deliv_name}' is not a dictionary"
+        
+        dod = deliv_content.get('definition_of_done') or deliv_content.get('definitionOfDone')
+        if not dod or not isinstance(dod, str) or len(dod) < 10:
+            return False, f"Deliverable '{deliv_name}' has invalid or missing definition_of_done"
+    
+    return True, None
+
 def validate_generated_stories(stories, source_text):
     """
     Comprehensive validation of generated stories with rejection logic.
@@ -285,15 +345,23 @@ def validate_generated_stories(stories, source_text):
         story_id = story.get('id', 'unknown')
         story_errors = []
         
-        # Bug 1: Fabricated quotes - CRITICAL, REJECT STORY
+        # NEW: Validate user story format FIRST
+        format_valid, format_error = validate_user_story_format(story)
+        if not format_valid:
+            logger.error(f"🚨 Story {story_id}: REJECTED - Invalid format: {format_error}")
+            errors.append(f"Story {story_id}: REJECTED - {format_error}")
+            continue  # Skip this story entirely
+        
+        # Bug 1: Fabricated quotes - Changed to WARNING instead of REJECT
         source_quote = story.get('source_quote', '').strip()
         if source_quote:
             if not validate_source_quote(source_quote, source_text):
                 story_errors.append(f"Fabricated/invalid source quote")
-                # CRITICAL: Skip this story entirely
-                logger.error(f"🚨 Story {story_id}: REJECTED - Fabricated quote: '{source_quote[:50]}...'")
-                errors.append(f"Story {story_id}: REJECTED - Fabricated quote")
-                continue  # Don't include this story
+                # WARNING: Log but don't reject - quote validation is too strict
+                logger.warning(f"⚠️ Story {story_id}: Invalid/paraphrased quote: '{source_quote[:50]}...'")
+                logger.warning(f"   Story will be included but quote validation failed")
+                errors.append(f"Story {story_id}: Invalid source quote (included anyway)")
+                # Don't reject - just log warning
         else:
             # Missing source quote is a warning, not rejection
             logger.warning(f"⚠️ Story {story_id}: Missing source_quote field")

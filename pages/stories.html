@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generate User Stories</title>
     <link rel="stylesheet" href="/assets/css/styles.css">
 </head>
+
 <body>
     <div class="window-frame">
         <div class="title-bar">
@@ -22,6 +24,14 @@
                 <ul class="story-list" id="storyList">
                     <!-- Stories will be dynamically generated here -->
                 </ul>
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <button class="btn btn-export" onclick="exportToJSON()"
+                        style="flex: 1; background-color: #34A853; color: white; padding: 12px; font-size: 14px;">Export
+                        JSON</button>
+                    <button class="btn btn-export" onclick="exportToWord()"
+                        style="flex: 1; background-color: #4285F4; color: white; padding: 12px; font-size: 14px;">Export
+                        Word</button>
+                </div>
                 <button class="btn btn-integrate-all" onclick="integrateAll()">Integrate All</button>
             </div>
             <div class="content-panel">
@@ -49,5 +59,5 @@
     </div>
     <script src="/assets/js/script.js"></script>
 </body>
-</html>
 
+</html>

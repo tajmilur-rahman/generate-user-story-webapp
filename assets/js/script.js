@@ -7,7 +7,7 @@ async function checkAuth() {
     try {
         const response = await fetch('/auth/status');
         const data = await response.json();
-        
+
         if (!data.authenticated) {
             // Redirect to login if not authenticated
             if (!window.location.pathname.includes('login.html')) {
@@ -15,7 +15,7 @@ async function checkAuth() {
             }
             return false;
         }
-        
+
         currentUser = data.user;
         displayUserProfile();
         return true;
@@ -28,18 +28,18 @@ async function checkAuth() {
 // Display user profile in navbar
 function displayUserProfile() {
     if (!currentUser) return;
-    
+
     const navbar = document.querySelector('.title-bar');
     if (!navbar) return;
-    
+
     // Check if user profile already exists
     if (document.getElementById('userProfile')) return;
-    
+
     // Create user profile element
     const userProfile = document.createElement('div');
     userProfile.id = 'userProfile';
     userProfile.style.cssText = 'display: flex; align-items: center; gap: 12px; margin-left: auto; margin-right: 12px;';
-    
+
     // User avatar and name
     const userInfo = document.createElement('div');
     userInfo.style.cssText = 'display: flex; align-items: center; gap: 8px;';
@@ -47,7 +47,7 @@ function displayUserProfile() {
         <img src="${currentUser.picture}" alt="${currentUser.name}" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #007AFF;">
         <span style="font-size: 14px; color: #333; font-weight: 500;">${currentUser.name}</span>
     `;
-    
+
     // Logout button
     const logoutBtn = document.createElement('button');
     logoutBtn.textContent = 'Logout';
@@ -56,10 +56,10 @@ function displayUserProfile() {
     logoutBtn.onclick = () => {
         window.location.href = '/auth/logout';
     };
-    
+
     userProfile.appendChild(userInfo);
     userProfile.appendChild(logoutBtn);
-    
+
     // Insert before window controls
     const windowControls = navbar.querySelector('.window-controls');
     if (windowControls) {
@@ -92,35 +92,35 @@ function handleFileSelect(event) {
 async function generateUserStories() {
     const input = document.getElementById('projectDescription');
     const fileInput = document.getElementById('fileInput');
-    
+
     // Check if file is selected
     if (!selectedFile && fileInput.files.length === 0) {
         alert('Please select a file to upload');
         return;
     }
-    
+
     const file = selectedFile || fileInput.files[0];
-    
+
     // Show loading state
     const generateBtn = document.querySelector('.btn-primary');
     const originalText = generateBtn.textContent;
     generateBtn.textContent = 'Generating...';
     generateBtn.disabled = true;
-    
+
     try {
         // Create FormData to send file
         const formData = new FormData();
         formData.append('file', file);
-        
+
         // Send file to backend API
         const response = await fetch('/api/generate-stories', {
             method: 'POST',
             body: formData
         });
-        
+
         // Get response text first to check content type
         const responseText = await response.text();
-        
+
         if (!response.ok) {
             // Try to parse as JSON, but handle HTML/plain text errors
             let errorMessage = `Server error: ${response.status}`;
@@ -137,7 +137,7 @@ async function generateUserStories() {
             }
             throw new Error(errorMessage);
         }
-        
+
         // Parse JSON response
         let data;
         try {
@@ -146,12 +146,12 @@ async function generateUserStories() {
             console.error('Failed to parse JSON response:', responseText.substring(0, 200));
             throw new Error('Invalid JSON response from server. Check server logs.');
         }
-        
+
         if (data.success && data.stories) {
             // Store stories in sessionStorage
             sessionStorage.setItem('userStories', JSON.stringify(data.stories));
             sessionStorage.setItem('projectDescription', file.name);
-            
+
             // Navigate to stories page
             window.location.href = 'stories.html';
         } else {
@@ -160,7 +160,7 @@ async function generateUserStories() {
     } catch (error) {
         console.error('Error generating stories:', error);
         console.error('Full error:', error);
-        
+
         // Show user-friendly error message
         let errorMsg = `Error generating user stories: ${error.message}`;
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
@@ -168,7 +168,7 @@ async function generateUserStories() {
         } else if (error.message.includes('500')) {
             errorMsg += '\n\nServer error occurred. Check the Flask server terminal for detailed error messages.';
         }
-        
+
         alert(errorMsg);
     } finally {
         // Restore button state
@@ -184,7 +184,7 @@ let userStories = [];
 async function loadUserStories() {
     // Check if stories are in sessionStorage (for demo purposes)
     const storedStories = sessionStorage.getItem('userStories');
-    
+
     if (storedStories) {
         try {
             userStories = JSON.parse(storedStories);
@@ -193,18 +193,18 @@ async function loadUserStories() {
             userStories = [];
         }
     }
-    
+
     // Stories are loaded from sessionStorage (set after generation)
     // This allows the stories page to display the generated stories
     // without needing a separate GET endpoint
-    
+
     // If no stories loaded, show message
     if (userStories.length === 0) {
         console.log('No stories found. Please generate stories first.');
     }
-    
+
     renderStoryList();
-    
+
     // Select first story by default if available
     if (userStories.length > 0) {
         selectStory(0);
@@ -219,7 +219,7 @@ function renderStoryList() {
     while (storyList.firstChild) {
         storyList.removeChild(storyList.firstChild);
     }
-    
+
     if (userStories.length === 0) {
         const noStoriesItem = document.createElement('li');
         noStoriesItem.className = 'no-stories';
@@ -227,7 +227,7 @@ function renderStoryList() {
         storyList.appendChild(noStoriesItem);
         return;
     }
-    
+
     userStories.forEach((story, index) => {
         const listItem = document.createElement('li');
         listItem.className = 'story-item';
@@ -245,17 +245,17 @@ function selectStory(storyIndex) {
         console.error('Invalid story index:', storyIndex);
         return;
     }
-    
+
     // Remove active class from all items
     const items = document.querySelectorAll('.story-item');
     items.forEach(item => item.classList.remove('active'));
-    
+
     // Add active class to selected item
     const selectedItem = document.querySelector(`[data-story-index="${storyIndex}"]`);
     if (selectedItem) {
         selectedItem.classList.add('active');
     }
-    
+
     // Update story details
     updateStoryDetails(storyIndex);
 }
@@ -265,22 +265,22 @@ function formatTestCases(testCasesStr) {
     if (!testCasesStr || testCasesStr === '-') {
         return '-';
     }
-    
+
     // Check if it's already a formatted string (starts with "Test:", "Test Case:", etc.)
     const trimmed = testCasesStr.trim();
-    if (trimmed.startsWith('Test:') || 
-        trimmed.startsWith('Test Case:') || 
+    if (trimmed.startsWith('Test:') ||
+        trimmed.startsWith('Test Case:') ||
         trimmed.startsWith('1.') ||
         trimmed.startsWith('Test ') ||
         (trimmed.includes('\n') && !trimmed.startsWith('[') && !trimmed.startsWith('{'))) {
         // Already formatted, return as-is
         return testCasesStr;
     }
-    
+
     try {
         // Try to parse as JSON
         const testCases = JSON.parse(testCasesStr);
-        
+
         if (Array.isArray(testCases)) {
             // Format array of test cases
             return testCases.map((tc, idx) => {
@@ -292,7 +292,7 @@ function formatTestCases(testCasesStr) {
                     const expected = tc.expectedResult || tc.expected_output || '';
                     const input = tc.inputData || tc.input_data || '';
                     const testType = tc.testType || tc.test_type || '';
-                    
+
                     let formatted = `${idx + 1}. ${name}`;
                     if (desc) formatted += `\n   Description: ${desc}`;
                     if (input) formatted += `\n   Input: ${JSON.stringify(input)}`;
@@ -311,7 +311,7 @@ function formatTestCases(testCasesStr) {
             // Format object/dictionary
             return JSON.stringify(testCases, null, 2);
         }
-        
+
         return testCasesStr;
     } catch (e) {
         // Not JSON, return as-is (it's probably already formatted)
@@ -322,18 +322,18 @@ function formatTestCases(testCasesStr) {
 // Update story details in the content panel
 function updateStoryDetails(storyIndex) {
     const story = userStories[storyIndex];
-    
+
     if (!story) {
         console.error('Story not found at index:', storyIndex);
         return;
     }
-    
+
     // Set title
     document.getElementById('storyTitle').textContent = story.title || '-';
-    
+
     // Set description
     document.getElementById('storyDescription').textContent = story.description || '-';
-    
+
     // Set Definition of Done / Deliverables
     const dodElement = document.getElementById('storyDoD');
     if (story.definitionOfDone) {
@@ -347,7 +347,7 @@ function updateStoryDetails(storyIndex) {
     } else {
         dodElement.textContent = '-';
     }
-    
+
     // Set test cases
     document.getElementById('storyTestCases').textContent = formatTestCases(story.testCases) || '-';
 }
@@ -359,27 +359,27 @@ async function integrateStory() {
         alert('Please select a user story to integrate.');
         return;
     }
-    
+
     const storyIndex = parseInt(activeItem.getAttribute('data-story-index'));
     const story = userStories[storyIndex];
-    
+
     if (!story) {
         alert('Story not found.');
         return;
     }
-    
+
     try {
         const response = await fetch('/api/integrate-story', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 storyId: story.id || (storyIndex + 1),
                 story: story  // Send full story data for saving
             })
         });
-        
+
         const responseText = await response.text();
-        
+
         if (!response.ok) {
             let errorMessage = `Server error: ${response.status}`;
             try {
@@ -390,7 +390,7 @@ async function integrateStory() {
             }
             throw new Error(errorMessage);
         }
-        
+
         const data = JSON.parse(responseText);
         alert(`Story ${story.id || (storyIndex + 1)} integrated successfully!`);
         console.log('Integration response:', data);
@@ -406,23 +406,23 @@ async function integrateAll() {
         alert('No user stories available to integrate.');
         return;
     }
-    
+
     if (!confirm(`Are you sure you want to integrate all ${userStories.length} user stories?`)) {
         return;
     }
-    
+
     try {
         const response = await fetch('/api/integrate-all', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 storyIds: userStories.map(s => s.id),
                 stories: userStories  // Send full stories data for saving
             })
         });
-        
+
         const responseText = await response.text();
-        
+
         if (!response.ok) {
             let errorMessage = `Server error: ${response.status}`;
             try {
@@ -433,7 +433,7 @@ async function integrateAll() {
             }
             throw new Error(errorMessage);
         }
-        
+
         const data = JSON.parse(responseText);
         alert(`All ${userStories.length} stories integrated successfully!`);
         console.log('Integration response:', data);
@@ -454,10 +454,84 @@ function updateUserStories(stories) {
     userStories = stories;
     sessionStorage.setItem('userStories', JSON.stringify(stories));
     renderStoryList();
-    
+
     // Select first story by default
     if (userStories.length > 0) {
         selectStory(0);
+    }
+}
+
+// Export stories to JSON
+async function exportToJSON() {
+    if (userStories.length === 0) {
+        alert('No user stories available to export.');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/export-json', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stories: userStories })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Export failed');
+        }
+
+        // Download the file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `user_stories_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        console.log('✅ Exported to JSON successfully');
+    } catch (error) {
+        console.error('Error exporting to JSON:', error);
+        alert(`Error exporting to JSON: ${error.message}`);
+    }
+}
+
+// Export stories to Word document
+async function exportToWord() {
+    if (userStories.length === 0) {
+        alert('No user stories available to export.');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/export-docx', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stories: userStories })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Export failed');
+        }
+
+        // Download the file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `user_stories_${new Date().toISOString().slice(0, 10)}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        console.log('✅ Exported to Word successfully');
+    } catch (error) {
+        console.error('Error exporting to Word:', error);
+        alert(`Error exporting to Word: ${error.message}`);
     }
 }
 

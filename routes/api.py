@@ -286,3 +286,132 @@ def integrate_all():
             'error': f'Error integrating stories: {str(e)}',
             'details': traceback.format_exc().split('\n')[-5:]
         }), 500
+
+@api_bp.route('/export-json', methods=['POST'])
+@login_required
+def export_json():
+    """Export user stories as JSON file (requires authentication)"""
+    try:
+        data = request.json
+        stories = data.get('stories', [])
+        
+        if not stories:
+            return jsonify({'error': 'No stories provided'}), 400
+        
+        # Create JSON export
+        from flask import send_file
+        import io
+        
+        export_data = {
+            'exported_at': datetime.now().isoformat(),
+            'user': current_user.email,
+            'total_stories': len(stories),
+            'stories': stories
+        }
+        
+        # Create in-memory file
+        json_str = json.dumps(export_data, indent=2, ensure_ascii=False)
+        json_bytes = json_str.encode('utf-8')
+        json_io = io.BytesIO(json_bytes)
+        json_io.seek(0)
+        
+        filename = f"user_stories_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        
+        return send_file(
+            json_io,
+            mimetype='application/json',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        logger.error(f"Error exporting to JSON: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'error': f'Error exporting to JSON: {str(e)}'
+        }), 500
+
+@api_bp.route('/export-docx', methods=['POST'])
+@login_required
+def export_docx():
+    """Export user stories as Word document (requires authentication)"""
+    try:
+        from docx import Document
+        from docx.shared import Pt, RGBColor, Inches
+        from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+        from flask import send_file
+        import io
+        
+        data = request.json
+        stories = data.get('stories', [])
+        
+        if not stories:
+            return jsonify({'error': 'No stories provided'}), 400
+        
+        # Create Word document
+        doc = Document()
+        
+        # Add title
+        title = doc.add_heading('User Stories', 0)
+        title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        
+        # Add metadata
+        meta = doc.add_paragraph()
+        meta.add_run(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n").bold = True
+        meta.add_run(f"Total Stories: {len(stories)}\n").bold = True
+        meta.add_run(f"User: {current_user.email}").bold = True
+        
+        doc.add_paragraph()  # Spacing
+        
+        # Add each story
+        for idx, story in enumerate(stories, 1):
+            # Story number heading
+            story_heading = doc.add_heading(f"User Story {idx}", level=1)
+            story_heading.runs[0].font.color.rgb = RGBColor(0, 122, 255)
+            
+            # Title
+            if story.get('title'):
+                title_para = doc.add_paragraph()
+                title_para.add_run('Title: ').bold = True
+                title_para.add_run(story['title'])
+            
+            # Description
+            if story.get('description'):
+                desc_para = doc.add_paragraph()
+                desc_para.add_run('Description: ').bold = True
+                desc_para.add_run(story['description'])
+            
+            # Definition of Done
+            if story.get('definitionOfDone'):
+                dod_para = doc.add_paragraph()
+                dod_para.add_run('Definition of Done: ').bold = True
+                dod_para.add_run(story['definitionOfDone'])
+            
+            # Test Cases
+            if story.get('testCases'):
+                tc_para = doc.add_paragraph()
+                tc_para.add_run('Test Cases: ').bold = True
+                tc_para.add_run(str(story['testCases']))
+            
+            # Add separator between stories
+            if idx < len(stories):
+                doc.add_paragraph('_' * 80)
+        
+        # Save to in-memory file
+        docx_io = io.BytesIO()
+        doc.save(docx_io)
+        docx_io.seek(0)
+        
+        filename = f"user_stories_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+        
+        return send_file(
+            docx_io,
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        logger.error(f"Error exporting to DOCX: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'error': f'Error exporting to DOCX: {str(e)}'
+        }), 500
