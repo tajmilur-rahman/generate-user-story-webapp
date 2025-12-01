@@ -5,6 +5,7 @@ import logging
 import traceback
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
+from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
@@ -42,8 +43,9 @@ def health_check():
     })
 
 @api_bp.route('/generate-stories', methods=['POST'])
+@login_required
 def generate_stories():
-    """Generate user stories from uploaded document"""
+    """Generate user stories from uploaded document (requires authentication)"""
     logger.info("API CALL RECEIVED: /api/generate-stories")
     
     try:
@@ -196,8 +198,9 @@ def generate_stories():
         }), 500
 
 @api_bp.route('/integrate-story', methods=['POST'])
+@login_required
 def integrate_story():
-    """Integrate a single user story - save to json_output"""
+    """Integrate a single user story - save to json_output (requires authentication)"""
     try:
         data = request.json
         story_id = data.get('storyId')
@@ -241,8 +244,9 @@ def integrate_story():
         }), 500
 
 @api_bp.route('/integrate-all', methods=['POST'])
+@login_required
 def integrate_all():
-    """Integrate all user stories - save to json_output"""
+    """Integrate all user stories - save to json_output (requires authentication)"""
     try:
         data = request.json
         story_ids = data.get('storyIds', [])

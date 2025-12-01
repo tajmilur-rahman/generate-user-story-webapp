@@ -8,6 +8,7 @@ import tempfile
 import sys
 from flask import Flask
 from flask_cors import CORS
+from flask_login import LoginManager
 from dotenv import load_dotenv
 
 # Configure logging
@@ -36,6 +37,9 @@ project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
 from routes import register_routes
+from database import db, init_db
+from models import User
+from routes.auth import init_oauth
 
 def create_app():
     # Configure Flask to serve static files and templates
@@ -51,6 +55,37 @@ def create_app():
 
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
+    
+    # Authentication configuration
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///users.db')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # Session configuration
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
+    
+    # Initialize database
+    db.init_app(app)
+    
+    # Initialize Flask-Login
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message = 'Please log in to access this page.'
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
+    
+    # Initialize OAuth
+    init_oauth(app)
+    
+    # Create database tables
+    with app.app_context():
+        db.create_all()
+        logger.info("[OK] Database tables created")
     
     # Register routes
     register_routes(app)

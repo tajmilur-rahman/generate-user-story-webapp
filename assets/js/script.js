@@ -1,5 +1,81 @@
 // Store selected file globally
 let selectedFile = null;
+let currentUser = null;
+
+// Check authentication status
+async function checkAuth() {
+    try {
+        const response = await fetch('/auth/status');
+        const data = await response.json();
+        
+        if (!data.authenticated) {
+            // Redirect to login if not authenticated
+            if (!window.location.pathname.includes('login.html')) {
+                window.location.href = '/auth/login';
+            }
+            return false;
+        }
+        
+        currentUser = data.user;
+        displayUserProfile();
+        return true;
+    } catch (error) {
+        console.error('Error checking authentication:', error);
+        return false;
+    }
+}
+
+// Display user profile in navbar
+function displayUserProfile() {
+    if (!currentUser) return;
+    
+    const navbar = document.querySelector('.title-bar');
+    if (!navbar) return;
+    
+    // Check if user profile already exists
+    if (document.getElementById('userProfile')) return;
+    
+    // Create user profile element
+    const userProfile = document.createElement('div');
+    userProfile.id = 'userProfile';
+    userProfile.style.cssText = 'display: flex; align-items: center; gap: 12px; margin-left: auto; margin-right: 12px;';
+    
+    // User avatar and name
+    const userInfo = document.createElement('div');
+    userInfo.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+    userInfo.innerHTML = `
+        <img src="${currentUser.picture}" alt="${currentUser.name}" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #007AFF;">
+        <span style="font-size: 14px; color: #333; font-weight: 500;">${currentUser.name}</span>
+    `;
+    
+    // Logout button
+    const logoutBtn = document.createElement('button');
+    logoutBtn.textContent = 'Logout';
+    logoutBtn.className = 'btn';
+    logoutBtn.style.cssText = 'padding: 8px 16px; font-size: 14px; background: #f5f5f5; color: #333; border: 1px solid #d0d0d0;';
+    logoutBtn.onclick = () => {
+        window.location.href = '/auth/logout';
+    };
+    
+    userProfile.appendChild(userInfo);
+    userProfile.appendChild(logoutBtn);
+    
+    // Insert before window controls
+    const windowControls = navbar.querySelector('.window-controls');
+    if (windowControls) {
+        navbar.insertBefore(userProfile, windowControls);
+    } else {
+        navbar.appendChild(userProfile);
+    }
+}
+
+// Initialize authentication on page load
+document.addEventListener('DOMContentLoaded', () => {
+    // Don't check auth on login page
+    if (!window.location.pathname.includes('login.html') && !window.location.pathname.includes('/auth/')) {
+        checkAuth();
+    }
+});
 
 // Handle file selection
 function handleFileSelect(event) {

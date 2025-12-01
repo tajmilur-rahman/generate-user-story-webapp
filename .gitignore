@@ -72,6 +72,10 @@ __pycache__/
 *.so
 *.pyc
 
+# Database
+users.db
+*.db
+
 # Cache
 .cache/
 *.cache
