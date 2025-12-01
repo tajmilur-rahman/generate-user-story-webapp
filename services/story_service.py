@@ -275,12 +275,18 @@ def validate_user_story_format(story):
     Returns:
         tuple: (is_valid: bool, error_message: str or None)
     """
+    print("=" * 80)
+    print("[VALIDATE] VALIDATE_USER_STORY_FORMAT CALLED")
+    print(f"[VALIDATE] Story ID: {story.get('id', 'unknown')}")
+    print("=" * 80)
+    
     story_id = story.get('id', 'unknown')
     
     # Check required fields exist
     required_fields = ['User Story', 'Title', 'Deliverables']
     for field in required_fields:
         if field not in story or not story[field]:
+            print(f"[REJECT] VALIDATION FAILED: Missing required field: {field}")
             return False, f"Missing required field: {field}"
     
     # Check User Story format
@@ -338,6 +344,12 @@ def validate_generated_stories(stories, source_text):
     Returns:
         tuple: (valid_stories: list, validation_errors: list)
     """
+    print("=" * 80)
+    print("[VALIDATE] VALIDATE_GENERATED_STORIES CALLED")
+    print(f"[VALIDATE] Input stories count: {len(stories)}")
+    print(f"[VALIDATE] Source text length: {len(source_text) if source_text else 0} chars")
+    print("=" * 80)
+    
     errors = []
     valid_stories = []
     
@@ -716,6 +728,10 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
     Backend returns: { "User Stories": [...], "Test Cases": {...} }
     Frontend expects: [{ title, description, definitionOfDone, testCases }]
     """
+    print("=" * 80)
+    print("[ENTRY] convert_stories_to_frontend_format CALLED")
+    print("=" * 80)
+    
     try:
         # Safe JSON parsing with fallbacks
         if isinstance(epics_json, str):
@@ -770,6 +786,11 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
         
         # Remove duplicate stories based on similarity
         user_stories = remove_duplicate_stories(user_stories)
+        
+        print("=" * 80)
+        print("[DEBUG] CONVERT_STORIES_TO_FRONTEND_FORMAT - About to validate")
+        print(f"[DEBUG] User stories count after dedup: {len(user_stories)}")
+        print("=" * 80)
         
         # 🆕 PHASE 1: VALIDATION (Before sanitization)
         logger.info(f"🔍 Validating {len(user_stories)} stories...")
