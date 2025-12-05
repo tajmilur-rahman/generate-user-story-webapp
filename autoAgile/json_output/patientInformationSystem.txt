@@ -2,67 +2,115 @@
     "requirements": [
         {
             "id": 1,
-            "statement": "To generate management information that allows health service managers to assess performance against local and government targets.",
-            "source_quote": "The MHC-PMS has two overall goals: To generate management information that allows health service managers to assess performance against local and government targets.",
+            "statement": "The system records information about patients, including name, address, age, next of kin, consultations (date, doctor seen, subjective impressions), conditions, and treatments.",
+            "source_quote": "The system is used to record information about patients, including name, address, age, next of kin, etc., consultations (date, doctor seen, subjective impressions), conditions, and treatments.",
             "confidence": "high"
         },
         {
             "id": 2,
-            "statement": "To provide medical staff with timely information to support the treatment of patients.",
-            "source_quote": "The MHC-PMS has two overall goals: To generate management information that allows health service managers to assess performance against local and government targets. The system is used to record information about patients (name, address, age, next of kin, etc.), consultations (date, doctor seen, subjective impressions of the patient, etc.), conditions, and treatments.",
+            "statement": "Reports are generated at regular intervals for medical staff and health authority managers.",
+            "source_quote": "Reports are generated at regular intervals for medical staff and health authority managers.",
             "confidence": "high"
         },
         {
             "id": 3,
-            "statement": "Clinicians can create records for patients, edit the information in the system, view patient history, and support data summaries to quickly learn about key problems and treatments.",
-            "source_quote": "Individual Care Management: Clinicians can create records for patients, edit the information in the system, view patient history, and support data summaries to quickly learn about key problems and treatments.",
+            "statement": "The system is used to create records for patients, edit information in the system, view patient history, and generate data summaries.",
+            "source_quote": "Clinicians can create records for patients, edit information in the system, view patient history, and generate data summaries.",
             "confidence": "high"
         },
         {
             "id": 4,
             "statement": "The system regularly monitors patient records and issues warnings if possible problems are detected.",
-            "source_quote": "Patient Monitoring: The system regularly monitors patient records and issues warnings if possible problems are detected. This includes tracking patients who have been sectioned and ensuring legally required checks are carried out at the right time.",
-            "confidence": "high"
+            "source_quote": "Patient Monitoring: The system regularly monitors patient records and issues warnings if possible problems are detected.",
+            "confidence": "medium"
         },
         {
             "id": 5,
-            "statement": "The system generates monthly management reports showing the number of patients treated at each clinic, patients who have entered and left the care system, patients sectioned, prescribed drugs, and their costs.",
-            "source_quote": "Administrative Reporting: The system generates monthly management reports showing the number of patients treated at each clinic, patients who have entered and left the care system, patients sectioned, prescribed drugs, and their costs.",
+            "statement": "The system generates monthly management reports showing patient treatment statistics, patient flow, sectioned patients, prescribed medications, and costs.",
+            "source_quote": "Administrative Reporting: The system generates monthly management reports showing patient treatment statistics, patient flow, sectioned patients, prescribed medications, and costs.",
             "confidence": "high"
         },
         {
             "id": 6,
-            "statement": "The overall design of the system must take into account privacy and safety requirements.",
-            "source_quote": "Privacy and Safety Requirements: The overall design of the system must take into account privacy and safety requirements. The system must be available when needed to ensure patient safety, but there is a potential conflict between this requirement and maintaining confidentiality.",
+            "statement": "The MHC-PMS is subject to two laws: data protection laws that govern the confidentiality of personal information and mental health laws that govern compulsory detention of patients deemed a danger to themselves or others.",
+            "source_quote": "The MHC-PMS is subject to two laws: data protection laws that govern the confidentiality of personal information and mental health laws that govern compulsory detention of patients deemed a danger to themselves or others.",
             "confidence": "high"
+        },
+        {
+            "id": 7,
+            "statement": "Patient information must be confidential and never disclosed to unauthorized individuals.",
+            "source_quote": "Patient information must be confidential and never disclosed to unauthorized individuals.",
+            "confidence": "medium"
+        },
+        {
+            "id": 8,
+            "statement": "The system is safety-critical, as some mental illnesses can cause patients to become suicidal or a danger to others.",
+            "source_quote": "Patient information must be confidential and never disclosed to unauthorized individuals. The system is also safety-critical, as some mental illnesses can cause patients to become suicidal or a danger to others.",
+            "confidence": "medium"
+        },
+        {
+            "id": 9,
+            "statement": "The overall design of the system must consider privacy and safety requirements.",
+            "source_quote": "",
+            "confidence": "low"
         }
     ],
     "User Stories": [
         {
-            "id": 1,
-            "Title": "Generate management information to assess performance against local and government targets.",
-            "User Story": "To generate management information that allows health service managers to assess performance against local and government targets.",
+            "Title": "Record patient information",
+            "User Story": "The system must record information about patients, including name, address, age, next of kin, consultations (date, doctor seen, subjective impressions), conditions, and treatments.",
             "Deliverables": {
-                "deliverable_name": {
-                    "definitionOfDone": "Clear criteria for this deliverable"
-                }
+                "definitionOfDone": "Clear criteria based on source text"
             },
-            "source_quote": "The MHC-PMS has two overall goals: To generate management information that allows health service managers to assess performance against local and government targets."
+            "source_quote": "The system is used to record information about patients, including name, address, age, next of kin, etc., consultations (date, doctor seen, subjective impressions), conditions, and treatments."
         },
         {
-            "id": 2,
-            "Title": "Provide medical staff with timely information to support the treatment of patients.",
-            "User Story": "The system is used to record information about patients (name, address, age, next of kin, etc.), consultations (date, doctor seen, subjective impressions of the patient, etc.), conditions, and treatments."
+            "Title": "Generate reports",
+            "User Story": "The system must generate reports at regular intervals for medical staff and health authority managers.",
+            "Deliverables": {
+                "definitionOfDone": "Clear criteria based on source text"
+            },
+            "source_quote": "Reports are generated at regular intervals for medical staff and health authority managers."
         },
         {
-            "id": 3,
-            "Title": "Support data summaries for clinicians to quickly learn about key problems and treatments.",
-            "User Story": "Clinicians can create records for patients, edit the information in the system, view patient history, and support data summaries to quickly learn about key problems and treatments."
+            "Title": "Create patient records",
+            "User Story": "The system must create records for patients, edit information in the system, view patient history, and generate data summaries.",
+            "Deliverables": {
+                "definitionOfDone": "Clear criteria based on source text"
+            },
+            "source_quote": "Clinicians can create records for patients, edit information in the system, view patient history, and generate data summaries."
         },
         {
-            "id": 4,
-            "Title": "Monitor patient records and issue warnings if possible problems are detected.",
-            "User Story": "Patient Monitoring: The system regularly monitors patient records and issues warnings if possible problems are detected. This includes tracking patients who have been sectioned and ensuring legally required checks are carried out at the right time."
+            "Title": "Monitor patient records",
+            "User Story": "The system must regularly monitor patient records and issue warnings if possible problems are detected.",
+            "Deliverables": {
+                "definitionOfDone": "Clear criteria based on source text"
+            },
+            "source_quote": "Patient Monitoring: The system regularly monitors patient records and issues warnings if possible problems are detected."
+        },
+        {
+            "Title": "Generate management reports",
+            "User Story": "The system must generate monthly management reports showing patient treatment statistics, patient flow, sectioned patients, prescribed medications, and costs.",
+            "Deliverables": {
+                "definitionOfDone": "Clear criteria based on source text"
+            },
+            "source_quote": "Administrative Reporting: The system generates monthly management reports showing patient treatment statistics, patient flow, sectioned patients, prescribed medications, and costs."
+        },
+        {
+            "Title": "Comply with laws",
+            "User Story": "The MHC-PMS must comply with data protection laws that govern the confidentiality of personal information and mental health laws that govern compulsory detention of patients deemed a danger to themselves or others.",
+            "Deliverables": {
+                "definitionOfDone": "Clear criteria based on source text"
+            },
+            "source_quote": "The MHC-PMS is subject to two laws: data protection laws that govern the confidentiality of personal information and mental health laws that govern compulsory detention of patients deemed a danger to themselves or others."
+        },
+        {
+            "Title": "Protect patient information",
+            "User Story": "The system must ensure patient information is confidential and never disclosed to unauthorized individuals.",
+            "Deliverables": {
+                "definitionOfDone": "Clear criteria based on source text"
+            },
+            "source_quote": "Patient information must be confidential and never disclosed to unauthorized individuals."
         }
     ],
     "testCases": []

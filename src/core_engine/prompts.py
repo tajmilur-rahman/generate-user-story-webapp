@@ -333,104 +333,57 @@ def extract_epics(requirements: str, chat, mode) -> str:
     Returns:
         A JSON string with extracted epics.
     """
-    pp = """You are a requirements extraction system. Extract user stories, deliverables, and test cases from the provided source text.
+    pp = """You are a requirements extraction system. Extract user stories from the provided source text.
 
-🚨 CRITICAL: SYSTEM BOUNDARY ENFORCEMENT 🚨
-
-The source text may describe MULTIPLE systems. You MUST identify which system each requirement belongs to and ONLY extract requirements for the PRIMARY TARGET SYSTEM.
-
-COMMON SYSTEM TYPES IN SOURCE TEXTS:
-1. **Individual Component System** (e.g., \"Weather Station System\") - ONE instance doing its job
-   - Example: \"The weather station collects data\" → EXTRACT THIS
-   - Example: \"The station processes data locally\" → EXTRACT THIS
-
-2. **Aggregation/Management System** (e.g., \"Data Management System\") - Collects from MULTIPLE instances
-   - Example: \"The system collects data from ALL weather stations\" → DO NOT EXTRACT (wrong system)
-   - Example: \"The system archives data for other systems\" → DO NOT EXTRACT (wrong system)
-   - Keywords: \"all stations\", \"multiple\", \"aggregates from\", \"collects from all\"
-
-3. **Monitoring/Maintenance System** (e.g., \"Station Maintenance System\") - Monitors MULTIPLE instances
-   - Example: \"The system monitors ALL weather stations\" → DO NOT EXTRACT (wrong system)
-   - Example: \"The system provides reports of problems across stations\" → DO NOT EXTRACT (wrong system)
-   - Keywords: \"monitors stations\", \"reports problems\", \"remote control of stations\"
-
-EXTRACTION RULES:
-✅ EXTRACT: Requirements describing what ONE instance of the target system does
-✅ EXTRACT: Self-contained operations (collects, processes, stores, manages its own resources)
-❌ DO NOT EXTRACT: Requirements about \"all instances\" or \"multiple instances\"
-❌ DO NOT EXTRACT: Requirements about collecting from other systems
-❌ DO NOT EXTRACT: Requirements about monitoring other systems
-❌ DO NOT EXTRACT: Requirements about archiving for other systems
-
-VALIDATION CHECK:
-Before including a requirement, ask: "Does this describe what ONE instance does, or what a system managing MULTIPLE instances does?"
-- If ONE instance → EXTRACT
-- If MULTIPLE instances → SKIP (wrong system)
-
-CRITICAL RULES:
-
-1. ONLY extract requirements EXPLICITLY stated in the source text
-2. DO NOT infer, assume, or add requirements based on best practices
-3. DO NOT add features common to other systems (auth, search, profiles, etc.)
-4. If functionality is not mentioned in the source, DO NOT include it
-5. Every requirement must have a direct quote from the source as evidence
-6. ONLY extract requirements for the PRIMARY TARGET SYSTEM (not aggregation/monitoring systems)
-
-ZERO TOLERANCE FOR HALLUCINATIONS:
-
-FORBIDDEN FEATURES (Never extract these unless explicitly in source):
-❌ Authentication systems (login, passwords, 2FA, OAuth, user accounts)
-❌ User management (profiles, accounts, permissions, roles, access control)
-❌ Search functionality (unless source explicitly describes search requirements)
-❌ Notification systems (email, SMS, push notifications, alerts)
-❌ Admin panels or dashboards (unless source explicitly describes them)
-❌ Reporting features (unless source explicitly describes reporting requirements)
-❌ API endpoints or web services (unless source explicitly describes APIs)
-❌ Social features (comments, likes, sharing, following)
-❌ Gamification (badges, points, leaderboard)
-❌ Analytics or tracking (unless source explicitly requires it)
-
-EXTRACTION PROCESS - MANDATORY STEPS:
-1. Read source text completely
-2. For EACH potential requirement:
-   a. Find EXACT quote proving it exists
-   b. Copy quote verbatim (no paraphrasing)
-   c. If no quote found → SKIP this requirement
-   d. If uncertain → SKIP this requirement
-3. Double-check: Does this quote exist in the source?
-4. If answer is NO → DELETE this requirement
-
-VERIFICATION BEFORE OUTPUT:
-Before including ANY story, ask yourself:
-- "Can I point to specific text in the source that describes this?"
-- "Is this feature actually mentioned, or am I assuming it's needed?"
-- "Would someone reading only the source text expect this feature?"
-If you answer NO to any question → DELETE that story.
-
-ZERO TOLERANCE FOR INVENTED METRICS:
-❌ NEVER add: percentages, time windows, success rates, specific numbers
-❌ NEVER write: "90%", "2 hours", "30 transmissions", "80% of components", "within 5 minutes", "does not exceed 2 seconds"
-✅ ONLY USE: qualitative terms from source text
-✅ WRITE: "successfully", "reliably", "when conditions permit", "efficiently"
-
-OUTPUT JSON FORMAT:
+CRITICAL OUTPUT FORMAT - MUST FOLLOW EXACTLY:
 {{
   "User Stories": [
     {{
-      "id": 1,
-      "Title": "Story Title",
-      "User Story": "The system must [ACTION] so that [BENEFIT]",
+      "Title": "Short descriptive title (3-5 words)",
+      "User Story": "The system must [ACTION] so that [BUSINESS VALUE]",
       "Deliverables": {{
         "deliverable_name": {{
-          "definitionOfDone": "Clear criteria for this deliverable"
+          "definitionOfDone": "Clear criteria based on source text"
         }}
       }},
-      "source_quote": "Exact quote from text"
+      "source_quote": "Exact quote from source text proving this requirement"
     }}
   ]
 }}
 
-RETURN ONLY VALID JSON, NO MARKDOWN, NO EXPLANATIONS.
+CRITICAL RULES:
+
+1. SYSTEM BOUNDARY: Only extract requirements for ONE instance of the PRIMARY TARGET SYSTEM. Skip requirements about managing multiple instances or aggregating from other systems.
+
+2. EXPLICIT REQUIREMENTS ONLY: Only extract requirements EXPLICITLY stated in source text. Do NOT infer, assume, or add features based on best practices.
+
+3. FORBIDDEN FEATURES (Never extract unless explicitly in source):
+   - Authentication systems, user management, search, notifications
+   - Admin panels, reporting, APIs, social features, gamification, analytics
+
+4. SOURCE QUOTE MANDATORY: Every requirement MUST include an exact quote from source text as evidence. If no quote found, skip the requirement.
+
+5. NO INVENTED METRICS: Never add percentages, time windows, or specific numbers not in source. Use qualitative terms: "successfully", "reliably", "efficiently".
+
+6. COMPLETENESS: Create ONE user story for EACH distinct requirement. Count requirements in input and ensure story count matches.
+
+EXTRACTION PROCESS:
+1. Read source text completely
+2. For each requirement:
+   - Find exact quote from source
+   - Create user story: "The system must [ACTION] so that [BENEFIT]"
+   - Define deliverables with definition of done based on source
+   - Include source quote verbatim
+3. Verify: Can you point to specific text describing each story? If NO, remove it.
+
+VALIDATION BEFORE OUTPUT:
+- Count requirements in input
+- Count user stories in output - MUST MATCH
+- All stories have source quotes
+- No invented metrics or numbers
+- Valid JSON structure
+
+Return ONLY valid JSON matching the format above. NO markdown, NO explanations, NO code blocks.
 """
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),
