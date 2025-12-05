@@ -7,9 +7,9 @@ from services.story_service import (
     validate_no_metadata_leak,
     validate_generated_stories,
     sanitize_story_output,
-    log_quality_metrics
+    log_quality_metrics,
 )
-
+from core_engine.prompts import extract_epics
 class TestBug1FabricatedQuotes:
     """Bug 1: Stories with fabricated quotes should be REJECTED"""
     
@@ -50,7 +50,6 @@ class TestBug2HallucinatedRequirements:
         """Verify no authentication keywords appear in weather system stories"""
         # This would need to be tested with actual LLM generation
         # For now, we verify the prompt has the forbidden features
-        from autoAgile.utils.prompts import extract_epics
         import inspect
         
         source = inspect.getsource(extract_epics)

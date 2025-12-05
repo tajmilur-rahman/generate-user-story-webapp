@@ -14,12 +14,12 @@ from langchain_groq import ChatGroq
 
 from backend.utils.helpers import allowed_file
 from backend.services.story_service import convert_stories_to_frontend_format
-from autoAgile.utils.prompts import (
+from core_engine.prompts import (
     extract_text_from_docx, refine_doc, extract_functionarity,
-    extract_epics, get_epics, generate_test_cases, refine_requirements, rat
+    extract_epics, generate_test_cases, refine_requirements, rat
 )
 from autoAgile.save_output import save_json_output
-from autoAgile.utils.validation import validate_output, validate_requirements_completeness, print_validation_report
+from core_engine.validation import validate_output, validate_requirements_completeness, print_validation_report
 
 api_bp = Blueprint('api', __name__)
 logger = logging.getLogger(__name__)
@@ -134,19 +134,14 @@ def generate_stories():
                 logger.info("Step 2: Extracting epics...")
                 # Optimization: Call extract_epics directly instead of rat() loop
                 # This reduces LLM calls from 3 to 1 for this step
-                deliverables = extract_epics(requirements, chat, mode)
+                epics = extract_epics(requirements, chat, mode)
                 
-                if deliverables is None:
-                    raise Exception("Epics extraction returned None")
-                if not isinstance(deliverables, str):
-                    deliverables = str(deliverables)
-                
-                logger.info("Step 3: Getting epics...")
-                epics = get_epics(deliverables, chat)
                 if epics is None:
-                    raise Exception("get_epics returned None")
+                    raise Exception("Epics extraction returned None")
                 if not isinstance(epics, str):
                     epics = str(epics)
+                
+                logger.info("Step 3: Epics extracted successfully")
                 
                 logger.info("Step 4: Generating test cases...")
                 # Optimization: Call generate_test_cases directly
