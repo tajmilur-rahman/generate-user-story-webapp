@@ -2,89 +2,51 @@
     "requirements": [
         {
             "id": 1,
-            "statement": "collects data from a set of instruments that measure temperature and pressure, sunshine, rainfall, wind speed, and wind direction",
-            "source_quote": "These weather stations collect data from a set of instruments that measure temperature and pressure, sunshine, rainfall, wind speed, and wind direction.",
+            "statement": "Collects weather data, performs initial data processing, and transmits it to the data management system.",
+            "source_quote": "The weather station system is part of a larger weather information system that collects data from weather stations and makes it available for processing.",
             "confidence": "high"
         },
         {
             "id": 2,
-            "statement": "carries out some initial data processing and transmitting it to the data management system",
-            "source_quote": "This is responsible for collecting weather data, carrying out some initial data processing, and transmitting it to the data management system.",
+            "statement": "Collects data from all wilderness weather stations, processes and analyzes data, and archives it in a retrievable format for other systems, such as weather forecasting systems.",
+            "source_quote": "The data management and archiving system collects data from all wilderness weather stations, processes and analyzes data, and archives it in a retrievable format for other systems, such as weather forecasting systems.",
             "confidence": "high"
         },
         {
             "id": 3,
-            "statement": "carries out data processing and analysis, and archives the data in a form that can be retrieved by other systems",
-            "source_quote": "This system collects the data from all of the wilderness weather stations, carries out data processing and analysis, and archives the data in a form that can be retrieved by other systems.",
+            "statement": "Communicates with weather stations via satellite to monitor their health, provide reports of problems, update embedded software, and remotely control the system in case of issues.",
+            "source_quote": "The Station Maintenance System communicates with weather stations via satellite to monitor their health, provide reports of problems, update embedded software, and remotely control the system in case of issues.",
             "confidence": "high"
         },
         {
             "id": 4,
-            "statement": "communicates by satellite with all wilderness weather stations to monitor the health of these systems",
-            "source_quote": "The station maintenance system This system can communicate by satellite with all wilderness weather stations to monitor the health of these systems and provide reports of problems.",
-            "confidence": "high"
+            "statement": "Monitors instruments, power, and communication hardware, reporting faults to the management system.",
+            "source_quote": "The station software is not only concerned with data collection but also: Monitors instruments, power, and communication hardware, reporting faults to the management system.",
+            "confidence": "medium"
         },
         {
             "id": 5,
-            "statement": "includes a number of instruments that measure weather parameters such as wind speed and direction, ground and air temperatures, barometric pressure, and rainfall",
-            "source_quote": "Each weather station includes a number of instruments that measure weather parameters such as the wind speed and direction, the ground and air temperatures, the barometric pressure, and the rainfall over a 24-hour period.",
-            "confidence": "high"
+            "statement": "Manages system power, ensuring batteries are charged when possible, while shutting down generators in potentially damaging weather conditions, such as high wind.",
+            "source_quote": "The station software is not only concerned with data collection but also: Manages system power, ensuring batteries are charged when possible, while shutting down generators in potentially damaging weather conditions, such as high wind.",
+            "confidence": "medium"
         },
         {
             "id": 6,
-            "statement": "operates by collecting weather observations at frequent intervals\u2014for example, temperatures are measured every minute",
-            "source_quote": "The weather station system operates by collecting weather observations at frequent intervals\u2014for example, temperatures are measured every minute.",
-            "confidence": "high"
-        },
-        {
-            "id": 7,
-            "statement": "carries out some local processing and aggregation of the data before transmitting it",
-            "source_quote": "It then transmits this aggregated data when requested by the data collection system.",
+            "statement": "Allows for dynamic reconfiguration, replacing parts of the software with new versions and switching backup instruments into the system in case of failure.",
+            "source_quote": "The station software is not only concerned with data collection but also: Allows for dynamic reconfiguration, replacing parts of the software with new versions and switching backup instruments into the system in case of failure.",
             "confidence": "medium"
-        },
-        {
-            "id": 8,
-            "statement": "maintains the data locally until communication can be resumed if connection is impossible",
-            "source_quote": "If, for whatever reason, it is impossible to make a connection, then the weather station maintains the data locally until communication can be resumed.",
-            "confidence": "medium"
-        },
-        {
-            "id": 9,
-            "statement": "is entirely self-contained\u2014there are no external power or network cables available",
-            "source_quote": "Each weather station is battery-powered and must be entirely self-contained\u2014there are no external power or network cables available.",
-            "confidence": "high"
-        },
-        {
-            "id": 10,
-            "statement": "includes a mechanism to charge its batteries using solar or wind power",
-            "source_quote": "As they are deployed in wilderness areas, they are exposed to severe environmental conditions and may be damaged by animals. The station software is therefore not just concerned with data collection.",
-            "confidence": "medium"
-        },
-        {
-            "id": 11,
-            "statement": "monitors the instruments, power, and communication hardware and reports faults to the management system",
-            "source_quote": "The station software is therefore not just concerned with data collection. It must also:1. Monitor the instruments, power, and communication hardware and report faults to the management system.",
-            "confidence": "high"
-        },
-        {
-            "id": 12,
-            "statement": "manages the system power, ensuring that batteries are charged whenever environmental conditions permit",
-            "source_quote": "The station software is therefore not just concerned with data collection. It must also:2. Manage the system power, ensuring that batteries are charged whenever the environmental conditions permit but also that generators are shut down in potentially damaging weather conditions.",
-            "confidence": "high"
-        },
-        {
-            "id": 13,
-            "statement": "allows for dynamic reconfiguration where parts of the software are replaced with new versions",
-            "source_quote": "The station software is therefore not just concerned with data collection. It must also:3. Allow for dynamic reconfiguration where parts of the software are replaced with new versions and where backup instruments are switched into the system in the event of system failure.",
-            "confidence": "high"
-        },
-        {
-            "id": 14,
-            "statement": "allows for dynamic reconfiguration where backup instruments are switched into the system in the event of system failure",
-            "source_quote": "The station software is therefore not just concerned with data collection. It must also:3. Allow for dynamic reconfiguration where parts of the software are replaced with new versions and where backup instruments are switched into the system in the event of system failure.",
-            "confidence": "high"
         }
     ],
-    "User Stories": [],
+    "User Stories": [
+        {
+            "id": 1,
+            "Title": "Weather Station System",
+            "User Story": "The system must collect weather data so that it can be processed and transmitted to other systems.",
+            "Deliverables": {
+                "definitionOfDone": "Clear criteria for collecting, processing, and transmitting weather data"
+            },
+            "source_quote": "Collects weather data, performs initial data processing, and transmits it to the data management system."
+        }
+    ],
     "testCases": []
 }

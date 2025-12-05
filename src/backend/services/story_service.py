@@ -723,6 +723,27 @@ def remove_duplicate_stories(stories):
     logger.info(f"\nDeduplication summary: Kept {len(unique_stories)} unique stories, removed {removed_count} duplicates")
     return unique_stories
 
+def normalize_story_structure(story):
+    """
+    Normalize story structure to match expected schema.
+    Fixes common schema violations like flattened Deliverables.
+    """
+    if 'Deliverables' in story and isinstance(story['Deliverables'], dict):
+        deliverables = story['Deliverables']
+        
+        # Check if flattened: {"definitionOfDone": "..."} instead of {"name": {"definitionOfDone": "..."}}
+        if 'definitionOfDone' in deliverables and isinstance(deliverables['definitionOfDone'], str):
+            # It's flattened! Fix it by wrapping it.
+            # Use 'Main Deliverable' as the generic key
+            story['Deliverables'] = {
+                "Main Deliverable": {
+                    "definitionOfDone": deliverables['definitionOfDone']
+                }
+            }
+            logger.info(f"Fixed flattened Deliverables for story {story.get('id')}")
+            
+    return story
+
 def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements_text):
     """
     Convert backend output format to frontend format
@@ -787,6 +808,9 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
         
         # Remove duplicate stories based on similarity
         user_stories = remove_duplicate_stories(user_stories)
+        
+        # Normalize story structure to handle LLM schema deviations
+        user_stories = [normalize_story_structure(s) for s in user_stories]
         
         print("=" * 80)
         print("[DEBUG] CONVERT_STORIES_TO_FRONTEND_FORMAT - About to validate")

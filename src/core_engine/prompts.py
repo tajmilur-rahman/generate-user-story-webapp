@@ -413,6 +413,23 @@ ZERO TOLERANCE FOR INVENTED METRICS:
 ✅ ONLY USE: qualitative terms from source text
 ✅ WRITE: "successfully", "reliably", "when conditions permit", "efficiently"
 
+OUTPUT JSON FORMAT:
+{{
+  "User Stories": [
+    {{
+      "id": 1,
+      "Title": "Story Title",
+      "User Story": "The system must [ACTION] so that [BENEFIT]",
+      "Deliverables": {{
+        "deliverable_name": {{
+          "definitionOfDone": "Clear criteria for this deliverable"
+        }}
+      }},
+      "source_quote": "Exact quote from text"
+    }}
+  ]
+}}
+
 RETURN ONLY VALID JSON, NO MARKDOWN, NO EXPLANATIONS.
 """
     prompt = ChatPromptTemplate.from_messages([
@@ -421,6 +438,14 @@ RETURN ONLY VALID JSON, NO MARKDOWN, NO EXPLANATIONS.
     ])
     chain = prompt | chat | output_parser
     re = chain.invoke({"input": requirements})
+    
+    # DEBUG: Log raw response
+    try:
+        with open("debug_epics_raw.txt", "w", encoding="utf-8") as f:
+            f.write(f"--- INPUT REQUIREMENTS ---\n{requirements}\n\n--- RAW LLM OUTPUT ---\n{re}\n")
+    except Exception as e:
+        print(f"Failed to log debug info: {e}")
+        
     cleaned = clean_json_response(re)
     try:
         json.loads(cleaned)
