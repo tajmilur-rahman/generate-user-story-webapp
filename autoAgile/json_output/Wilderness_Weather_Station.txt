@@ -2,47 +2,122 @@
     "requirements": [
         {
             "id": 1,
-            "statement": "collects weather data from instruments",
-            "source_quote": "These weather stations collect data from a set of instruments that measure temperature and pressure, sunshine, rainfall, wind speed, and wind direction.",
+            "statement": "Monitor instruments, power, and communication hardware, reporting faults to the management system",
+            "source_quote": "Monitor instruments, power, and communication hardware, reporting faults to the management system",
             "confidence": "high"
         },
         {
             "id": 2,
-            "statement": "carries out initial data processing before transmitting to data management system",
-            "source_quote": "This is responsible for collecting weather data, carrying out some initial data processing, and transmitting it to the data management system.",
+            "statement": "Manage system power, ensuring batteries are charged when possible but shutting down generators in potentially damaging weather conditions",
+            "source_quote": "Manage system power, ensuring batteries are charged when possible but shutting down generators in potentially damaging weather conditions",
             "confidence": "high"
         },
         {
             "id": 3,
-            "statement": "monitors instruments, power, and communication hardware and reports faults",
-            "source_quote": "The station software is therefore not just concerned with data collection. It must also: Monitor the instruments, power, and communication hardware and report faults to the management system.",
+            "statement": "Allow for dynamic reconfiguration by replacing software components with new versions and switching backup instruments into the system in case of failure",
+            "source_quote": "Allow for dynamic reconfiguration by replacing software components with new versions and switching backup instruments into the system in case of failure",
             "confidence": "high"
-        },
-        {
-            "id": 4,
-            "statement": "manages system power, ensuring batteries are charged when possible",
-            "source_quote": "The station software is therefore not just concerned with data collection. It must also: Manage the system power, ensuring that batteries are charged whenever the environmental conditions permit but also that generators are shut down in potentially damaging weather conditions, such as high wind.",
-            "confidence": "high"
-        },
-        {
-            "id": 5,
-            "statement": "allows for dynamic reconfiguration of software and instruments",
-            "source_quote": "The station software is therefore not just concerned with data collection. It must also: Allow for dynamic reconfiguration where parts of the software are replaced with new versions and where backup instruments are switched into the system in the event of system failure.",
-            "confidence": "high"
-        },
-        {
-            "id": 6,
-            "statement": "includes mechanism to charge batteries using solar or wind power",
-            "source_quote": "Each weather station is battery-powered and must be entirely self-contained\u2014there are no external power or network cables available. All communications are through a relatively slow-speed satellite link and the weather station must include some mechanism (solar or wind power) to charge its batteries.",
-            "confidence": "high"
-        },
-        {
-            "id": 7,
-            "statement": "operates for extended periods without external power or communication",
-            "source_quote": "If, for whatever reason, it is impossible to make a connection, then the weather station maintains the data locally until communication can be resumed.",
-            "confidence": "medium"
         }
     ],
-    "User Stories": [],
-    "testCases": []
+    "User Stories": [
+        {
+            "Title": "System Monitoring and Management",
+            "User Story": "The system must monitor instruments, power, and communication hardware, reporting faults to the management system so that it can respond promptly to failures and maintain operation reliability",
+            "source_quote": "Monitor instruments, power, and communication hardware, reporting faults to the management system",
+            "Deliverables": {
+                "Instrument Monitoring": {
+                    "definition_of_done": "The instrument monitoring system is successfully transmitting fault reports to the management system within 1 minute, as measured by average report transmission time of < 60 seconds"
+                },
+                "Power Management": {
+                    "definition_of_done": "The power management system is functioning correctly, with battery charging status and generator shutdown logic implemented, and manually verified through testing"
+                },
+                "Communication Hardware Monitoring": {
+                    "definition_of_done": "The communication hardware monitoring system is successfully transmitting data between instruments and the management system using satellite communication, as measured by successful transmission of at least 95% of test packets within 30 minutes"
+                }
+            }
+        }
+    ],
+    "testCases": [
+        {
+            "requirement_id": 1,
+            "scenarios": [
+                {
+                    "name": "Test monitoring of instrument faults with concrete data",
+                    "input": {
+                        "instrument_type": "temperature_sensor",
+                        "fault_status": "failed"
+                    },
+                    "expected_output": {
+                        "fault_type": "temperature_sensor_failure",
+                        "reporting_time": "2025-11-15T10:30:00Z"
+                    }
+                },
+                {
+                    "name": "Test monitoring of power faults with concrete data",
+                    "input": {
+                        "power_source": "battery",
+                        "fault_status": "failed"
+                    },
+                    "expected_output": {
+                        "fault_type": "battery_failure",
+                        "reporting_time": "2025-11-15T10:30:00Z"
+                    }
+                }
+            ]
+        },
+        {
+            "requirement_id": 2,
+            "scenarios": [
+                {
+                    "name": "Test system power management during high wind conditions with concrete data",
+                    "input": {
+                        "wind_speed": 50,
+                        "generator_status": "running"
+                    },
+                    "expected_output": {
+                        "power_source": "generator",
+                        "shutdown_time": "2025-11-15T10:30:00Z"
+                    }
+                },
+                {
+                    "name": "Test system power management during low wind conditions with concrete data",
+                    "input": {
+                        "wind_speed": 20,
+                        "generator_status": "shut_down"
+                    },
+                    "expected_output": {
+                        "power_source": "battery",
+                        "recharge_time": "2025-11-15T10:30:00Z"
+                    }
+                }
+            ]
+        },
+        {
+            "requirement_id": 3,
+            "scenarios": [
+                {
+                    "name": "Test dynamic reconfiguration with concrete data",
+                    "input": {
+                        "software_version": "v2.0",
+                        "instrument_type": "temperature_sensor"
+                    },
+                    "expected_output": {
+                        "new_software_version": "v3.0",
+                        "reconfigured_instrument_status": "active"
+                    }
+                },
+                {
+                    "name": "Test backup instrument switching with concrete data",
+                    "input": {
+                        "instrument_type": "temperature_sensor",
+                        "backup_instrument_id": "TEMP-002"
+                    },
+                    "expected_output": {
+                        "switched_instrument_status": "active",
+                        "failure_instrument_status": "inactive"
+                    }
+                }
+            ]
+        }
+    ]
 }

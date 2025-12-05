@@ -132,7 +132,10 @@ def generate_stories():
                     requirements = str(requirements)
                 
                 logger.info("Step 2: Extracting epics...")
-                deliverables = rat(refine_requirements, extract_epics, requirements, chat, mode)
+                # Optimization: Call extract_epics directly instead of rat() loop
+                # This reduces LLM calls from 3 to 1 for this step
+                deliverables = extract_epics(requirements, chat, mode)
+                
                 if deliverables is None:
                     raise Exception("Epics extraction returned None")
                 if not isinstance(deliverables, str):
@@ -146,7 +149,8 @@ def generate_stories():
                     epics = str(epics)
                 
                 logger.info("Step 4: Generating test cases...")
-                test_cases = rat(refine_requirements, generate_test_cases, requirements, chat, mode)
+                # Optimization: Call generate_test_cases directly
+                test_cases = generate_test_cases(requirements, chat, mode)
                 if test_cases is None:
                     raise Exception("Test cases generation returned None")
                 if not isinstance(test_cases, str):
