@@ -8,13 +8,13 @@ Full-stack application for generating and managing user stories from project doc
 
 1. **Python 3.11+** - [Download Python](https://www.python.org/downloads/)
    - During installation, check "Add Python to PATH"
-   - See [Python Installation Guide](PYTHON_INSTALLATION.md) for detailed instructions
+   - For Ubuntu/Linux: The setup script installs Python automatically
 
 2. **Ollama (Recommended for Free Local LLM)** - [Download Ollama](https://ollama.ai/download)
    - **Windows**: Download installer from [Ollama Windows](https://ollama.ai/download/windows)
    - **macOS**: Download from [Ollama macOS](https://ollama.ai/download/macos) or use Homebrew: `brew install ollama`
-   - **Linux**: Run `curl -fsSL https://ollama.ai/install.sh | sh`
-   - **After Installation**: See [Ollama Setup Guide](OLLAMA_SETUP.md) for next steps
+   - **Linux**: Run `curl -fsSL https://ollama.ai/install.sh | sh` or use the automated setup script
+   - For Ubuntu/Linux: The setup script installs Ollama and downloads the model automatically
 
 3. **Google OAuth Credentials** (for user authentication)
    - See [Google Auth Setup Guide](GOOGLE_AUTH_SETUP.md)
@@ -159,11 +159,9 @@ See `config/env.template` for all available options.
 
 ## 📚 Documentation
 
-- **[Python Installation Guide](PYTHON_INSTALLATION.md)** - Detailed Python setup instructions
-- **[Ollama Setup Guide](OLLAMA_SETUP.md)** - Complete Ollama installation and configuration
+- **[Ubuntu Setup Guide](UBUNTU_SETUP.md)** - Complete Ubuntu/Linux setup (includes Python and Ollama)
 - **[Google Auth Setup](GOOGLE_AUTH_SETUP.md)** - OAuth configuration guide
 - **[SMTP Email Setup](SMTP_EMAIL_SETUP.md)** - Email configuration guide
-- **[Gmail SMTP Setup](GMAIL_SMTP_SETUP.md)** - Gmail-specific email setup
 
 ## 🎯 Features
 
@@ -208,12 +206,14 @@ The server starts on `http://localhost:5000`
 ## 🔍 Troubleshooting
 
 ### Python Issues
-- See [Python Installation Guide](PYTHON_INSTALLATION.md)
+- For Ubuntu/Linux: Run the setup script which installs Python automatically
+- For Windows: Download from [python.org](https://www.python.org/downloads/)
 
 ### Ollama Not Working
 - Ensure Ollama is running: `ollama serve`
 - Check if model is downloaded: `ollama list`
 - Pull model if missing: `ollama pull llama3.2`
+- For Ubuntu/Linux: The setup script installs Ollama and downloads the model automatically
 
 ### Authentication Issues
 - See [Google Auth Setup](GOOGLE_AUTH_SETUP.md)

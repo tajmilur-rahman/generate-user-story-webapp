@@ -70,11 +70,8 @@ user-story-automation/
 │
 ├── docs/                          # Documentation
 │   ├── README.md                 # Main documentation
-│   ├── SETUP.md                  # Setup guide
-│   ├── REQUIREMENTS.md            # Requirements checklist
-│   ├── ARCHITECTURE_SEPARATION.md # Architecture docs
-│   ├── CONSOLIDATION_*.md         # Consolidation docs
-│   ├── CLEANUP_*.md              # Cleanup docs
+│   ├── UBUNTU_SETUP.md           # Ubuntu/Linux setup guide
+│   ├── PROJECT_STRUCTURE.md      # This file
 │   ├── features/                  # Feature documentation
 │   ├── setup/                     # Setup guides
 │   └── troubleshooting/           # Troubleshooting guides
@@ -156,7 +153,8 @@ user-story-automation/
 ### Documentation
 - `README.md` - Project overview
 - `docs/README.md` - Detailed documentation
-- `docs/SETUP.md` - Setup instructions
+- `docs/UBUNTU_SETUP.md` - Ubuntu/Linux setup instructions
+- `INSTALL.md` - Complete installation guide
 
 ## Data Files Location
 

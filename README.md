@@ -61,7 +61,7 @@ python run.py
    cp config/env.template .env
    
    # Edit .env with your configuration
-   # See docs/SETUP.md for detailed instructions
+   # See docs/UBUNTU_SETUP.md for detailed instructions
    ```
 
 2. **Install dependencies**
@@ -106,10 +106,9 @@ See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for detailed structur
 
 ## 📚 Documentation
 
-- **[Setup Guide](docs/SETUP.md)** - Complete setup instructions
-- **[Architecture](docs/ARCHITECTURE_SEPARATION.md)** - Architecture overview
-- **[Project Structure](PROJECT_STRUCTURE.md)** - Directory organization
-- **[Requirements](docs/REQUIREMENTS.md)** - Requirements checklist
+- **[Installation Guide](INSTALL.md)** - Complete installation instructions
+- **[Ubuntu Setup](docs/UBUNTU_SETUP.md)** - Detailed Ubuntu/Linux setup
+- **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Directory organization
 
 ## 🏗️ Architecture
 
@@ -119,7 +118,7 @@ The application follows a clean separation of concerns:
 - **Backend** (`src/backend/`) - Flask API server
 - **Frontend** (`src/frontend/`) - Web interface
 
-Each component can be developed independently. See [docs/ARCHITECTURE_SEPARATION.md](docs/ARCHITECTURE_SEPARATION.md) for details.
+Each component can be developed independently. See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for architecture details.
 
 ## 🎯 Features
 
@@ -202,8 +201,7 @@ For issues or questions:
 
 ## 📖 Additional Resources
 
+- [Installation Guide](INSTALL.md) - Complete installation instructions
 - [Ubuntu Setup Guide](docs/UBUNTU_SETUP.md) - Complete Ubuntu/Linux setup
-- [Python Installation Guide](docs/PYTHON_INSTALLATION.md)
-- [Ollama Setup Guide](docs/OLLAMA_SETUP.md)
-- [Google Auth Setup](docs/GOOGLE_AUTH_SETUP.md)
-- [SMTP Email Setup](docs/SMTP_EMAIL_SETUP.md)
+- [Google Auth Setup](docs/GOOGLE_AUTH_SETUP.md) - OAuth configuration
+- [SMTP Email Setup](docs/SMTP_EMAIL_SETUP.md) - Email configuration

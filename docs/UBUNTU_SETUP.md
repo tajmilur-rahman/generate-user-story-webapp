@@ -244,6 +244,7 @@ All file paths in the application use `os.path.join()` for cross-platform compat
 ## Additional Resources
 
 - [Main README](README.md)
-- [Ollama Setup](OLLAMA_SETUP.md)
+- [Installation Guide](../../INSTALL.md)
 - [Google Auth Setup](GOOGLE_AUTH_SETUP.md)
+- [SMTP Email Setup](SMTP_EMAIL_SETUP.md)
 - [Project Structure](PROJECT_STRUCTURE.md)
