@@ -11,7 +11,11 @@
 <body>
     <div class="window-frame">
         <div class="title-bar">
-            <div class="title-text">Generate User Stories</div>
+            <div class="title-text">User Stories Dashboard</div>
+            <button class="btn btn-dashboard" onclick="goToMainPage()" title="Go back to main page to generate new stories">
+                <span class="btn-icon">🏠</span>
+                <span class="btn-text">Dashboard</span>
+            </button>
             <div class="window-controls">
                 <div class="control-btn minimize"></div>
                 <div class="control-btn maximize"></div>
@@ -20,9 +24,6 @@
         </div>
         <div class="main-layout">
             <div class="sidebar">
-                <button class="btn btn-back" onclick="goToMainPage()" style="width: 100%; margin-bottom: 15px; background-color: #007AFF; color: white; padding: 12px; font-size: 14px; font-weight: 500;">
-                    ← Back to Main / Generate New
-                </button>
                 <h2 class="sidebar-header">User Stories</h2>
                 <ul class="story-list" id="storyList">
                     <!-- Stories will be dynamically generated here -->

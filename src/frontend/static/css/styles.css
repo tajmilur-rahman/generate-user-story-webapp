@@ -33,12 +33,50 @@ body {
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid #e0e0e0;
+    gap: 12px;
 }
 
 .title-text {
     font-weight: 600;
     font-size: 18px;
     color: #333;
+    flex: 1;
+}
+
+.btn-dashboard {
+    background-color: #007AFF;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 122, 255, 0.2);
+}
+
+.btn-dashboard:hover {
+    background-color: #0056CC;
+    box-shadow: 0 4px 8px rgba(0, 122, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+.btn-dashboard:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 122, 255, 0.2);
+}
+
+.btn-dashboard .btn-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.btn-dashboard .btn-text {
+    font-weight: 600;
 }
 
 .window-controls {
@@ -255,3 +293,18 @@ body {
     font-weight: 600;
 }
 
+/* Responsive adjustments for dashboard button */
+@media (max-width: 768px) {
+    .btn-dashboard .btn-text {
+        display: none;
+    }
+    
+    .btn-dashboard {
+        padding: 10px 12px;
+        min-width: 44px;
+    }
+    
+    .title-text {
+        font-size: 16px;
+    }
+}
