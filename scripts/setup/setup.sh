@@ -57,15 +57,44 @@ echo ""
 read -p "Press Enter to continue or Ctrl+C to cancel..."
 
 # ============================================================================
-# STEP 1: Update System Packages
+# STEP 1: Fix Broken Packages and Update System
 # ============================================================================
-print_step "[1/10] Updating system packages..."
+print_step "[1/10] Fixing broken packages and updating system..."
+
+# Fix any broken package installations first
+print_info "Checking for broken packages..."
+if dpkg -l | grep -q "^..r"; then
+    print_info "Found broken packages. Attempting to fix..."
+    sudo dpkg --configure -a || true
+    sudo apt --fix-broken install -y || true
+fi
+
+# Update package lists
+print_info "Updating package lists..."
 sudo apt update
 
 # Install software-properties-common early (needed for add-apt-repository)
 if ! dpkg -l | grep -q software-properties-common; then
     print_info "Installing software-properties-common..."
     sudo apt install -y software-properties-common
+fi
+
+# Check if MySQL is in a broken state and fix it
+if dpkg -l | grep -q "^..r.*mysql"; then
+    print_info "Detected broken MySQL packages. Attempting to fix..."
+    sudo dpkg --configure -a || true
+    sudo apt --fix-broken install -y || true
+    
+    # If still broken, offer to remove (but don't force it)
+    if dpkg -l | grep -q "^..r.*mysql"; then
+        print_error "MySQL packages are still broken after fix attempt"
+        print_info "You may need to manually fix MySQL:"
+        print_info "  sudo dpkg --configure -a"
+        print_info "  sudo apt --fix-broken install"
+        print_info "Or remove MySQL if not needed:"
+        print_info "  sudo apt remove --purge mysql-server mysql-common"
+        print_info "Continuing with setup (MySQL is not required for this project)..."
+    fi
 fi
 
 print_success "System packages updated"
@@ -118,7 +147,9 @@ fi
 # STEP 3: Install System Dependencies
 # ============================================================================
 print_step "[3/10] Installing system dependencies..."
-sudo apt install -y \
+
+# Try to install dependencies, with error handling
+if ! sudo apt install -y \
     build-essential \
     python3-pip \
     curl \
@@ -127,7 +158,32 @@ sudo apt install -y \
     sqlite3 \
     ca-certificates \
     gnupg \
-    lsb-release
+    lsb-release; then
+    
+    print_error "Failed to install some dependencies. Attempting to fix..."
+    
+    # Fix broken packages
+    sudo dpkg --configure -a || true
+    sudo apt --fix-broken install -y || true
+    
+    # Try again
+    sudo apt install -y \
+        build-essential \
+        python3-pip \
+        curl \
+        wget \
+        git \
+        sqlite3 \
+        ca-certificates \
+        gnupg \
+        lsb-release || {
+        print_error "Failed to install dependencies after fix attempt"
+        print_info "You may need to manually fix broken packages:"
+        print_info "  sudo dpkg --configure -a"
+        print_info "  sudo apt --fix-broken install"
+        exit 1
+    }
+fi
 
 print_success "System dependencies installed"
 

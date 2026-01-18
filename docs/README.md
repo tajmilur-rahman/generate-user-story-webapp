@@ -205,6 +205,11 @@ The server starts on `http://localhost:5000`
 
 ## 🔍 Troubleshooting
 
+### Setup Script Errors
+- **MySQL/package errors**: See [Setup Errors Guide](troubleshooting/setup-errors.md)
+- **Python 3.11 not found**: See [Setup Errors Guide](troubleshooting/setup-errors.md)
+- **Permission denied**: See [Setup Errors Guide](troubleshooting/setup-errors.md)
+
 ### Python Issues
 - For Ubuntu/Linux: Run the setup script which installs Python automatically
 - For Windows: Download from [python.org](https://www.python.org/downloads/)
@@ -223,6 +228,9 @@ The server starts on `http://localhost:5000`
 - See [SMTP Email Setup](SMTP_EMAIL_SETUP.md)
 - Check SMTP credentials in `.env`
 - Verify email service logs
+
+### Story Generation Issues
+- See [Story Generation Troubleshooting](troubleshooting/story-generation-issues.md)
 
 ## 📝 API Endpoints
 
