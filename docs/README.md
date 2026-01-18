@@ -1,191 +1,222 @@
-# User Story Automation
+# User Story Automation - Complete Setup Guide
 
-Full-stack application for generating and managing user stories from project documents. Features a Flask server that serves both the frontend web interface and backend API - no additional web server needed!
+Full-stack application for generating and managing user stories from project documents using AI-powered LLM processing.
 
-## Quick Start
+## 🚀 Quick Start
 
-### Prerequisites
+### Prerequisites Installation
 
-- Python 3.8+ installed
-- (Optional) Ollama installed for local LLM, or OpenAI API key
+1. **Python 3.11+** - [Download Python](https://www.python.org/downloads/)
+   - During installation, check "Add Python to PATH"
+   - See [Python Installation Guide](PYTHON_INSTALLATION.md) for detailed instructions
 
-### Setup
+2. **Ollama (Recommended for Free Local LLM)** - [Download Ollama](https://ollama.ai/download)
+   - **Windows**: Download installer from [Ollama Windows](https://ollama.ai/download/windows)
+   - **macOS**: Download from [Ollama macOS](https://ollama.ai/download/macos) or use Homebrew: `brew install ollama`
+   - **Linux**: Run `curl -fsSL https://ollama.ai/install.sh | sh`
+   - **After Installation**: See [Ollama Setup Guide](OLLAMA_SETUP.md) for next steps
 
-1. **Install Python dependencies:**
+3. **Google OAuth Credentials** (for user authentication)
+   - See [Google Auth Setup Guide](GOOGLE_AUTH_SETUP.md)
+
+4. **SMTP Configuration** (optional, for welcome emails)
+   - See [SMTP Email Setup Guide](SMTP_EMAIL_SETUP.md)
+
+### Automated Setup (Windows)
+
+Run the setup script to install everything automatically:
+
+```bash
+# PowerShell
+.\setup.ps1
+
+# Or Command Prompt
+setup.bat
+```
+
+### Manual Setup
+
+1. **Install Python Dependencies:**
    ```bash
+   # Create virtual environment
+   python -m venv venv
+   
+   # Activate virtual environment
+   # Windows:
+   venv\Scripts\activate
+   # macOS/Linux:
+   source venv/bin/activate
+   
+   # Install packages
+   pip install --upgrade pip
    pip install -r requirements.txt
    ```
 
-2. **Configure environment variables (optional):**
+2. **Set Up Environment Variables:**
    ```bash
-   # Create .env file with (or use defaults):
-   # USE_OLLAMA=true
-   # OLLAMA_BASE_URL=http://localhost:11434
-   # OLLAMA_MODEL=llama3.2
-   # Or for OpenAI:
-   # USE_OLLAMA=false
-   # auth_key=your_openai_api_key_here
+   # Copy template
+   copy env.template .env
+   
+   # Edit .env file with your configuration
    ```
 
-3. **Start the application:**
+3. **Start Ollama (if using local LLM):**
    ```bash
-   # From project root
-   python app.py
+   ollama serve
+   # In another terminal, pull a model:
+   ollama pull llama3.2
    ```
 
-4. **Access the application:**
-   - **Frontend & API**: http://localhost:5000
-   - **Health check**: http://localhost:5000/api/health
+4. **Run the Application:**
+   ```bash
+   python run.py
+   ```
 
-That's it! Flask serves both the frontend and API on port 5000.
+5. **Access the Application:**
+   - Frontend & API: http://localhost:5000
+   - Health check: http://localhost:5000/api/health
 
-### Stop Server
+## 📦 Installation Requirements
 
-Press `Ctrl+C` in the terminal running `app.py`
+### Required Software
 
-## Project Structure
+| Software | Version | Download Link | Purpose |
+|----------|---------|--------------|---------|
+| **Python** | 3.11+ | [Download](https://www.python.org/downloads/) | Backend runtime |
+| **Ollama** | Latest | [Download](https://ollama.ai/download) | Local LLM (recommended) |
+| **Git** | Latest | [Download](https://git-scm.com/downloads) | Version control (optional) |
 
-```
-.
-├── app.py              # Flask backend API server
-├── requirements.txt    # Python dependencies
-├── .env.example       # Environment variables template
-├── pages/              # HTML pages
-│   ├── index.html      # Main page - file upload and story generation
-│   └── stories.html    # Stories list and details
-├── assets/             # Static assets
-│   ├── css/
-│   │   └── styles.css
-│   └── js/
-│       └── script.js   # Frontend JavaScript (connected to backend)
-├── autoAgile/          # Backend processing module
-│   ├── utils/
-│   │   └── prompts.py  # LLM prompts and processing functions
-│   └── save_output.py
-├── config/             # Configuration
-│   └── nginx.conf      # Nginx server configuration (with API proxy)
-├── scripts/            # Utility scripts
-│   ├── start.sh        # Start nginx server
-│   ├── stop.sh         # Stop nginx server
-│   └── force-stop.sh   # Force stop nginx
-├── docs/               # Documentation
-│   ├── SETUP.md        # Setup instructions
-│   └── INTEGRATION.md  # Backend integration guide
-└── package.json        # npm scripts
-```
+### Python Packages
 
-## Features
+All Python dependencies are listed in `requirements.txt`:
+- Flask (web framework)
+- LangChain (LLM integration)
+- python-docx (document processing)
+- Flask-Login, Authlib (authentication)
+- And more...
 
-- **Document Upload**: Upload .docx, .doc, .txt, or .md files with project requirements
-- **AI-Powered Generation**: Uses LLM (Ollama or OpenAI) to generate user stories
-- **Story Management**: View generated stories with:
-  - Title and Description
-  - Definition of Done
-  - Test Cases
-- **Integration**: Integrate individual stories or all stories at once
-- **Dual LLM Support**: Works with Ollama (free, local) or OpenAI (cloud-based)
+Install with: `pip install -r requirements.txt`
 
-## Running the Application
+### Ollama Models
+
+Recommended models (choose one):
+- **llama3.2** (recommended, balanced): `ollama pull llama3.2`
+- **mistral** (fast, efficient): `ollama pull mistral`
+- **qwen2.5** (multilingual): `ollama pull qwen2.5`
+
+## 🔧 Configuration
+
+### Environment Variables (.env file)
+
+Create a `.env` file from `env.template`:
 
 ```bash
-python app.py  # Start the server (serves frontend + API on port 5000)
-```
-
-The Flask server serves:
-- Frontend pages (HTML)
-- Static assets (CSS, JS)
-- API endpoints
-
-No nginx or separate frontend server needed!
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file in the project root with the following variables:
-
-```bash
-# Use Ollama (free, local) - default: true
-USE_OLLAMA=true
+# LLM Provider (ollama, openai, or groq)
+LLM_PROVIDER=ollama
 
 # Ollama Configuration
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.2
 
-# OR use OpenAI (requires API key)
-# USE_OLLAMA=false
-# auth_key=your_openai_api_key_here
+# Google OAuth (required for authentication)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 
-# Flask Server Port
+# SMTP Email (optional, for welcome emails)
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+
+# Flask Configuration
 PORT=5000
+SECRET_KEY=your-secret-key-here
 ```
 
-### Setting up Ollama (Recommended for Free Usage)
+See `env.template` for all available options.
 
-1. Install Ollama: https://ollama.ai
-2. Pull a model:
-   ```bash
-   ollama pull llama3.2
-   # or
-   ollama pull mistral
-   ```
-3. Make sure Ollama is running: `ollama serve`
+## 📚 Documentation
 
-### Setting up OpenAI
+- **[Python Installation Guide](PYTHON_INSTALLATION.md)** - Detailed Python setup instructions
+- **[Ollama Setup Guide](OLLAMA_SETUP.md)** - Complete Ollama installation and configuration
+- **[Google Auth Setup](GOOGLE_AUTH_SETUP.md)** - OAuth configuration guide
+- **[SMTP Email Setup](SMTP_EMAIL_SETUP.md)** - Email configuration guide
+- **[Gmail SMTP Setup](GMAIL_SMTP_SETUP.md)** - Gmail-specific email setup
 
-1. Get API key from: https://platform.openai.com/api-keys
-2. Set `USE_OLLAMA=false` in `.env`
-3. Set `auth_key=your_api_key_here` in `.env`
+## 🎯 Features
 
-## API Endpoints
+- **Document Upload**: Upload .docx, .doc, .txt, or .md files
+- **AI-Powered Generation**: Uses LLM to generate user stories, epics, and test cases
+- **User Authentication**: Google OAuth login
+- **Welcome Emails**: Automatic email on first login (if SMTP configured)
+- **Story Management**: View, integrate, and export user stories
+- **Multiple LLM Support**: Ollama (local), OpenAI, or Groq
 
-The Flask backend provides the following endpoints:
+## 🏃 Running the Application
 
-- `GET /api/health` - Health check and configuration status
-- `POST /api/generate-stories` - Generate stories from uploaded document
-  - **Request**: FormData with `file` field (.docx, .doc, .txt, .md)
-  - **Response**: `{ success: true, stories: [...], count: N }`
-- `POST /api/integrate-story` - Integrate a single story
-  - **Request**: `{ storyId: number }`
-  - **Response**: `{ success: true, message: "...", storyId: number }`
+```bash
+# Activate virtual environment first
+venv\Scripts\activate  # Windows
+source venv/bin/activate  # macOS/Linux
+
+# Run the application
+python run.py
+```
+
+The server starts on `http://localhost:5000`
+
+## 🛠️ Project Structure
+
+```
+.
+├── src/
+│   ├── backend/          # Flask backend
+│   │   ├── app.py        # Main application
+│   │   ├── routes/       # API routes
+│   │   ├── services/     # Business logic
+│   │   └── models/       # Database models
+│   └── frontend/         # Frontend assets
+├── autoAgile/            # LLM processing module
+├── docs/                 # Documentation
+├── requirements.txt      # Python dependencies
+├── env.template          # Environment variables template
+└── run.py               # Application launcher
+```
+
+## 🔍 Troubleshooting
+
+### Python Issues
+- See [Python Installation Guide](PYTHON_INSTALLATION.md)
+
+### Ollama Not Working
+- Ensure Ollama is running: `ollama serve`
+- Check if model is downloaded: `ollama list`
+- Pull model if missing: `ollama pull llama3.2`
+
+### Authentication Issues
+- See [Google Auth Setup](GOOGLE_AUTH_SETUP.md)
+- Verify OAuth credentials in `.env`
+
+### Email Not Sending
+- See [SMTP Email Setup](SMTP_EMAIL_SETUP.md)
+- Check SMTP credentials in `.env`
+- Verify email service logs
+
+## 📝 API Endpoints
+
+- `GET /api/health` - Health check
+- `POST /api/generate-stories` - Generate stories from document
+- `POST /api/integrate-story` - Integrate single story
 - `POST /api/integrate-all` - Integrate all stories
-  - **Request**: `{ storyIds: [number, ...] }`
-  - **Response**: `{ success: true, message: "...", storyIds: [...] }`
+- `GET /api/user` - Get current user info
 
-**Story format:**
-```json
-{
-  "success": true,
-  "stories": [{
-    "id": 1,
-    "title": "Story title",
-    "description": "Story description",
-    "definitionOfDone": "Definition of done",
-    "testCases": "Test cases"
-  }],
-  "count": 1
-}
-```
+## 🤝 Support
 
-## Troubleshooting
+For issues or questions:
+1. Check the documentation in `docs/` folder
+2. Review troubleshooting sections
+3. Check application logs in `data/logs/app.log`
 
-### Backend not responding
-- Make sure Flask server is running: `python app.py`
-- Check if port 5000 is available
-- Verify environment variables in `.env` file
+## 📄 License
 
-### Frontend can't connect to backend
-- Ensure nginx is running: `npm run status`
-- Check nginx config: `npm test`
-- Verify API proxy in `config/nginx.conf` points to `http://localhost:5000`
-
-### Story generation fails
-- If using Ollama: Ensure Ollama is running (`ollama serve`)
-- If using OpenAI: Verify API key is correct and has credits
-- Check file size (max 16MB)
-- Supported formats: .docx, .doc, .txt, .md
-
-## Documentation
-
-- [docs/SETUP.md](docs/SETUP.md) - Setup and installation instructions
-- [docs/INTEGRATION.md](docs/INTEGRATION.md) - Backend integration guide
+ISC

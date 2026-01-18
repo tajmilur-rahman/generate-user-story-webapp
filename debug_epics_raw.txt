@@ -1,123 +1,87 @@
 --- INPUT REQUIREMENTS ---
-```
 {
   "requirements": [
     {
       "id": 1,
-      "statement": "The system records information about patients, including name, address, age, next of kin, consultations (date, doctor seen, subjective impressions), conditions, and treatments.",
-      "source_quote": "The system is used to record information about patients, including name, address, age, next of kin, etc., consultations (date, doctor seen, subjective impressions), conditions, and treatments.",
+      "statement": "Clinicians can create records for patients, edit information, view patient history, and support data summaries to help doctors quickly learn about a patient's key problems and treatments.",
+      "source_quote": "Individual care management: Clinicians can create records for patients, edit information, view patient history, and support data summaries to help doctors quickly learn about a patient's key problems and treatments.",
       "confidence": "high"
     },
     {
       "id": 2,
-      "statement": "Reports are generated at regular intervals for medical staff and health authority managers.",
-      "source_quote": "Reports are generated at regular intervals for medical staff and health authority managers.",
+      "statement": "The system regularly monitors patient records and issues warnings if possible problems are detected.",
+      "source_quote": "Patient monitoring: The system regularly monitors patient records and issues warnings if possible problems are detected.",
       "confidence": "high"
     },
     {
       "id": 3,
-      "statement": "The system is used to create records for patients, edit information in the system, view patient history, and generate data summaries.",
-      "source_quote": "Clinicians can create records for patients, edit information in the system, view patient history, and generate data summaries.",
+      "statement": "The system generates monthly management reports showing the number of patients treated, entered and left the care system, sectioned patients, prescribed drugs, and their costs.",
+      "source_quote": "Administrative reporting: The system generates monthly management reports showing the number of patients treated, entered and left the care system, sectioned patients, prescribed drugs, and their costs.",
       "confidence": "high"
     },
     {
       "id": 4,
-      "statement": "The system regularly monitors patient records and issues warnings if possible problems are detected.",
-      "source_quote": "Patient Monitoring: The system regularly monitors patient records and issues warnings if possible problems are detected.",
-      "confidence": "medium"
+      "statement": "Patient information must be confidential, never disclosed to anyone apart from authorized medical staff and the patient themselves.",
+      "source_quote": "Patient information must be confidential, never disclosed to anyone apart from authorized medical staff and the patient themselves.",
+      "confidence": "high"
     },
     {
       "id": 5,
-      "statement": "The system generates monthly management reports showing patient treatment statistics, patient flow, sectioned patients, prescribed medications, and costs.",
-      "source_quote": "Administrative Reporting: The system generates monthly management reports showing patient treatment statistics, patient flow, sectioned patients, prescribed medications, and costs.",
+      "statement": "The system is safety-critical, as some mental illnesses can cause patients to become suicidal or a danger to others.",
+      "source_quote": "The system is safety-critical, as some mental illnesses can cause patients to become suicidal or a danger to others.",
       "confidence": "high"
     },
     {
       "id": 6,
-      "statement": "The MHC-PMS is subject to two laws: data protection laws that govern the confidentiality of personal information and mental health laws that govern compulsory detention of patients deemed a danger to themselves or others.",
-      "source_quote": "The MHC-PMS is subject to two laws: data protection laws that govern the confidentiality of personal information and mental health laws that govern compulsory detention of patients deemed a danger to themselves or others.",
-      "confidence": "high"
-    },
-    {
-      "id": 7,
-      "statement": "Patient information must be confidential and never disclosed to unauthorized individuals.",
-      "source_quote": "Patient information must be confidential and never disclosed to unauthorized individuals.",
+      "statement": "While maintaining single copies of data ensures privacy, multiple copies should be maintained to ensure availability in case of server failure or network disconnection.",
+      "source_quote": "While maintaining single copies of data ensures privacy, multiple copies should be maintained to ensure availability in case of server failure or network disconnection.",
       "confidence": "medium"
-    },
-    {
-      "id": 8,
-      "statement": "The system is safety-critical, as some mental illnesses can cause patients to become suicidal or a danger to others.",
-      "source_quote": "Patient information must be confidential and never disclosed to unauthorized individuals. The system is also safety-critical, as some mental illnesses can cause patients to become suicidal or a danger to others.",
-      "confidence": "medium"
-    },
-    {
-      "id": 9,
-      "statement": "The overall design of the system must consider privacy and safety requirements.",
-      "source_quote": "",
-      "confidence": "low"
     }
   ]
 }
-```
 
 --- RAW LLM OUTPUT ---
 {
   "User Stories": [
     {
-      "Title": "Record patient information",
-      "User Story": "The system must record information about patients, including name, address, age, next of kin, consultations (date, doctor seen, subjective impressions), conditions, and treatments.",
+      "Title": "Clinician Patient Management",
+      "User Story": "The system must allow clinicians to create records for patients, edit information, view patient history, and support data summaries so that doctors can quickly learn about a patient's key problems and treatments.",
       "Deliverables": {
         "definitionOfDone": "Clear criteria based on source text"
       },
-      "source_quote": "The system is used to record information about patients, including name, address, age, next of kin, etc., consultations (date, doctor seen, subjective impressions), conditions, and treatments."
+      "source_quote": "Individual care management: Clinicians can create records for patients, edit information, view patient history, and support data summaries to help doctors quickly learn about a patient's key problems and treatments."
     },
     {
-      "Title": "Generate reports",
-      "User Story": "The system must generate reports at regular intervals for medical staff and health authority managers.",
+      "Title": "Patient Record Monitoring",
+      "User Story": "The system must regularly monitor patient records and issue warnings if possible problems are detected so that patient care can be improved.",
       "Deliverables": {
         "definitionOfDone": "Clear criteria based on source text"
       },
-      "source_quote": "Reports are generated at regular intervals for medical staff and health authority managers."
+      "source_quote": "Patient monitoring: The system regularly monitors patient records and issues warnings if possible problems are detected."
     },
     {
-      "Title": "Create patient records",
-      "User Story": "The system must create records for patients, edit information in the system, view patient history, and generate data summaries.",
+      "Title": "Monthly Management Reporting",
+      "User Story": "The system must generate monthly management reports showing the number of patients treated, entered and left the care system, sectioned patients, prescribed drugs, and their costs so that administrators can make informed decisions.",
       "Deliverables": {
         "definitionOfDone": "Clear criteria based on source text"
       },
-      "source_quote": "Clinicians can create records for patients, edit information in the system, view patient history, and generate data summaries."
+      "source_quote": "Administrative reporting: The system generates monthly management reports showing the number of patients treated, entered and left the care system, sectioned patients, prescribed drugs, and their costs."
     },
     {
-      "Title": "Monitor patient records",
-      "User Story": "The system must regularly monitor patient records and issue warnings if possible problems are detected.",
+      "Title": "Patient Confidentiality",
+      "User Story": "The system must ensure patient information is confidential and only disclosed to authorized medical staff and the patient themselves so that patient trust can be maintained.",
       "Deliverables": {
         "definitionOfDone": "Clear criteria based on source text"
       },
-      "source_quote": "Patient Monitoring: The system regularly monitors patient records and issues warnings if possible problems are detected."
+      "source_quote": "Patient information must be confidential, never disclosed to anyone apart from authorized medical staff and the patient themselves."
     },
     {
-      "Title": "Generate management reports",
-      "User Story": "The system must generate monthly management reports showing patient treatment statistics, patient flow, sectioned patients, prescribed medications, and costs.",
+      "Title": "Safety-Critical System",
+      "User Story": "The system must be designed with safety in mind, as some mental illnesses can cause patients to become suicidal or a danger to others so that patient care can be prioritized.",
       "Deliverables": {
         "definitionOfDone": "Clear criteria based on source text"
       },
-      "source_quote": "Administrative Reporting: The system generates monthly management reports showing patient treatment statistics, patient flow, sectioned patients, prescribed medications, and costs."
-    },
-    {
-      "Title": "Comply with laws",
-      "User Story": "The MHC-PMS must comply with data protection laws that govern the confidentiality of personal information and mental health laws that govern compulsory detention of patients deemed a danger to themselves or others.",
-      "Deliverables": {
-        "definitionOfDone": "Clear criteria based on source text"
-      },
-      "source_quote": "The MHC-PMS is subject to two laws: data protection laws that govern the confidentiality of personal information and mental health laws that govern compulsory detention of patients deemed a danger to themselves or others."
-    },
-    {
-      "Title": "Protect patient information",
-      "User Story": "The system must ensure patient information is confidential and never disclosed to unauthorized individuals.",
-      "Deliverables": {
-        "definitionOfDone": "Clear criteria based on source text"
-      },
-      "source_quote": "Patient information must be confidential and never disclosed to unauthorized individuals."
+      "source_quote": "The system is safety-critical, as some mental illnesses can cause patients to become suicidal or a danger to others."
     }
   ]
 }
