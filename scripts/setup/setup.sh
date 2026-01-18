@@ -51,24 +51,75 @@ echo "  • Ollama (LLM runtime)"
 echo "  • Ollama model (llama3.2)"
 echo "  • Environment configuration"
 echo ""
+echo "Note: If Python 3.11 is not in default repositories,"
+echo "      the script will add the deadsnakes PPA automatically."
+echo ""
 read -p "Press Enter to continue or Ctrl+C to cancel..."
 
 # ============================================================================
 # STEP 1: Update System Packages
 # ============================================================================
-print_step "[1/9] Updating system packages..."
+print_step "[1/10] Updating system packages..."
 sudo apt update
+
+# Install software-properties-common early (needed for add-apt-repository)
+if ! dpkg -l | grep -q software-properties-common; then
+    print_info "Installing software-properties-common..."
+    sudo apt install -y software-properties-common
+fi
+
 print_success "System packages updated"
 
 # ============================================================================
-# STEP 2: Install System Dependencies
+# STEP 2: Check and Setup Python 3.11
 # ============================================================================
-print_step "[2/9] Installing system dependencies..."
+print_step "[2/10] Checking Python installation..."
+
+# Check if python3.11 is already available
+if command -v python3.11 &> /dev/null; then
+    PYTHON_CMD="python3.11"
+    PYTHON_VERSION=$(python3.11 --version)
+    print_success "Python 3.11 found: $PYTHON_VERSION"
+    PYTHON_NEEDS_INSTALL=false
+elif command -v python3 &> /dev/null; then
+    PYTHON_CMD="python3"
+    PYTHON_VERSION=$(python3 --version)
+    PYTHON_MAJOR=$(python3 -c 'import sys; print(sys.version_info.major)')
+    PYTHON_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)')
+    
+    if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 11 ]); then
+        print_info "Python 3.11+ is required. Found: $PYTHON_VERSION"
+        print_info "Adding deadsnakes PPA for Python 3.11..."
+        sudo add-apt-repository -y ppa:deadsnakes/ppa
+        sudo apt update
+        PYTHON_NEEDS_INSTALL=true
+    else
+        print_success "Python found: $PYTHON_VERSION (meets requirements)"
+        PYTHON_NEEDS_INSTALL=false
+        # Use existing python3 if it's 3.11+
+        PYTHON_CMD="python3"
+    fi
+else
+    print_info "Python not found. Adding deadsnakes PPA for Python 3.11..."
+    sudo add-apt-repository -y ppa:deadsnakes/ppa
+    sudo apt update
+    PYTHON_NEEDS_INSTALL=true
+fi
+
+# Install Python 3.11 if needed
+if [ "$PYTHON_NEEDS_INSTALL" = true ]; then
+    print_info "Installing Python 3.11..."
+    sudo apt install -y python3.11 python3.11-venv python3.11-dev python3.11-distutils
+    PYTHON_CMD="python3.11"
+    print_success "Python 3.11 installed"
+fi
+
+# ============================================================================
+# STEP 3: Install System Dependencies
+# ============================================================================
+print_step "[3/10] Installing system dependencies..."
 sudo apt install -y \
     build-essential \
-    python3.11 \
-    python3.11-venv \
-    python3.11-dev \
     python3-pip \
     curl \
     wget \
@@ -81,41 +132,21 @@ sudo apt install -y \
 print_success "System dependencies installed"
 
 # ============================================================================
-# STEP 3: Check Python Installation
+# STEP 4: Verify Python Installation
 # ============================================================================
-print_step "[3/9] Verifying Python installation..."
-
-# Check if python3.11 is available
-if command -v python3.11 &> /dev/null; then
-    PYTHON_CMD="python3.11"
-    PYTHON_VERSION=$(python3.11 --version)
-    print_success "Python 3.11 found: $PYTHON_VERSION"
-elif command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
-    PYTHON_VERSION=$(python3 --version)
-    PYTHON_MAJOR=$(python3 -c 'import sys; print(sys.version_info.major)')
-    PYTHON_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)')
-    
-    if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 11 ]); then
-        print_error "Python 3.11+ is required. Found: $PYTHON_VERSION"
-        print_info "Installing Python 3.11..."
-        sudo add-apt-repository -y ppa:deadsnakes/ppa
-        sudo apt update
-        sudo apt install -y python3.11 python3.11-venv python3.11-dev python3.11-distutils
-        PYTHON_CMD="python3.11"
-        print_success "Python 3.11 installed"
-    else
-        print_success "Python found: $PYTHON_VERSION"
-    fi
+print_step "[4/10] Verifying Python installation..."
+if command -v $PYTHON_CMD &> /dev/null; then
+    FINAL_VERSION=$($PYTHON_CMD --version)
+    print_success "Python ready: $FINAL_VERSION"
 else
-    print_error "Python is not installed"
+    print_error "Python installation verification failed"
     exit 1
 fi
 
 # ============================================================================
-# STEP 4: Check/Install pip
+# STEP 5: Check/Install pip
 # ============================================================================
-print_step "[4/9] Checking pip installation..."
+print_step "[5/10] Checking pip installation..."
 if ! command -v pip3 &> /dev/null; then
     print_info "Installing pip..."
     sudo apt install -y python3-pip
@@ -126,9 +157,9 @@ $PYTHON_CMD -m pip install --upgrade pip --quiet
 print_success "pip is ready"
 
 # ============================================================================
-# STEP 5: Create Virtual Environment
+# STEP 6: Create Virtual Environment
 # ============================================================================
-print_step "[5/9] Creating Python virtual environment..."
+print_step "[6/10] Creating Python virtual environment..."
 if [ -d "venv" ]; then
     print_info "Virtual environment already exists. Removing old one..."
     rm -rf venv
@@ -145,9 +176,9 @@ python -m pip install --upgrade pip --quiet
 print_success "pip upgraded in virtual environment"
 
 # ============================================================================
-# STEP 6: Install Python Dependencies
+# STEP 7: Install Python Dependencies
 # ============================================================================
-print_step "[6/9] Installing Python dependencies..."
+print_step "[7/10] Installing Python dependencies..."
 if [ -f "requirements.txt" ]; then
     print_info "Installing packages from requirements.txt..."
     pip install -r requirements.txt
@@ -158,9 +189,9 @@ else
 fi
 
 # ============================================================================
-# STEP 7: Install Ollama
+# STEP 8: Install Ollama
 # ============================================================================
-print_step "[7/9] Installing Ollama..."
+print_step "[8/10] Installing Ollama..."
 
 if command -v ollama &> /dev/null; then
     OLLAMA_VERSION=$(ollama --version 2>/dev/null || echo "installed")
@@ -198,9 +229,9 @@ else
 fi
 
 # ============================================================================
-# STEP 8: Pull Ollama Model
+# STEP 9: Pull Ollama Model
 # ============================================================================
-print_step "[8/9] Downloading Ollama model (llama3.2)..."
+print_step "[9/10] Downloading Ollama model (llama3.2)..."
 print_info "This may take a few minutes depending on your internet connection..."
 
 # Wait a bit for Ollama to be ready
@@ -222,9 +253,9 @@ else
 fi
 
 # ============================================================================
-# STEP 9: Setup Environment File
+# STEP 10: Setup Environment File
 # ============================================================================
-print_step "[9/9] Setting up environment configuration..."
+print_step "[10/10] Setting up environment configuration..."
 
 if [ -f ".env" ]; then
     print_info ".env file already exists. Skipping..."
