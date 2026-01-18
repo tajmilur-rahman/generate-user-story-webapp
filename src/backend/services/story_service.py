@@ -1,6 +1,7 @@
 import re
 import json
 import logging
+import os
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -288,11 +289,16 @@ def validate_user_story_format(story):
     story_id = story.get('id', 'unknown')
     
     # Check required fields exist
-    required_fields = ['User Story', 'Title', 'Deliverables']
+    # Note: 'Title' is optional - can be generated from 'User Story' if missing
+    required_fields = ['User Story', 'Deliverables']
     for field in required_fields:
         if field not in story or not story[field]:
             print(f"[REJECT] VALIDATION FAILED: Missing required field: {field}")
             return False, f"Missing required field: {field}"
+    
+    # Title is optional - will be generated if missing
+    if 'Title' not in story or not story.get('Title'):
+        logger.debug(f"Story {story_id}: Title missing, will be generated from User Story")
     
     # Check User Story format
     user_story = story.get('User Story', '').strip()
@@ -313,10 +319,11 @@ def validate_user_story_format(story):
         logger.warning(f"Story {story_id}: Missing 'so that' clause - business value unclear")
         # Don't reject - just warn
     
-    # Check title is not empty and not too short
+    # Check title - optional, will be generated if missing
     title = story.get('Title', '').strip()
-    if len(title) < 3:
+    if title and len(title) < 3:
         return False, f"Title too short: '{title}'"
+    # If title is missing, it's OK - will be generated from User Story
     
     # Check deliverables exist and are not empty
     deliverables = story.get('Deliverables', {})
@@ -798,12 +805,23 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
         
         # Try both "User Stories" and "Epics" keys (LLM might return either)
         user_stories = epics_data.get('User Stories', [])
+        logger.info(f"[convert] Found {len(user_stories)} stories in 'User Stories' key")
+        
         if not user_stories:
             # Try "Epics" key as fallback
             epics_list = epics_data.get('Epics', [])
+            logger.info(f"[convert] Found {len(epics_list)} stories in 'Epics' key")
             if epics_list:
-                logger.debug(f"Found 'Epics' key instead of 'User Stories', converting...")
+                logger.info(f"Found 'Epics' key instead of 'User Stories', using it...")
                 user_stories = epics_list
+            else:
+                # Last resort: check if epics_data itself is a list
+                if isinstance(epics_data, list):
+                    logger.info(f"[convert] epics_data is a list with {len(epics_data)} items, using it directly")
+                    user_stories = epics_data
+                else:
+                    logger.error(f"[convert] ⚠️ No user stories found! Available keys: {list(epics_data.keys()) if isinstance(epics_data, dict) else 'not a dict'}")
+                    logger.error(f"[convert] epics_data type: {type(epics_data)}, value: {str(epics_data)[:500]}")
         
         # Handle different test cases formats
         # Format 1: {"Test Cases": {...}} - dictionary with keys

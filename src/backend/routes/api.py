@@ -16,7 +16,7 @@ from backend.utils.helpers import allowed_file
 from backend.services.story_service import convert_stories_to_frontend_format
 from core_engine.prompts import (
     extract_text_from_docx, refine_doc, extract_functionarity,
-    extract_epics, generate_test_cases, refine_requirements, rat
+    extract_epics, get_epics, generate_test_cases, refine_requirements, rat
 )
 from core_engine.output import save_json_output
 from core_engine.validation import validate_output, validate_requirements_completeness, print_validation_report
@@ -95,7 +95,9 @@ def generate_stories():
         
         try:
             # Initialize LLM model based on configured provider
-            temp = 0.3
+            # Higher temperature for more creative/useful stories (0.5-0.7 range)
+            # Lower temperature for more deterministic output (0.3-0.4 range)
+            temp = float(os.environ.get('LLM_TEMPERATURE', '0.5'))
             chat = None
             
             if LLM_PROVIDER == 'ollama':
@@ -153,17 +155,25 @@ def generate_stories():
                 if not isinstance(requirements, str):
                     requirements = str(requirements)
                 
-                logger.info("Step 2: Extracting epics...")
-                # Optimization: Call extract_epics directly instead of rat() loop
-                # This reduces LLM calls from 3 to 1 for this step
-                epics = extract_epics(requirements, chat, mode)
+                logger.info("Step 2: Extracting deliverables/epics...")
+                # Use two-step process: extract deliverables, then refine with DoD
+                deliverables = extract_epics(requirements, chat, mode)
+                
+                if deliverables is None:
+                    raise Exception("Deliverables extraction returned None")
+                if not isinstance(deliverables, str):
+                    deliverables = str(deliverables)
+                
+                logger.info("Step 3: Refining epics with definition of done...")
+                # Refine deliverables to add definition of done (get_epics)
+                epics = get_epics(deliverables, chat)
                 
                 if epics is None:
-                    raise Exception("Epics extraction returned None")
+                    raise Exception("Epics refinement returned None")
                 if not isinstance(epics, str):
                     epics = str(epics)
                 
-                logger.info("Step 3: Epics extracted successfully")
+                logger.info("Step 4: Epics extracted and refined successfully")
                 
                 logger.info("Step 4: Generating test cases...")
                 # Optimization: Call generate_test_cases directly
@@ -188,8 +198,25 @@ def generate_stories():
             completeness_validation = validate_requirements_completeness(requirements, epics)
             print_validation_report(completeness_validation, "Completeness Validation")
             
+            # Log epics before conversion for debugging
+            logger.info(f"[API] Epics length: {len(epics) if epics else 0}")
+            logger.info(f"[API] Epics preview (first 500 chars): {str(epics)[:500] if epics else 'None'}")
+            
             # Convert to frontend format
             stories = convert_stories_to_frontend_format(epics, test_cases, requirements)
+            
+            logger.info(f"[API] Converted stories count: {len(stories) if stories else 0}")
+            
+            if not stories or len(stories) == 0:
+                logger.error("[API] ⚠️ WARNING: No stories generated after conversion!")
+                logger.error(f"[API] Epics was: {epics[:1000] if epics else 'None'}")
+                # Return error instead of empty success
+                return jsonify({
+                    'success': False,
+                    'error': 'No user stories were generated. Please check the server logs for details.',
+                    'stories': [],
+                    'count': 0
+                }), 500
             
             # Save output to JSON file
             output_file_path = None

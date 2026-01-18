@@ -1,11 +1,15 @@
 import os
 import unicodedata
 import json
+import logging
 from docx import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_openai import ChatOpenAI, OpenAI
 from langchain_ollama import ChatOllama
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 #set env variable auth_key to be the key
 output_parser = StrOutputParser()
@@ -60,8 +64,24 @@ def extract_text_from_docx(docx_path):
 
 def clean_doc(doc_text:str, chat)->str:
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an assistant that help improve the input document. You will correct grammar mistakes,
-         remove meaningless words or characters from the input document and improve its formatting."""),
+        ("system", """You are a document refinement expert. Your task is to clean and improve the input document for better requirements extraction.
+
+PROCESS:
+1. Remove meaningless words, typos, and formatting artifacts
+2. Correct grammar and spelling mistakes
+3. Preserve all technical content, requirements, and functional descriptions
+4. Improve clarity while maintaining original meaning
+5. Organize content logically if it's scattered
+6. Remove redundant sentences but keep all unique information
+
+CRITICAL RULES:
+- DO NOT remove any functional requirements or technical specifications
+- DO NOT change the meaning of any requirement
+- DO NOT add new information not in the original
+- DO NOT summarize - keep all details
+- Preserve all numbers, measurements, and technical terms exactly
+
+OUTPUT: Return the cleaned document with improved formatting and clarity, but with ALL original content preserved."""),
         ("user", "{input}")
     ])
     chain = prompt | chat | output_parser
@@ -92,60 +112,27 @@ def extract_list(doc_text:str,chat)->str:
             return '{"requirements": []}'
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a requirements extraction system. Extract user stories, deliverables, and test cases from the provided source text.
+            ("system", """You are a software engineer developing functional requirements from a software product design document.
 
-CRITICAL RULES:
+YOUR TASK: Extract the list of functional requirements from the given document.
 
-1. ONLY extract requirements EXPLICITLY stated in the source text
-2. DO NOT infer, assume, or add requirements based on best practices
-3. DO NOT add features common to other systems (auth, search, profiles, etc.)
-4. If functionality is not mentioned in the source, DO NOT include it
-5. Every requirement must have a direct quote from the source as evidence
-
-EXTRACTION PROCESS:
-
-Step 1: Extract Requirements
-- Read the source text carefully
-- Identify each distinct functional requirement
-- Look for ALL major functionalities:
-  * Data collection and processing
-  * Communication methods (satellite, radio, etc.)
-  * Storage mechanisms (local storage, data aggregation)
-  * Failure handling (backup instruments, recovery processes)
-  * Power management (battery charging, generator control)
-  * System reconfiguration capabilities
-  * Self-contained operation features
-- For each requirement, capture:
-  * Brief requirement statement (5-10 words)
-  * Direct quote from source text as evidence
-  * Confidence level (high/medium/low)
-  * Don't just extract bullet points - extract contextual capabilities too
+REQUIREMENTS:
+1. Extract ALL functional requirements that describe what the system must do
+2. Integration testing is always one of the requirements
+3. Focus on the PRIMARY TARGET SYSTEM (not management/monitoring systems)
+4. Each requirement should be clear and specific
 
 OUTPUT FORMAT:
+Return as a numbered list of functional requirements, one per line.
 
-{{
-  "requirements": [
-    {{
-      "id": 1,
-      "statement": "brief requirement",
-      "source_quote": "exact text from source",
-      "confidence": "high"
-    }}
-  ]
-}}
+Example:
+1. The system must collect temperature and pressure data from sensors.
+2. The system must process and aggregate data locally.
+3. The system must transmit data via satellite communication.
+4. The system must store data locally when communication is unavailable.
+5. Integration testing must verify all components work together.
 
-EXAMPLES OF WHAT NOT TO DO:
-❌ Adding authentication when source doesn't mention it
-❌ Adding user profiles when source doesn't mention them
-❌ Adding search when source doesn't mention it
-❌ Changing "automatic transmission" to "user uploads"
-❌ Inventing metrics like "24 hours" when not in source
-
-EXAMPLES OF WHAT TO DO:
-✅ Only include features explicitly in source text
-✅ Quote source text as evidence for each requirement
-
-Return ONLY valid JSON, no markdown, no explanations.""")
+Return ONLY the list of requirements. No explanations, no markdown formatting.""")
             ,
             ("user", "{input}")
         ])
@@ -315,13 +302,135 @@ def extract_functionarity(doc_text:str,chat, mode="debug")->str:
 
 def refine_requirements(requirements:str,chat,mode)->str:
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a senior project manager refining functional requirements.\n\nPRIMARY GOAL: Reduce the number of requirements by consolidating related items while maintaining quality.\n\nYour task:\n1. CONSOLIDATE: Combine redundant or overlapping requirements into single, comprehensive statements\n2. ELIMINATE: Remove duplicate or near-duplicate requirements\n3. GROUP: Organize requirements by capability domain (authentication, search, navigation, data management, etc.)\n4. CLARIFY: Make requirements clear, specific, and actionable\n5. REDUCE: Aim for 10-20 high-quality requirements total, NOT 50+\n5. Group related requirements logically\n6. Ensure integration testing is included\n\nGUIDELINES:\n- Remove duplicates and merge similar requirements\n- Add missing requirements that are necessary for system completeness\n- Keep requirements clear, specific, and measurable\n- Maintain the numbered list format\n\nReturn as a clean numbered list, one requirement per line.""")
+        ("system", """You are a project manager refining functional requirements.
+
+YOUR TASK: Refine the given functional requirements by:
+1. Combining redundant requirements
+2. Adding missing requirements that are necessary based on existing ones
+3. Making requirements clear and specific
+
+GUIDELINES:
+- Consolidate duplicates and overlaps
+- Add necessary requirements that are implied but missing
+- Keep requirements clear, specific, and actionable
+- Maintain numbered list format
+
+OUTPUT FORMAT:
+Return as a clean numbered list of refined functional requirements, one per line.
+
+Example:
+1. The system must collect temperature and pressure data from sensors.
+2. The system must process and aggregate data locally before transmission.
+3. The system must transmit data via satellite communication.
+4. The system must store data locally when communication is unavailable.
+
+Return ONLY the refined requirements list. No explanations, no markdown formatting.""")
         ,
         ("user", "{input}")
     ])
     chain = prompt | chat | output_parser
     re = chain.invoke({"input": requirements})
     return re
+def get_epics(deliverables: str, chat) -> str:
+    """
+    Convert deliverables to user stories by adding definition of done for each deliverable.
+    This is a two-step process: first extract deliverables, then refine with DoD.
+    """
+    try:
+        logger.info(f"[get_epics] Starting with deliverables (length: {len(deliverables) if deliverables else 0})")
+        
+        # Clean the deliverables string first
+        cleaned = clean_json_response(deliverables)
+        just_tasks = json.loads(cleaned)
+        
+        logger.info(f"[get_epics] Parsed JSON, keys: {list(just_tasks.keys())}")
+        
+        _key = "Epics"
+        new_key = "User Stories"
+        _key_2 = "Deliverables"
+        refine_tasks = {new_key: []}
+        
+        epics_list = just_tasks.get(_key, [])
+        logger.info(f"[get_epics] Found {len(epics_list)} epics to process")
+        
+        if not epics_list:
+            logger.warning(f"[get_epics] No epics found in deliverables! Available keys: {list(just_tasks.keys())}")
+            logger.warning(f"[get_epics] Full deliverables structure: {json.dumps(just_tasks, indent=2)[:1000]}")
+            
+            # Try alternative: maybe it's already in "User Stories" format
+            if "User Stories" in just_tasks:
+                logger.info(f"[get_epics] Found 'User Stories' key, using it directly")
+                return json.dumps(just_tasks, indent=4)
+            
+            # Try to return what we have, but log the issue
+            logger.error(f"[get_epics] ⚠️ CRITICAL: No epics to process! Returning empty list")
+            return json.dumps({new_key: []}, indent=4)
+        
+        for idx, epic in enumerate(epics_list):
+            try:
+                logger.info(f"[get_epics] Processing epic {idx + 1}/{len(epics_list)}")
+                logger.info(f"[get_epics] Epic structure: {json.dumps(epic, indent=2)[:500]}")
+                
+                # Check if epic already has Deliverables with definitionOfDone
+                if _key_2 in epic and isinstance(epic[_key_2], dict):
+                    # Check if deliverables already have definitionOfDone
+                    has_dod = any(
+                        isinstance(v, dict) and "definitionOfDone" in v 
+                        for v in epic[_key_2].values()
+                    )
+                    if has_dod:
+                        logger.info(f"[get_epics] Epic {idx + 1} already has DoD, skipping refine_epics")
+                        refine_tasks[new_key].append(epic)
+                        continue
+                
+                # Refine each epic to add definition of done
+                refined_result = refine_epics(json.dumps(epic), chat)
+                logger.info(f"[get_epics] Refined result length: {len(refined_result) if refined_result else 0}")
+                
+                new_devs = json.loads(clean_json_response(refined_result))
+                logger.info(f"[get_epics] Parsed new_devs, keys: {list(new_devs.keys()) if isinstance(new_devs, dict) else 'not a dict'}")
+                
+                # Merge new_devs into existing Deliverables or replace
+                if _key_2 in epic and isinstance(epic[_key_2], dict):
+                    # Merge: update existing deliverables with DoD
+                    for k, v in new_devs.items():
+                        if isinstance(v, dict):
+                            epic[_key_2][k] = v
+                        else:
+                            epic[_key_2][k] = {"definitionOfDone": str(v)}
+                else:
+                    # Replace: set Deliverables to new_devs
+                    epic[_key_2] = new_devs
+                
+                refine_tasks[new_key].append(epic)
+                logger.info(f"[get_epics] Successfully processed epic {idx + 1}")
+            except Exception as epic_error:
+                logger.error(f"[get_epics] Error processing epic {idx + 1}: {epic_error}")
+                import traceback
+                logger.error(traceback.format_exc())
+                # Continue with other epics even if one fails - include epic with empty DoD
+                if _key_2 not in epic:
+                    epic[_key_2] = {}
+                refine_tasks[new_key].append(epic)
+        
+        epics = json.dumps(refine_tasks, indent=4)
+        logger.info(f"[get_epics] Successfully processed {len(refine_tasks[new_key])} user stories")
+        return epics
+    except Exception as e:
+        logger.error(f"Error in get_epics: {e}")
+        import traceback
+        traceback.print_exc()
+        # Fallback: return deliverables as-is, but try to convert format
+        try:
+            cleaned = clean_json_response(deliverables)
+            just_tasks = json.loads(cleaned)
+            if "Epics" in just_tasks:
+                # Convert Epics to User Stories format
+                return json.dumps({"User Stories": just_tasks["Epics"]}, indent=4)
+        except:
+            pass
+        return deliverables
+
 def extract_epics(requirements: str, chat, mode) -> str:
     """Extract epics (user stories) from the given requirements.
 
@@ -333,90 +442,135 @@ def extract_epics(requirements: str, chat, mode) -> str:
     Returns:
         A JSON string with extracted epics.
     """
-    pp = """You are a requirements extraction system. Extract user stories from the provided source text.
+    pp = """You are a product manager creating deliverables from software requirements. 
+Generate deliverables that can be assigned to developers for each functional requirement.
 
-CRITICAL OUTPUT FORMAT - MUST FOLLOW EXACTLY:
+CRITICAL: You MUST return valid JSON with the exact structure shown below.
+
+TASK: For each requirement in the input, create ONE epic with:
+1. A User Story describing what the system must do
+2. At least one deliverable that needs to be built
+
+DELIVERABLES OPTIONS (select 1-3 per requirement based on what's needed):
+- architecture_design: System architecture and component design
+- database_schema_design: Database structure and schema  
+- unit_tests: Unit test specifications
+- user_training_documentation: User training materials
+- production_support_plan: Production deployment and support plan
+
+REQUIRED OUTPUT FORMAT (JSON - MUST FOLLOW EXACTLY):
 {{
-  "User Stories": [
+  "Epics": [
     {{
-      "Title": "Short descriptive title (3-5 words)",
       "User Story": "The system must [ACTION] so that [BUSINESS VALUE]",
       "Deliverables": {{
-        "deliverable_name": {{
-          "definitionOfDone": "Clear criteria based on source text"
-        }}
-      }},
-      "source_quote": "Exact quote from source text proving this requirement"
+        "architecture_design": "Description of what needs to be delivered"
+      }}
+    }},
+    {{
+      "User Story": "The system must [ANOTHER ACTION] so that [ANOTHER VALUE]",
+      "Deliverables": {{
+        "database_schema_design": "Description of database design needed"
+      }}
     }}
   ]
 }}
 
-CRITICAL RULES:
+RULES:
+1. Create ONE epic per requirement in the input
+2. Each epic MUST have "User Story" and "Deliverables" fields
+3. User Story format: "The system must [action] so that [value]"
+4. Deliverables must be a dictionary with at least one deliverable
+5. Focus on the PRIMARY TARGET SYSTEM (not management/monitoring systems)
+6. Extract ALL requirements - don't skip any
 
-1. SYSTEM BOUNDARY: Only extract requirements for ONE instance of the PRIMARY TARGET SYSTEM. Skip requirements about managing multiple instances or aggregating from other systems.
+EXAMPLE OUTPUT:
+{{
+  "Epics": [
+    {{
+      "User Story": "The system must collect temperature data from sensors so that accurate weather information is available",
+      "Deliverables": {{
+        "architecture_design": "Design sensor data collection module with error handling"
+      }}
+    }},
+    {{
+      "User Story": "The system must transmit data via satellite so that information reaches the central server",
+      "Deliverables": {{
+        "architecture_design": "Design satellite communication module with retry logic"
+      }}
+    }}
+  ]
+}}
 
-2. EXPLICIT REQUIREMENTS ONLY: Only extract requirements EXPLICITLY stated in source text. Do NOT infer, assume, or add features based on best practices.
+VALIDATION CHECKLIST:
+- [ ] JSON is valid (can be parsed)
+- [ ] "Epics" key exists
+- [ ] At least one epic in the array
+- [ ] Each epic has "User Story" field
+- [ ] Each epic has "Deliverables" field
+- [ ] Deliverables is a dictionary (not a string)
 
-3. FORBIDDEN FEATURES (Never extract unless explicitly in source):
-   - Authentication systems, user management, search, notifications
-   - Admin panels, reporting, APIs, social features, gamification, analytics
-
-4. SOURCE QUOTE MANDATORY: Every requirement MUST include an exact quote from source text as evidence. If no quote found, skip the requirement.
-
-5. NO INVENTED METRICS: Never add percentages, time windows, or specific numbers not in source. Use qualitative terms: "successfully", "reliably", "efficiently".
-
-6. COMPLETENESS: Create ONE user story for EACH distinct requirement. Count requirements in input and ensure story count matches.
-
-EXTRACTION PROCESS:
-1. Read source text completely
-2. For each requirement:
-   - Find exact quote from source
-   - Create user story: "The system must [ACTION] so that [BENEFIT]"
-   - Define deliverables with definition of done based on source
-   - Include source quote verbatim
-3. Verify: Can you point to specific text describing each story? If NO, remove it.
-
-VALIDATION BEFORE OUTPUT:
-- Count requirements in input
-- Count user stories in output - MUST MATCH
-- All stories have source quotes
-- No invented metrics or numbers
-- Valid JSON structure
-
-Return ONLY valid JSON matching the format above. NO markdown, NO explanations, NO code blocks.
-"""
+Return ONLY valid JSON matching the format above. NO markdown, NO explanations, NO code blocks."""
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),
         ("user", "{input}")
     ])
     chain = prompt | chat | output_parser
     re = chain.invoke({"input": requirements})
+    logger.info(f"[extract_epics] Raw response length: {len(re) if re else 0}")
     
     # Clean and return the response
     cleaned = clean_json_response(re)
+    logger.info(f"[extract_epics] Cleaned response length: {len(cleaned)}")
+    
     try:
-        json.loads(cleaned)
+        parsed = json.loads(cleaned)
+        logger.info(f"[extract_epics] Valid JSON, keys: {list(parsed.keys()) if isinstance(parsed, dict) else 'not a dict'}")
+        if isinstance(parsed, dict):
+            epics_count = len(parsed.get("Epics", []))
+            logger.info(f"[extract_epics] Found {epics_count} epics in response")
         return cleaned
-    except json.JSONDecodeError:
-        print(f"Warning: Invalid JSON from extract_epics, returning cleaned version")
+    except json.JSONDecodeError as e:
+        logger.warning(f"Warning: Invalid JSON from extract_epics: {e}")
+        logger.warning(f"Cleaned response (first 500 chars): {cleaned[:500]}")
         return cleaned
 def refine_epics(epic:str,chat)->str:
-    pp = """You are refining an epic (user story) by adding detailed definition of done criteria for each deliverable.
+    """
+    Refine an epic by adding definition of done for each deliverable.
+    This is called by get_epics() to add DoD criteria to deliverables.
+    """
+    pp = """You are refining deliverables by adding definition of done criteria for each deliverable.
 
-For each deliverable in the epic, generate:
-- A clear definition of done that specifies what \"done\" means for that deliverable
+TASK: For each deliverable in the epic, generate a clear definition of done that specifies what "done" means.
+
+REQUIREMENTS:
 - Criteria should be specific, measurable, and testable
 - Focus on quality and completeness indicators
+- Based on the user story and deliverable description
+- Use qualitative terms from source: "successfully", "reliably", "efficiently"
+- DO NOT invent metrics, percentages, or time windows
 
-Example format:
+OUTPUT FORMAT (JSON):
 {{
-    \"architecture_design\": {{
-        \"definition_of_done\": \"The architecture design document includes: system components diagram, data flow diagrams, interface specifications, and technology stack decisions. All components are documented with their responsibilities and interactions.\"\n    }},
-    \"database_schema_design\": {{
-        \"definition_of_done\": \"The database schema includes: all required tables with relationships, indexes for performance, data validation rules, and migration scripts. Schema is reviewed and approved by the database team.\"\n    }}
+  "deliverable_name": {{
+    "definitionOfDone": "Specific, measurable criteria for completion"
+  }},
+  "another_deliverable": {{
+    "definitionOfDone": "Specific criteria for this deliverable"
+  }}
 }}
 
-IMPORTANT: Return ONLY valid JSON matching the structure above, no markdown, no explanations."""
+EXAMPLE:
+{{
+  "architecture_design": {{
+    "definitionOfDone": "The architecture design document includes: system components diagram, data flow diagrams, interface specifications, and technology stack decisions. All components are documented with their responsibilities and interactions."
+  }},
+  "database_schema_design": {{
+    "definitionOfDone": "The database schema includes: all required tables with relationships, indexes for performance, data validation rules, and migration scripts. Schema is reviewed and approved."
+  }}
+}}
+
+Return ONLY valid JSON matching the structure above. No markdown, no explanations."""
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),
@@ -424,114 +578,61 @@ IMPORTANT: Return ONLY valid JSON matching the structure above, no markdown, no 
     ])
     chain = prompt | chat | output_parser
     re = chain.invoke({"input": epic})
+    logger.info(f"[refine_epics] Raw response length: {len(re) if re else 0}")
+    
     cleaned = clean_json_response(re)
+    logger.info(f"[refine_epics] Cleaned response: {cleaned[:500]}")
+    
     # Validate it's valid JSON
     try:
-        json.loads(cleaned)
+        parsed = json.loads(cleaned)
+        logger.info(f"[refine_epics] Valid JSON, keys: {list(parsed.keys()) if isinstance(parsed, dict) else 'not a dict'}")
         return cleaned
-    except json.JSONDecodeError:
-        print(f"Warning: Invalid JSON from refine_epics, returning cleaned version")
+    except json.JSONDecodeError as e:
+        logger.warning(f"[refine_epics] Invalid JSON: {e}, returning cleaned version anyway")
         return cleaned
 
 def generate_test_cases(requirements:str,chat, mode)->str:
-    pp = """You are a requirements extraction system. Extract user stories, deliverables, and test cases from the provided source text.
+    pp = """You are a QA engineer generating test cases from software requirements.
 
-CRITICAL RULES:
+YOUR TASK: Generate test cases for each requirement that can be used to verify the completeness of those requirements.
 
-1. ONLY extract requirements EXPLICITLY stated in the source text
-2. DO NOT infer, assume, or add requirements based on best practices
-3. DO NOT add features common to other systems (auth, search, profiles, etc.)
-4. If functionality is not mentioned in the source, DO NOT include it
-5. Every requirement must have a direct quote from the source as evidence
+REQUIREMENTS:
+1. Create test cases for EACH requirement
+2. Test cases should be specific and concrete (not generic templates)
+3. Include normal cases and edge cases
+4. Use concrete input/output data with actual values
 
-ZERO TOLERANCE FOR INVENTED METRICS:
-❌ NEVER add: percentages, time windows, success rates, specific numbers
-❌ NEVER write: \"90%\", \"2 hours\", \"30 transmissions\", \"80% of components\", \"within 5 minutes\", \"does not exceed 2 seconds\"
-✅ ONLY USE: qualitative terms from source text
-
-🚨 CRITICAL: TEST CASES MUST BE CONCRETE AND SPECIFIC 🚨
-
-ZERO TOLERANCE FOR TEMPLATE TEST CASES:
-❌ NEVER write: \"Verify that the system must [requirement]\"
-❌ NEVER write: \"Functionality works as specified\"
-❌ NEVER write: \"Functionality works as specified in the user story\"
-❌ NEVER write: Generic test outputs like \"weather_data\", \"data\", \"result\"
-❌ NEVER write: Vague expected outputs without concrete values
-✅ ALWAYS write: Specific input data with concrete values + Expected output data with concrete values
-✅ ALWAYS write: Test names that describe the specific scenario being tested
-✅ ALWAYS write: Expected outputs with actual data types, formats, and example values
-
-TEMPLATE DETECTION - IF YOU SEE THESE PATTERNS, YOU'RE WRONG:
-- \"Verify that the system must...\" → WRONG (template)
-- \"Functionality works as specified\" → WRONG (template)
-- \"Test: [requirement copy-paste]\" → WRONG (template)
-- Expected: \"weather_data\" → WRONG (too generic)
-- Expected: \"success\" → WRONG (too generic, add details)
-
-REQUIRED FORMAT - CONCRETE TEST CASES:
-✅ Test name: \"Collect temperature reading from sensor TEMP-001\"
-✅ Input: {{\"instrument\": \"temperature_sensor\", \"sensor_id\": \"TEMP-001\", \"reading_interval\": \"60_seconds\"}}
-✅ Expected: {{\"value\": 20.5, \"unit\": \"celsius\", \"timestamp\": \"2025-11-17T12:30:00Z\", \"status\": \"valid\"}}
-
-✅ GOOD - Another Specific Example:
+OUTPUT FORMAT (JSON):
 {{
-  \"test_name\": \"Transmit aggregated hourly data via satellite\",
-  \"input\": {{\"data_type\": \"aggregated_weather_data\", \"satellite_status\": \"connected\", \"data_size\": \"1024_bytes\", \"timestamp\": \"2025-11-15T10:00:00Z\"}},
-  \"expected_output\": {{\"transmission_status\": \"success\", \"bytes_sent\": 1024, \"acknowledgment_received\": true, \"transmission_time\": \"2025-11-15T10:00:05Z\"}}
-}}
-
-TEST CASE FORMAT:
-{{
-  \"testCases\": [
+  "testCases": [
     {{
-      \"requirement_id\": 1,
-      \"scenarios\": [
+      "requirement_id": 1,
+      "scenarios": [
         {{
-          \"name\": \"Test [specific scenario with concrete data]\",
-          \"input\": {{\"field\": \"concrete_value_with_type\", \"another_field\": \"concrete_value\"}},
-          \"expected_output\": {{\"field\": \"concrete_value_with_type\", \"another_field\": \"concrete_value\"}}
-        }},
-        {{
-          \"name\": \"Test [edge case scenario with concrete data]\",
-          \"input\": {{\"field\": \"concrete_value\"}},
-          \"expected_output\": {{\"field\": \"concrete_value_with_type\"}}
+          "name": "Test [specific scenario]",
+          "input": {{
+            "field1": "concrete_value",
+            "field2": "concrete_value"
+          }},
+          "expected_output": {{
+            "field1": "expected_value",
+            "status": "success"
+          }}
         }}
       ]
     }}
   ]
 }}
 
-EDGE CASES TO COVER (if mentioned in source):
-- Generator shutdown protocol in high wind (with concrete wind speed values from source)
-- Backup instrument switching mechanism (with specific instrument IDs)
-- Communication failure recovery process (with specific failure scenarios)
-- Local data storage during outages (with specific storage capacity if mentioned)
-- Data aggregation for bandwidth optimization (with specific data structures)
+RULES:
+- NO generic templates like "Verify that the system must [requirement]"
+- NO vague outputs like "data" or "success" - be specific
+- Use concrete values and data structures
+- Include edge cases and error scenarios
+- One test case group per requirement
 
-VALIDATION CHECKLIST BEFORE OUTPUT:
-- [ ] Count requirements in input
-- [ ] Count test case groups in output - MUST MATCH
-- [ ] Each requirement has minimum 2 test scenarios
-- [ ] Edge cases from source are included
-- [ ] All test cases have concrete input/output data (not generic \"verify that\")
-- [ ] No invented numbers or metrics in test cases
-
-EXAMPLES OF WHAT NOT TO DO:
-❌ Generic test outputs like \"weather_data\" instead of structured data
-❌ Generic \"Verify that the system must [requirement]\" statements
-❌ \"Functionality works as specified\" as expected output
-❌ Inventing test scenarios not mentioned in source
-❌ Missing test cases for some requirements
-❌ Test cases without concrete input/output data
-
-EXAMPLES OF WHAT TO DO:
-✅ Specific with Concrete Data {{\"temperature\": 20.5, \"pressure\": 1013.2, \"timestamp\": \"2025-11-15T10:30:00Z\"}}
-✅ Concrete input: {{\"instrument\": \"temperature_sensor\", \"interval\": \"60s\"}}
-✅ Concrete expected output: {{\"value\": 20.5, \"unit\": \"C\", \"status\": \"valid\"}}
-✅ Cover all edge cases mentioned in source (failures, environmental conditions, etc.)
-✅ ONE test case group per requirement (if 5 requirements, then 5 test case groups)
-
-Return ONLY valid JSON, no markdown, no explanations."""
+Return ONLY valid JSON. No markdown, no explanations."""
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),

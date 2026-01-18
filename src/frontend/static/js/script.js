@@ -443,6 +443,16 @@ async function integrateAll() {
     }
 }
 
+// Go back to main page
+function goToMainPage() {
+    // Clear session storage if needed (optional - comment out if you want to keep stories)
+    // sessionStorage.removeItem('userStories');
+    // sessionStorage.removeItem('projectDescription');
+    
+    // Navigate to main page
+    window.location.href = '/';
+}
+
 // Initialize stories page
 if (window.location.pathname.includes('stories.html')) {
     // Load and render user stories when page loads

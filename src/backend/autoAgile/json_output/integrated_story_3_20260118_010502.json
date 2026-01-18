@@ -1,0 +1,12 @@
+{
+  "story_id": 3,
+  "integrated_at": "20260118_010502",
+  "story": {
+    "definitionOfDone": "• Architecture Design: The design includes a satellite communication module with retry logic that reliably handles network failures and ensures efficient transmission of data.",
+    "description": "The system must transmit data via satellite communication when available",
+    "id": 3,
+    "source_quote": "",
+    "testCases": "Test Case: \nTest Case: ",
+    "title": "Transmit Data Via Satellite Communication"
+  }
+}

@@ -1,52 +1,410 @@
 {
-    "requirements": [
-        {
-            "id": 1,
-            "statement": "Collects weather data, performs initial data processing, and transmits it to the data management system.",
-            "source_quote": "The weather station system is part of a larger weather information system that collects data from weather stations and makes it available for processing.",
-            "confidence": "high"
-        },
-        {
-            "id": 2,
-            "statement": "Collects data from all wilderness weather stations, processes and analyzes data, and archives it in a retrievable format for other systems, such as weather forecasting systems.",
-            "source_quote": "The data management and archiving system collects data from all wilderness weather stations, processes and analyzes data, and archives it in a retrievable format for other systems, such as weather forecasting systems.",
-            "confidence": "high"
-        },
-        {
-            "id": 3,
-            "statement": "Communicates with weather stations via satellite to monitor their health, provide reports of problems, update embedded software, and remotely control the system in case of issues.",
-            "source_quote": "The Station Maintenance System communicates with weather stations via satellite to monitor their health, provide reports of problems, update embedded software, and remotely control the system in case of issues.",
-            "confidence": "high"
-        },
-        {
-            "id": 4,
-            "statement": "Monitors instruments, power, and communication hardware, reporting faults to the management system.",
-            "source_quote": "The station software is not only concerned with data collection but also: Monitors instruments, power, and communication hardware, reporting faults to the management system.",
-            "confidence": "medium"
-        },
-        {
-            "id": 5,
-            "statement": "Manages system power, ensuring batteries are charged when possible, while shutting down generators in potentially damaging weather conditions, such as high wind.",
-            "source_quote": "The station software is not only concerned with data collection but also: Manages system power, ensuring batteries are charged when possible, while shutting down generators in potentially damaging weather conditions, such as high wind.",
-            "confidence": "medium"
-        },
-        {
-            "id": 6,
-            "statement": "Allows for dynamic reconfiguration, replacing parts of the software with new versions and switching backup instruments into the system in case of failure.",
-            "source_quote": "The station software is not only concerned with data collection but also: Allows for dynamic reconfiguration, replacing parts of the software with new versions and switching backup instruments into the system in case of failure.",
-            "confidence": "medium"
-        }
-    ],
+    "requirements": [],
     "User Stories": [
         {
-            "id": 1,
-            "Title": "Weather Station System",
-            "User Story": "The system must collect weather data so that it can be processed and transmitted to other systems.",
+            "User Story": "The system must collect weather data from instruments measuring temperature, pressure, sunshine, rainfall, wind speed, and direction",
             "Deliverables": {
-                "definitionOfDone": "Clear criteria for collecting, processing, and transmitting weather data"
-            },
-            "source_quote": "Collects weather data, performs initial data processing, and transmits it to the data management system."
+                "architecture_design": {
+                    "definitionOfDone": "The architecture design document includes: system components diagram, data flow diagrams, interface specifications, and technology stack decisions. The data collection module is designed to handle at least six types of weather instruments (temperature, pressure, sunshine, rainfall, wind speed, and direction) with reliable and efficient data processing."
+                }
+            }
+        },
+        {
+            "User Story": "The system must perform initial data processing locally before transmission to the Data Management and Archiving System",
+            "Deliverables": {
+                "unit_tests": {
+                    "definitionOfDone": "Unit tests pass reliably, covering at least 80% of the local data processing logic, with no unexpected errors or failures"
+                }
+            }
+        },
+        {
+            "User Story": "The system must transmit data via satellite communication when available",
+            "Deliverables": {
+                "architecture_design": {
+                    "definitionOfDone": "The design includes a satellite communication module with retry logic that reliably handles network failures and ensures efficient transmission of data."
+                }
+            }
+        },
+        {
+            "User Story": "The system must store data locally when communication is unavailable",
+            "Deliverables": {
+                "database_schema_design": {
+                    "definitionOfDone": "The database schema includes: all required tables with relationships, indexes for performance, data validation rules, and migration scripts. Schema is reviewed and approved."
+                }
+            }
+        },
+        {
+            "User Story": "Integration testing must verify all components work together",
+            "Deliverables": {
+                "unit_tests": "Develop integration test suite to validate component interactions",
+                "integration_testing": {
+                    "definitionOfDone": "Integration tests are successfully run and pass, verifying that all components work together reliably and efficiently"
+                }
+            }
+        },
+        {
+            "User Story": "The Station Software must monitor instruments, power, and communication hardware, reporting faults to the Management System",
+            "Deliverables": {
+                "user_training_documentation": {
+                    "definitionOfDone": "The user training documentation includes: step-by-step instructions on instrument monitoring, screenshots of key features, and troubleshooting guides. The document is reviewed and approved by the product team."
+                }
+            }
+        },
+        {
+            "User Story": "The Station Software must manage system power, ensuring battery charging when possible but shutting down generators in potentially damaging weather conditions",
+            "Deliverables": {
+                "production_support_plan": {
+                    "definitionOfDone": "The production support plan includes: detailed procedures for generator shutdown, battery charging procedures, and communication protocols for emergency situations. The plan is reviewed and approved by the stakeholder."
+                }
+            }
+        },
+        {
+            "User Story": "The Station Software must allow for dynamic reconfiguration by replacing software components with new versions and switching backup instruments into the system in case of failure",
+            "Deliverables": {
+                "architecture_design": {
+                    "definitionOfDone": "The architecture design document includes: system components diagram showing clear separation of concerns, data flow diagrams illustrating communication between components, interface specifications for all interactions, and technology stack decisions that enable efficient updates. All components are documented with their responsibilities and interactions."
+                }
+            }
         }
     ],
-    "testCases": []
+    "testCases": [
+        {
+            "requirement_id": 1,
+            "scenarios": [
+                {
+                    "name": "Collects temperature data from instrument",
+                    "input": {
+                        "temperature": -20
+                    },
+                    "expected_output": {
+                        "temperature": -20.0,
+                        "pressure": null,
+                        "sunshine": null,
+                        "rainfall": null,
+                        "wind_speed": null,
+                        "wind_direction": null
+                    }
+                },
+                {
+                    "name": "Collects pressure data from instrument",
+                    "input": {
+                        "pressure": 1013.25
+                    },
+                    "expected_output": {
+                        "temperature": null,
+                        "pressure": 1013.25,
+                        "sunshine": null,
+                        "rainfall": null,
+                        "wind_speed": null,
+                        "wind_direction": null
+                    }
+                },
+                {
+                    "name": "Collects sunshine data from instrument",
+                    "input": {
+                        "sunshine": true
+                    },
+                    "expected_output": {
+                        "temperature": null,
+                        "pressure": null,
+                        "sunshine": true,
+                        "rainfall": null,
+                        "wind_speed": null,
+                        "wind_direction": null
+                    }
+                },
+                {
+                    "name": "Collects rainfall data from instrument",
+                    "input": {
+                        "rainfall": 0.5
+                    },
+                    "expected_output": {
+                        "temperature": null,
+                        "pressure": null,
+                        "sunshine": null,
+                        "rainfall": 0.5,
+                        "wind_speed": null,
+                        "wind_direction": null
+                    }
+                },
+                {
+                    "name": "Collects wind speed data from instrument",
+                    "input": {
+                        "wind_speed": 10
+                    },
+                    "expected_output": {
+                        "temperature": null,
+                        "pressure": null,
+                        "sunshine": null,
+                        "rainfall": null,
+                        "wind_speed": 10.0,
+                        "wind_direction": null
+                    }
+                },
+                {
+                    "name": "Collects wind direction data from instrument",
+                    "input": {
+                        "wind_direction": 180
+                    },
+                    "expected_output": {
+                        "temperature": null,
+                        "pressure": null,
+                        "sunshine": null,
+                        "rainfall": null,
+                        "wind_speed": null,
+                        "wind_direction": 180.0
+                    }
+                },
+                {
+                    "name": "Fails to collect data from instrument with invalid input",
+                    "input": {
+                        "temperature": "invalid"
+                    },
+                    "expected_output": {
+                        "temperature": null,
+                        "pressure": null,
+                        "sunshine": null,
+                        "rainfall": null,
+                        "wind_speed": null,
+                        "wind_direction": null
+                    }
+                }
+            ]
+        },
+        {
+            "requirement_id": 2,
+            "scenarios": [
+                {
+                    "name": "Processes temperature data locally",
+                    "input": {
+                        "temperature": -20
+                    },
+                    "expected_output": {
+                        "processed_temperature": -15.0,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Processes pressure data locally",
+                    "input": {
+                        "pressure": 1013.25
+                    },
+                    "expected_output": {
+                        "processed_pressure": 1005.0,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Processes sunshine data locally",
+                    "input": {
+                        "sunshine": true
+                    },
+                    "expected_output": {
+                        "processed_sunshine": true,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Processes rainfall data locally",
+                    "input": {
+                        "rainfall": 0.5
+                    },
+                    "expected_output": {
+                        "processed_rainfall": 0.2,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Processes wind speed data locally",
+                    "input": {
+                        "wind_speed": 10
+                    },
+                    "expected_output": {
+                        "processed_wind_speed": 5.0,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Processes wind direction data locally",
+                    "input": {
+                        "wind_direction": 180
+                    },
+                    "expected_output": {
+                        "processed_wind_direction": 270.0,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Fails to process data due to invalid input",
+                    "input": {
+                        "temperature": "invalid"
+                    },
+                    "expected_output": {
+                        "processed_temperature": null,
+                        "status": "failure"
+                    }
+                }
+            ]
+        },
+        {
+            "requirement_id": 3,
+            "scenarios": [
+                {
+                    "name": "Transmits data via satellite communication",
+                    "input": {
+                        "temperature": -20
+                    },
+                    "expected_output": {
+                        "transmitted_temperature": null,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Fails to transmit data due to no satellite connection",
+                    "input": {
+                        "temperature": -20
+                    },
+                    "expected_output": {
+                        "transmitted_temperature": null,
+                        "status": "failure"
+                    }
+                }
+            ]
+        },
+        {
+            "requirement_id": 4,
+            "scenarios": [
+                {
+                    "name": "Stores data locally",
+                    "input": {
+                        "temperature": -20
+                    },
+                    "expected_output": {
+                        "stored_temperature": -15.0,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Fails to store data due to disk full error",
+                    "input": {
+                        "temperature": -20
+                    },
+                    "expected_output": {
+                        "stored_temperature": null,
+                        "status": "failure"
+                    }
+                }
+            ]
+        },
+        {
+            "requirement_id": 5,
+            "scenarios": [
+                {
+                    "name": "Integration testing with component A",
+                    "input": {
+                        "component_a_input": "valid_input"
+                    },
+                    "expected_output": {
+                        "component_b_output": "expected_output",
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Integration testing with component B",
+                    "input": {
+                        "component_b_input": "invalid_input"
+                    },
+                    "expected_output": {
+                        "component_a_output": null,
+                        "status": "failure"
+                    }
+                }
+            ]
+        },
+        {
+            "requirement_id": 6,
+            "scenarios": [
+                {
+                    "name": "Reports instrument faults",
+                    "input": {
+                        "instrument_fault": true
+                    },
+                    "expected_output": {
+                        "reported_fault": true,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Fails to report instrument fault due to network error",
+                    "input": {
+                        "instrument_fault": true
+                    },
+                    "expected_output": {
+                        "reported_fault": false,
+                        "status": "failure"
+                    }
+                }
+            ]
+        },
+        {
+            "requirement_id": 7,
+            "scenarios": [
+                {
+                    "name": "Manages system power",
+                    "input": {
+                        "power_level": 50
+                    },
+                    "expected_output": {
+                        "battery_charging": true,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Shuts down generators in damaging weather conditions",
+                    "input": {
+                        "weather_condition": "hurricane"
+                    },
+                    "expected_output": {
+                        "generator_shutdown": true,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Fails to manage power due to lack of battery charging",
+                    "input": {
+                        "power_level": 0
+                    },
+                    "expected_output": {
+                        "battery_charging": false,
+                        "status": "failure"
+                    }
+                }
+            ]
+        },
+        {
+            "requirement_id": 8,
+            "scenarios": [
+                {
+                    "name": "Allows for dynamic reconfiguration",
+                    "input": {
+                        "new_component_version": "1.0"
+                    },
+                    "expected_output": {
+                        "reconfigured_status": true,
+                        "status": "success"
+                    }
+                },
+                {
+                    "name": "Fails to allow for dynamic reconfiguration due to missing component",
+                    "input": {
+                        "new_component_version": "1.0"
+                    },
+                    "expected_output": {
+                        "reconfigured_status": false,
+                        "status": "failure"
+                    }
+                }
+            ]
+        }
+    ]
 }
