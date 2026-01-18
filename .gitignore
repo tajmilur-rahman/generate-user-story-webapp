@@ -75,6 +75,20 @@ __pycache__/
 # Database
 users.db
 *.db
+instance/users.db
+
+# Data files (keep structure, ignore content)
+data/logs/*.log
+data/logs/*.jsonl
+data/uploads/*
+data/outputs/*
+!data/logs/.gitkeep
+!data/uploads/.gitkeep
+!data/outputs/.gitkeep
+
+# Config secrets
+config/SECRET_KEY.txt
+SECRET_KEY.txt
 
 # Cache
 .cache/

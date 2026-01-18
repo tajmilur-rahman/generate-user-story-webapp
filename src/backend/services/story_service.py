@@ -183,7 +183,12 @@ def log_quality_metrics(stories, validation_errors):
     
     # Log to file for tracking
     try:
-        with open('quality_metrics.jsonl', 'a', encoding='utf-8') as f:
+        # Get project root (3 levels up from this file: src/backend/services/story_service.py)
+        current_file_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file_dir)))
+        metrics_file = os.path.join(project_root, 'data', 'logs', 'quality_metrics.jsonl')
+        os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
+        with open(metrics_file, 'a', encoding='utf-8') as f:
             f.write(json.dumps(metrics) + '\n')
     except Exception as e:
         logger.warning(f"Could not write quality metrics: {e}")

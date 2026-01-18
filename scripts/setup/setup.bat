@@ -64,12 +64,12 @@ echo [6/6] Setting up environment file...
 if exist .env (
     echo .env file already exists. Skipping...
 ) else (
-    if exist env.template (
-        copy env.template .env >nul
+    if exist config\env.template (
+        copy config\env.template .env >nul
         echo .env file created from template!
         echo Please edit .env file with your configuration.
     ) else (
-        echo WARNING: env.template not found!
+        echo WARNING: config\env.template not found!
     )
 )
 echo.

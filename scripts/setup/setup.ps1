@@ -63,12 +63,12 @@ Write-Host "[6/6] Setting up environment file..." -ForegroundColor Yellow
 if (Test-Path ".env") {
     Write-Host "✓ .env file already exists. Skipping..." -ForegroundColor Green
 } else {
-    if (Test-Path "env.template") {
-        Copy-Item "env.template" ".env"
+    if (Test-Path "config\env.template") {
+        Copy-Item "config\env.template" ".env"
         Write-Host "✓ .env file created from template!" -ForegroundColor Green
         Write-Host "Please edit .env file with your configuration." -ForegroundColor Yellow
     } else {
-        Write-Host "✗ WARNING: env.template not found!" -ForegroundColor Red
+        Write-Host "✗ WARNING: config\env.template not found!" -ForegroundColor Red
     }
 }
 Write-Host ""

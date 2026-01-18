@@ -1,5 +1,15 @@
+"""
+Output formatting and saving functionality for user stories.
+
+This module handles saving generated stories, epics, and test cases to JSON files.
+Moved from autoAgile/save_output.py to consolidate core functionality.
+"""
 import json
 import os
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def save_json_output(requirements, epics, test_cases, docx_path):
     """
@@ -19,9 +29,11 @@ def save_json_output(requirements, epics, test_cases, docx_path):
     # Splits the base name into two parts: the name and the extension, returning only the name part
     output_file_name = os.path.splitext(base_name)[0] + '.txt'
 
-    # Use absolute path relative to this file's location
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(current_dir, "json_output")
+    # Use absolute path relative to project root (not this file's location)
+    # Get project root (3 levels up from this file: src/core_engine/output.py)
+    current_file_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(current_file_dir))
+    output_dir = os.path.join(project_root, "autoAgile", "json_output")
 
     # Check if the directory exists, and if not, create it
     if not os.path.exists(output_dir):
@@ -33,13 +45,13 @@ def save_json_output(requirements, epics, test_cases, docx_path):
     try:
         data1 = json.loads(epics)
     except json.JSONDecodeError as e:
-        print(f"Warning: Failed to parse epics JSON: {e}")
+        logger.warning(f"Failed to parse epics JSON: {e}")
         data1 = {"User Stories": []}
     
     try:
         data2 = json.loads(test_cases)
     except json.JSONDecodeError as e:
-        print(f"Warning: Failed to parse test_cases JSON: {e}")
+        logger.warning(f"Failed to parse test_cases JSON: {e}")
         data2 = {"testCases": []}
     
     # Try to parse requirements as JSON first
@@ -62,7 +74,7 @@ def save_json_output(requirements, epics, test_cases, docx_path):
                     values = [line.strip() for line in lines[1:] if line.strip()]
                     req_json_data = {key: values}
     except (json.JSONDecodeError, Exception) as e:
-        print(f"Warning: Failed to parse requirements, using empty structure: {e}")
+        logger.warning(f"Failed to parse requirements, using empty structure: {e}")
         req_json_data = {"requirements": []}
     
     # Combine all data - ensure we have proper structure
@@ -101,8 +113,8 @@ def save_json_output(requirements, epics, test_cases, docx_path):
     # Convert to JSON format
     final_json = json.dumps(final_data, indent=4)
 
-    with open(output_path, 'w') as file:
+    with open(output_path, 'w', encoding='utf-8') as file:
         file.write(final_json)
     
-    print(f"✅ Output saved to: {output_path}")
+    logger.info(f"Output saved to: {output_path}")
     return output_path

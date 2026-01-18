@@ -1,5 +1,8 @@
 import re
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def validate_output(generated_json, source_text=""):
@@ -156,18 +159,24 @@ def validate_requirements_completeness(requirements_json, epics_json):
 
 
 def print_validation_report(validation_result, title="Validation Report"):
-    """Print a formatted validation report."""
-    print(f"\n{'='*60}")
-    print(f"{title}")
-    print(f"{'='*60}")
-    
-    if validation_result.get('valid', False):
-        print("✅ VALIDATION PASSED")
-    else:
-        issue_count = validation_result.get('issue_count', len(validation_result.get('issues', [])))
-        print(f"❌ VALIDATION FAILED ({issue_count} issues)")
-        print("\nIssues found:")
-        for i, issue in enumerate(validation_result.get('issues', []), 1):
-            print(f"  {i}. {issue}")
-    
-    print(f"{'='*60}\n")
+    """Print a formatted validation report using logger (encoding-safe)."""
+    try:
+        logger.info(f"\n{'='*60}")
+        logger.info(f"{title}")
+        logger.info(f"{'='*60}")
+        
+        if validation_result.get('valid', False):
+            # Use ASCII-safe characters instead of emojis
+            logger.info("[PASS] VALIDATION PASSED")
+        else:
+            issue_count = validation_result.get('issue_count', len(validation_result.get('issues', [])))
+            logger.warning(f"[FAIL] VALIDATION FAILED ({issue_count} issues)")
+            logger.warning("Issues found:")
+            for i, issue in enumerate(validation_result.get('issues', []), 1):
+                logger.warning(f"  {i}. {issue}")
+        
+        logger.info(f"{'='*60}\n")
+    except Exception as e:
+        # Fallback if logging fails
+        logger.error(f"Error printing validation report: {e}")
+        logger.info(f"Validation result: valid={validation_result.get('valid', False)}, issues={len(validation_result.get('issues', []))}")

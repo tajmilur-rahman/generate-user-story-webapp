@@ -3,75 +3,25 @@
         {
             "id": 1,
             "statement": "The system shall be available to deliver insulin when required.",
-            "source_quote": "Clearly, this is a safety-critical system. If the pump fails to operate or does not operate correctly, then the user\u2019s health may be damaged or they may fall into a coma because their blood sugar levels are too high or too low.",
+            "source_quote": "The system is critical to user safety. If the pump fails or operates incorrectly, the user's health may be compromised or they may fall into a coma due to excessive blood sugar levels or hypoglycemia.",
             "confidence": "high"
         },
         {
             "id": 2,
-            "statement": "The system shall perform reliably and deliver the correct amount of insulin to counteract the current level of blood sugar.",
-            "source_quote": "Clearly, this is a safety-critical system. If the pump fails to operate or does not operate correctly, then the user\u2019s health may be damaged or they may fall into a coma because their blood sugar levels are too high or too low.",
+            "statement": "The system shall perform reliably and deliver the correct amount of insulin to counteract current blood sugar levels.",
+            "source_quote": "The system must therefore be designed and implemented to guarantee that it always meets these requirements. More detailed requirements and discussions on ensuring the system's safety are discussed in later chapters.",
             "confidence": "high"
         }
     ],
     "User Stories": [
         {
-            "User Story": "The system must deliver insulin when required to ensure timely treatment and prevent adverse effects on user health.",
-            "source_basis": "exact quote from source text showing why this story is valid",
+            "Title": "System availability for insulin delivery",
+            "User Story": "The system must be available to deliver insulin when required so that user health is protected",
             "Deliverables": {
-                "Insulin Delivery Mechanism": {
-                    "definition_of_done": "The insulin delivery mechanism is implemented correctly, with a clear and documented algorithm for calculating dosages based on blood sugar levels. The system successfully handles all possible scenarios, including edge cases and exceptions."
-                }
-            }
+                "definitionOfDone": "Clear criteria based on source text"
+            },
+            "source_quote": "The system is critical to user safety. If the pump fails or operates incorrectly, the user's health may be compromised or they may fall into a coma due to excessive blood sugar levels or hypoglycemia."
         }
     ],
-    "testCases": [
-        {
-            "requirement_id": 1,
-            "scenarios": [
-                {
-                    "name": "Test system availability during pump failure",
-                    "input": {
-                        "pump_status": "failed"
-                    },
-                    "expected_output": {
-                        "insulin_delivery": true
-                    }
-                },
-                {
-                    "name": "Test system availability during normal operation",
-                    "input": {
-                        "pump_status": "operating"
-                    },
-                    "expected_output": {
-                        "insulin_delivery": true
-                    }
-                }
-            ]
-        },
-        {
-            "requirement_id": 2,
-            "scenarios": [
-                {
-                    "name": "Test system reliability during insulin delivery",
-                    "input": {
-                        "blood_sugar_level": "high"
-                    },
-                    "expected_output": {
-                        "insulin_amount": "correct_amount",
-                        "blood_sugar_level": "stable"
-                    }
-                },
-                {
-                    "name": "Test system reliability during insulin delivery with low blood sugar level",
-                    "input": {
-                        "blood_sugar_level": "low"
-                    },
-                    "expected_output": {
-                        "insulin_amount": "correct_amount",
-                        "blood_sugar_level": "stable"
-                    }
-                }
-            ]
-        }
-    ]
+    "testCases": []
 }

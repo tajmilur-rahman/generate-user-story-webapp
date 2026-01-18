@@ -180,7 +180,8 @@ class TestBug6QualityMetrics:
         assert metrics["stories_with_source_quotes"] == 2
         
         # Verify file contains valid JSON
-        with open("quality_metrics.jsonl", "r") as f:
+        metrics_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'logs', 'quality_metrics.jsonl')
+        with open(metrics_file, "r") as f:
             lines = f.readlines()
             assert len(lines) > 0
             last_entry = json.loads(lines[-1])

@@ -18,7 +18,7 @@ from core_engine.prompts import (
     extract_text_from_docx, refine_doc, extract_functionarity,
     extract_epics, generate_test_cases, refine_requirements, rat
 )
-from autoAgile.save_output import save_json_output
+from core_engine.output import save_json_output
 from core_engine.validation import validate_output, validate_requirements_completeness, print_validation_report
 
 api_bp = Blueprint('api', __name__)
@@ -70,9 +70,28 @@ def generate_stories():
         
         # Save uploaded file temporarily
         filename = secure_filename(file.filename)
+        
+        # Handle macOS resource fork files (._filename) - skip them
+        if filename.startswith('._'):
+            return jsonify({'error': 'Invalid file: macOS resource fork file detected. Please upload the actual document file, not the resource fork.'}), 400
+        
         upload_folder = current_app.config.get('UPLOAD_FOLDER', tempfile.gettempdir())
         filepath = os.path.join(upload_folder, filename)
+        
+        # Save the file
         file.save(filepath)
+        
+        # Verify file was saved and exists
+        if not os.path.exists(filepath):
+            return jsonify({'error': f'Failed to save uploaded file to {filepath}'}), 500
+        
+        # Verify file is not empty
+        if os.path.getsize(filepath) == 0:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({'error': 'Uploaded file is empty'}), 400
+        
+        logger.info(f"File saved successfully: {filepath} (size: {os.path.getsize(filepath)} bytes)")
         
         try:
             # Initialize LLM model based on configured provider
@@ -110,7 +129,10 @@ def generate_stories():
             if chat is None:
                 return jsonify({'error': 'Failed to initialize LLM'}), 500
             
-            # Extract text from document
+            # Extract text from document - verify file still exists
+            if not os.path.exists(filepath):
+                raise Exception(f"File was deleted before extraction: {filepath}")
+            
             if filename.endswith('.docx') or filename.endswith('.doc'):
                 extracted_text = extract_text_from_docx(filepath)
             else:

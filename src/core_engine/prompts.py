@@ -392,13 +392,7 @@ Return ONLY valid JSON matching the format above. NO markdown, NO explanations, 
     chain = prompt | chat | output_parser
     re = chain.invoke({"input": requirements})
     
-    # DEBUG: Log raw response
-    try:
-        with open("debug_epics_raw.txt", "w", encoding="utf-8") as f:
-            f.write(f"--- INPUT REQUIREMENTS ---\n{requirements}\n\n--- RAW LLM OUTPUT ---\n{re}\n")
-    except Exception as e:
-        print(f"Failed to log debug info: {e}")
-        
+    # Clean and return the response
     cleaned = clean_json_response(re)
     try:
         json.loads(cleaned)

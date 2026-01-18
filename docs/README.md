@@ -55,7 +55,7 @@ setup.bat
 2. **Set Up Environment Variables:**
    ```bash
    # Copy template
-   copy env.template .env
+   copy config\env.template .env
    
    # Edit .env file with your configuration
    ```
@@ -108,7 +108,7 @@ Recommended models (choose one):
 
 ### Environment Variables (.env file)
 
-Create a `.env` file from `env.template`:
+Create a `.env` file from `config/env.template`:
 
 ```bash
 # LLM Provider (ollama, openai, or groq)
@@ -133,7 +133,7 @@ PORT=5000
 SECRET_KEY=your-secret-key-here
 ```
 
-See `env.template` for all available options.
+See `config/env.template` for all available options.
 
 ## 📚 Documentation
 
