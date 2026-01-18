@@ -11,13 +11,51 @@ AI-powered application for generating user stories, epics, and test cases from p
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd user-story-automation
-   ```
+#### Ubuntu/Linux (Recommended - One Script Installs Everything!)
 
-2. **Set up environment**
+```bash
+# Clone the repository
+git clone <repository-url>
+cd user-story-automation
+
+# Run complete automated setup (installs EVERYTHING)
+chmod +x scripts/setup/setup.sh
+./scripts/setup/setup.sh
+
+# The script automatically installs:
+# ✅ Python 3.11+ and pip
+# ✅ System dependencies
+# ✅ Python virtual environment
+# ✅ All Python packages
+# ✅ Ollama (LLM runtime)
+# ✅ Ollama model (llama3.2)
+# ✅ Environment configuration
+
+# After setup completes, just run:
+source venv/bin/activate
+python run.py
+```
+
+See [docs/UBUNTU_SETUP.md](docs/UBUNTU_SETUP.md) for detailed Ubuntu setup guide.
+
+#### Windows
+
+```bash
+# Run automated setup
+.\scripts\setup\setup.ps1
+# Or
+scripts\setup\setup.bat
+
+# Activate virtual environment
+venv\Scripts\activate
+
+# Run the application
+python run.py
+```
+
+#### Manual Setup
+
+1. **Set up environment**
    ```bash
    # Copy environment template
    cp config/env.template .env
@@ -26,17 +64,26 @@ AI-powered application for generating user stories, epics, and test cases from p
    # See docs/SETUP.md for detailed instructions
    ```
 
-3. **Install dependencies**
+2. **Install dependencies**
    ```bash
+   # Create virtual environment
+   python3 -m venv venv  # Linux/Ubuntu
+   python -m venv venv    # Windows
+   
+   # Activate virtual environment
+   source venv/bin/activate  # Linux/Ubuntu
+   venv\Scripts\activate      # Windows
+   
+   # Install packages
    pip install -r requirements.txt
    ```
 
-4. **Run the application**
+3. **Run the application**
    ```bash
    python run.py
    ```
 
-5. **Access the application**
+4. **Access the application**
    - Frontend: http://localhost:5000
    - API: http://localhost:5000/api
 
@@ -137,10 +184,10 @@ python scripts/run_test.py
 
 ## 🛠️ Scripts
 
+- `scripts/setup/setup.sh` - Automated setup (Linux/Ubuntu)
 - `scripts/setup/setup.bat` / `setup.ps1` - Automated setup (Windows)
-- `scripts/validate_setup.py` - Validate installation
 - `pytest tests/` - Run tests (use pytest directly)
-- `scripts/start.sh` / `stop.sh` - Server management (Linux/Mac)
+- `scripts/start.sh` / `stop.sh` - Server management (Linux/Ubuntu)
 
 ## 📄 License
 
@@ -155,6 +202,7 @@ For issues or questions:
 
 ## 📖 Additional Resources
 
+- [Ubuntu Setup Guide](docs/UBUNTU_SETUP.md) - Complete Ubuntu/Linux setup
 - [Python Installation Guide](docs/PYTHON_INSTALLATION.md)
 - [Ollama Setup Guide](docs/OLLAMA_SETUP.md)
 - [Google Auth Setup](docs/GOOGLE_AUTH_SETUP.md)

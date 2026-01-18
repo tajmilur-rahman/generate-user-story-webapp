@@ -22,16 +22,38 @@ Full-stack application for generating and managing user stories from project doc
 4. **SMTP Configuration** (optional, for welcome emails)
    - See [SMTP Email Setup Guide](SMTP_EMAIL_SETUP.md)
 
-### Automated Setup (Windows)
+### Automated Setup
 
 Run the setup script to install everything automatically:
 
+**Linux/Ubuntu (Complete Setup - Installs Everything):**
+```bash
+chmod +x scripts/setup/setup.sh
+./scripts/setup/setup.sh
+```
+
+This script will automatically install:
+- ✅ Python 3.11+ and pip
+- ✅ System build dependencies
+- ✅ Python virtual environment
+- ✅ All Python packages
+- ✅ Ollama (LLM runtime)
+- ✅ Ollama model (llama3.2)
+- ✅ Environment configuration (.env file)
+
+After setup completes, just run:
+```bash
+source venv/bin/activate
+python run.py
+```
+
+**Windows:**
 ```bash
 # PowerShell
-.\setup.ps1
+.\scripts\setup\setup.ps1
 
 # Or Command Prompt
-setup.bat
+scripts\setup\setup.bat
 ```
 
 ### Manual Setup

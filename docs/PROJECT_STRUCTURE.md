@@ -50,10 +50,9 @@ user-story-automation/
 │
 ├── scripts/                        # Utility scripts
 │   ├── setup/                     # Setup scripts
-│   │   ├── setup.bat             # Windows setup
-│   │   └── setup.ps1              # PowerShell setup
-│   ├── validate_setup.py         # Setup validation
-│   ├── validate_setup.py        # Setup validation
+│   │   ├── setup.sh              # Complete setup (Ubuntu/Linux - installs everything)
+│   │   ├── setup.bat             # Basic setup (Windows - Python dependencies only)
+│   │   └── setup.ps1              # Basic setup (Windows PowerShell - Python dependencies only)
 │   ├── start.sh                  # Start server (Linux/Mac)
 │   ├── stop.sh                   # Stop server (Linux/Mac)
 │   └── force-stop.sh             # Force stop server
