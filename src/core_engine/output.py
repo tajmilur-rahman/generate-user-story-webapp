@@ -2,7 +2,6 @@
 Output formatting and saving functionality for user stories.
 
 This module handles saving generated stories, epics, and test cases to JSON files.
-Moved from autoAgile/save_output.py to consolidate core functionality.
 """
 import json
 import os
@@ -33,7 +32,7 @@ def save_json_output(requirements, epics, test_cases, docx_path):
     # Get project root (3 levels up from this file: src/core_engine/output.py)
     current_file_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(current_file_dir))
-    output_dir = os.path.join(project_root, "autoAgile", "json_output")
+    output_dir = os.path.join(project_root, "data", "outputs")
 
     # Check if the directory exists, and if not, create it
     if not os.path.exists(output_dir):

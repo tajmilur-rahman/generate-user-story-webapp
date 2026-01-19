@@ -21,29 +21,18 @@ This application is fully compatible with Ubuntu Linux, Windows, and macOS.
 ## Platform-Specific Setup
 
 ### Ubuntu/Linux
-```bash
-chmod +x scripts/setup/setup.sh
-./scripts/setup/setup.sh
-source venv/bin/activate
-python run.py
-```
+See [docs/MANUAL_INSTALLATION.md](MANUAL_INSTALLATION.md) for installation steps.
 
 ### Windows
 ```bash
-.\scripts\setup\setup.ps1
-# Or
-scripts\setup\setup.bat
+# Install Python dependencies
 venv\Scripts\activate
+pip install -r requirements.txt
 python run.py
 ```
 
 ### macOS
-```bash
-chmod +x scripts/setup/setup.sh
-./scripts/setup/setup.sh
-source venv/bin/activate
-python run.py
-```
+See [docs/MANUAL_INSTALLATION.md](MANUAL_INSTALLATION.md) for installation steps.
 
 ## File Path Differences
 
@@ -57,15 +46,14 @@ The application automatically handles these differences using Python's `os.path`
 
 ## Scripts
 
-### Linux/Ubuntu/macOS
-- `scripts/setup/setup.sh` - Setup script
-- `scripts/start.sh` - Start server
-- `scripts/stop.sh` - Stop server
-- `scripts/force-stop.sh` - Force stop
+### All Platforms
+To run the application, use:
+```bash
+python run.py
+```
 
 ### Windows
-- `scripts/setup/setup.bat` - Batch setup script
-- `scripts/setup/setup.ps1` - PowerShell setup script
+- Use manual installation steps (see main README)
 
 ## Dependencies
 
@@ -88,9 +76,8 @@ To verify Ubuntu compatibility:
 # 1. Check Python version
 python3 --version  # Should be 3.11+
 
-# 2. Run setup
-chmod +x scripts/setup/setup.sh
-./scripts/setup/setup.sh
+# 2. Follow Ubuntu setup (see UBUNTU_SETUP.md)
+# Create venv, install packages, etc.
 
 # 3. Test imports
 source venv/bin/activate
@@ -123,7 +110,6 @@ python run.py
 
 **Permission Denied:**
 ```bash
-chmod +x scripts/setup/setup.sh
 chmod +x scripts/*.sh
 ```
 

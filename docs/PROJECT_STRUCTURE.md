@@ -48,15 +48,6 @@ user-story-automation/
 │   ├── integration/               # Integration tests
 │   └── unit/                      # Unit tests
 │
-├── scripts/                        # Utility scripts
-│   ├── setup/                     # Setup scripts
-│   │   ├── setup.sh              # Complete setup (Ubuntu/Linux - installs everything)
-│   │   ├── setup.bat             # Basic setup (Windows - Python dependencies only)
-│   │   └── setup.ps1              # Basic setup (Windows PowerShell - Python dependencies only)
-│   ├── start.sh                  # Start server (Linux/Mac)
-│   ├── stop.sh                   # Stop server (Linux/Mac)
-│   └── force-stop.sh             # Force stop server
-│
 ├── config/                        # Configuration files
 │   ├── nginx.conf                # Nginx configuration
 │   └── SECRET_KEY.txt            # Secret key (should be in .env)
@@ -70,16 +61,16 @@ user-story-automation/
 │
 ├── docs/                          # Documentation
 │   ├── README.md                 # Main documentation
-│   ├── UBUNTU_SETUP.md           # Ubuntu/Linux setup guide
 │   ├── PROJECT_STRUCTURE.md      # This file
 │   ├── features/                  # Feature documentation
 │   ├── setup/                     # Setup guides
 │   └── troubleshooting/           # Troubleshooting guides
 │
-├── autoAgile/                     # Legacy/backward compatibility
-│   ├── json_output/               # JSON output storage
+├── autoAgile1212/                 # Integrated prompts and utilities
+│   ├── autoAgile.py               # Main autoAgile logic
+│   ├── save_output.py             # Output saving utilities
 │   ├── tests/                     # Test fixtures/resources
-│   └── utils/                     # Legacy utilities
+│   └── utils/                     # Prompt utilities
 │
 ├── instance/                       # Application instance data
 │   └── users.db                   # SQLite database
@@ -103,10 +94,6 @@ user-story-automation/
 ### `tests/` - Tests
 - Unit tests, integration tests, and test fixtures
 - Organized by test type (unit, integration, etc.)
-
-### `scripts/` - Utility Scripts
-- Setup scripts, test runners, log readers, server management
-- Setup scripts in `scripts/setup/` subdirectory
 
 ### `config/` - Configuration
 - Configuration files, secrets (should use `.env` instead of `SECRET_KEY.txt`)
@@ -153,8 +140,8 @@ user-story-automation/
 ### Documentation
 - `README.md` - Project overview
 - `docs/README.md` - Detailed documentation
-- `docs/UBUNTU_SETUP.md` - Ubuntu/Linux setup instructions
-- `INSTALL.md` - Complete installation guide
+- `UBUNTU_SETUP.md` - Complete tested Ubuntu installation guide
+- `QUICK_SETUP.md` - Quick setup with all commands
 
 ## Data Files Location
 
@@ -165,7 +152,8 @@ user-story-automation/
 
 ## Notes
 
-- The `autoAgile/` directory is kept for backward compatibility and test fixtures
+- The `autoAgile1212/` directory contains the integrated prompts and utilities from the autoAgile1212 project
 - All core functionality has been consolidated into `src/core_engine/`
 - Configuration should use `.env` file, not `config/SECRET_KEY.txt`
 - Test files reference data files using relative paths from project root
+- Output files are saved to `data/outputs/`

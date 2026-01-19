@@ -26,10 +26,9 @@ Full-stack application for generating and managing user stories from project doc
 
 Run the setup script to install everything automatically:
 
-**Linux/Ubuntu (Complete Setup - Installs Everything):**
+**Linux/Ubuntu (Manual Installation):**
 ```bash
-chmod +x scripts/setup/setup.sh
-./scripts/setup/setup.sh
+# See UBUNTU_SETUP.md for complete step-by-step instructions
 ```
 
 This script will automatically install:
@@ -49,11 +48,17 @@ python run.py
 
 **Windows:**
 ```bash
-# PowerShell
-.\scripts\setup\setup.ps1
+# Install Python 3.11+ from python.org
+# Create virtual environment
+python -m venv venv
+venv\Scripts\activate
 
-# Or Command Prompt
-scripts\setup\setup.bat
+# Install dependencies
+pip install -r requirements.txt
+
+# Install Ollama from ollama.ai/download/windows
+# Run application
+python run.py
 ```
 
 ### Manual Setup
@@ -159,7 +164,9 @@ See `config/env.template` for all available options.
 
 ## 📚 Documentation
 
-- **[Ubuntu Setup Guide](UBUNTU_SETUP.md)** - Complete Ubuntu/Linux setup (includes Python and Ollama)
+- **[Ubuntu Setup Guide](../UBUNTU_SETUP.md)** - Complete Ubuntu/Linux installation (tested & working)
+- **[Quick Setup Guide](../QUICK_SETUP.md)** - All commands in one place (fastest)
+- **[Testing Setup Script](TESTING_SETUP_SCRIPT.md)** - How to test the Ubuntu setup script on Windows using WSL
 - **[Google Auth Setup](GOOGLE_AUTH_SETUP.md)** - OAuth configuration guide
 - **[SMTP Email Setup](SMTP_EMAIL_SETUP.md)** - Email configuration guide
 
@@ -196,7 +203,7 @@ The server starts on `http://localhost:5000`
 │   │   ├── services/     # Business logic
 │   │   └── models/       # Database models
 │   └── frontend/         # Frontend assets
-├── autoAgile/            # LLM processing module
+├── autoAgile1212/        # Integrated prompts and utilities
 ├── docs/                 # Documentation
 ├── requirements.txt      # Python dependencies
 ├── env.template          # Environment variables template
@@ -230,7 +237,9 @@ The server starts on `http://localhost:5000`
 - Verify email service logs
 
 ### Story Generation Issues
-- See [Story Generation Troubleshooting](troubleshooting/story-generation-issues.md)
+- Check the application logs in `data/logs/app.log` for detailed error messages
+- Ensure your LLM provider (Ollama/OpenAI) is running and accessible
+- Verify your document is in a supported format (.docx)
 
 ## 📝 API Endpoints
 

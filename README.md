@@ -11,43 +11,75 @@ AI-powered application for generating user stories, epics, and test cases from p
 
 ### Installation
 
-#### Ubuntu/Linux (Recommended - One Script Installs Everything!)
+#### Ubuntu/Linux (Tested & Working ✅)
 
+**Quick Setup:** See **[QUICK_SETUP.md](QUICK_SETUP.md)** - All commands in one place (30-40 min)
+
+**Detailed Guide:** See **[UBUNTU_SETUP.md](UBUNTU_SETUP.md)** - Step-by-step with explanations
+
+Quick summary - all commands in one place:
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd user-story-automation
+# System setup
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y software-properties-common git zstd
 
-# Run complete automated setup (installs EVERYTHING)
-chmod +x scripts/setup/setup.sh
-./scripts/setup/setup.sh
+# Python 3.11
+sudo add-apt-repository -y ppa:deadsnakes/ppa
+sudo apt update
+sudo apt install -y python3.11 python3.11-venv python3.11-dev python3-pip build-essential curl sqlite3
 
-# The script automatically installs:
-# ✅ Python 3.11+ and pip
-# ✅ System dependencies
-# ✅ Python virtual environment
-# ✅ All Python packages
-# ✅ Ollama (LLM runtime)
-# ✅ Ollama model (llama3.2)
-# ✅ Environment configuration
-
-# After setup completes, just run:
+# Virtual environment
+python3.11 -m venv venv
 source venv/bin/activate
+
+# Python packages
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+
+# Ollama (manual installation - avoids snap issues)
+cd /tmp
+wget https://github.com/ollama/ollama/releases/download/v0.1.29/ollama-linux-amd64 -O ollama
+chmod +x ollama
+sudo mv ollama /usr/local/bin/ollama
+
+# Start Ollama (Terminal 1 - keep running)
+/usr/local/bin/ollama serve
+
+# In new terminal: Download model
+ollama pull llama3.2
+
+# Setup environment
+cp config/env.template .env
+SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+sed -i "s|^SECRET_KEY=.*|SECRET_KEY=$SECRET_KEY|" .env
+sed -i "s|^LLM_PROVIDER=.*|LLM_PROVIDER=ollama|" .env
+
+# Run application
 python run.py
 ```
 
-See [docs/UBUNTU_SETUP.md](docs/UBUNTU_SETUP.md) for detailed Ubuntu setup guide.
+**Time:** 30-40 minutes | **Browser:** http://localhost:5000
 
 #### Windows
 
+**Manual Installation:**
 ```bash
-# Run automated setup
-.\scripts\setup\setup.ps1
-# Or
-scripts\setup\setup.bat
+# 1. Install Python 3.11+ from python.org
+# 2. Create virtual environment
+python -m venv venv
 
-# Activate virtual environment
+# 3. Activate virtual environment
 venv\Scripts\activate
+
+# 4. Install dependencies
+pip install -r requirements.txt
+
+# 5. Install Ollama from ollama.ai/download/windows
+# 6. Run application
+python run.py
+```
+
+See [UBUNTU_SETUP.md](UBUNTU_SETUP.md) for detailed instructions.
 
 # Run the application
 python run.py
@@ -61,7 +93,7 @@ python run.py
    cp config/env.template .env
    
    # Edit .env with your configuration
-   # See docs/UBUNTU_SETUP.md for detailed instructions
+   # See UBUNTU_SETUP.md for detailed instructions
    ```
 
 2. **Install dependencies**
@@ -106,9 +138,14 @@ See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for detailed structur
 
 ## 📚 Documentation
 
-- **[Installation Guide](INSTALL.md)** - Complete installation instructions
-- **[Ubuntu Setup](docs/UBUNTU_SETUP.md)** - Detailed Ubuntu/Linux setup
+**Setup Guides:**
+- **[Quick Setup](QUICK_SETUP.md)** ⚡ - All commands in one place (fastest)
+- **[Ubuntu Setup](UBUNTU_SETUP.md)** 📖 - Detailed step-by-step guide (tested & working)
+- **[Testing Guide](TESTING_GUIDE.md)** ✅ - Testing checklist and WSL instructions
+
+**Reference:**
 - **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Directory organization
+- **[Cross-Platform](docs/CROSS_PLATFORM_COMPATIBILITY.md)** - Platform compatibility
 
 ## 🏗️ Architecture
 
@@ -183,10 +220,8 @@ python scripts/run_test.py
 
 ## 🛠️ Scripts
 
-- `scripts/setup/setup.sh` - Automated setup (Linux/Ubuntu)
-- `scripts/setup/setup.bat` / `setup.ps1` - Automated setup (Windows)
+- See [QUICK_SETUP.md](QUICK_SETUP.md) or [UBUNTU_SETUP.md](UBUNTU_SETUP.md) for installation
 - `pytest tests/` - Run tests (use pytest directly)
-- `scripts/start.sh` / `stop.sh` - Server management (Linux/Ubuntu)
 
 ## 📄 License
 
@@ -201,7 +236,7 @@ For issues or questions:
 
 ## 📖 Additional Resources
 
-- [Installation Guide](INSTALL.md) - Complete installation instructions
-- [Ubuntu Setup Guide](docs/UBUNTU_SETUP.md) - Complete Ubuntu/Linux setup
+- [Quick Setup Guide](QUICK_SETUP.md) - Fast Ubuntu installation (30-40 min)
+- [Complete Ubuntu Setup](UBUNTU_SETUP.md) - Detailed Ubuntu installation guide
 - [Google Auth Setup](docs/GOOGLE_AUTH_SETUP.md) - OAuth configuration
 - [SMTP Email Setup](docs/SMTP_EMAIL_SETUP.md) - Email configuration

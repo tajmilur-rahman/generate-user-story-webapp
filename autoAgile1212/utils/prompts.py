@@ -10,7 +10,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 # Note: ChatOpenAI import kept for backward compatibility, but llm_factory should be used
 try:
-    from langchain_openai import ChatOpenAI, OpenAI
+from langchain_openai import ChatOpenAI, OpenAI
 except ImportError:
     pass
 
@@ -74,8 +74,8 @@ def compare_answer(answer_left, answer_right,chat)->bool:
         re_text = chain.invoke({"input_first":answer_left, "input_second":answer_right})
     except:
         # Fallback to LLMChain for older LangChain versions
-        chain = LLMChain(llm=chat, prompt=prompt)
-        re = chain.invoke({"input_first":answer_left, "input_second":answer_right})
+    chain = LLMChain(llm=chat, prompt=prompt)
+    re = chain.invoke({"input_first":answer_left, "input_second":answer_right})
         re_text = re["text"] if isinstance(re, dict) else str(re)
     
     print("=============================\n")
@@ -113,7 +113,7 @@ def rank_answer(answer_left, answer_right,chat, mode="debug")->bool:
         re_text = chain.invoke({"input_first":answer_left, "input_second":answer_right})
     except:
         # Fallback to LLMChain for older LangChain versions
-        chain = LLMChain(llm=chat, prompt=prompt)
+    chain = LLMChain(llm=chat, prompt=prompt)
         re = chain.invoke({"input_first":answer_left, "input_second":answer_right})
         re_text = re["text"] if isinstance(re, dict) else str(re)
     
@@ -218,8 +218,8 @@ def rat(refine, thought, x,chat, mode="prod"):
         re_text = chain.invoke({"input_first":x, "input_second":x1})
     except:
         # Fallback to LLMChain for older LangChain versions
-        chain = LLMChain(llm=chat, prompt=prompt)
-        re = chain.invoke({"input_first":x, "input_second":x1})
+    chain = LLMChain(llm=chat, prompt=prompt)
+    re = chain.invoke({"input_first":x, "input_second":x1})
         re_text = re["text"] if isinstance(re, dict) else str(re)
     
     if mode == "debug":

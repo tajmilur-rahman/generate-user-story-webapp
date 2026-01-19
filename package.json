@@ -3,12 +3,8 @@
   "version": "1.0.0",
   "description": "Frontend for User Story Automation",
   "scripts": {
-    "start": "bash scripts/start.sh",
-    "stop": "bash scripts/stop.sh",
-    "force-stop": "bash scripts/force-stop.sh",
-    "restart": "bash scripts/stop.sh && bash scripts/start.sh",
-    "test": "sudo nginx -t -c config/nginx.conf 2>&1 | grep -E '(ok|failed)' || echo 'Test completed'",
-    "status": "pgrep -x nginx > /dev/null && echo '✅ Server is running at http://localhost' || echo 'ℹ️  Server is not running'"
+    "start": "python run.py",
+    "test": "pytest tests/"
   },
   "keywords": ["user-stories", "frontend"],
   "author": "",
