@@ -1,10 +1,11 @@
 """
-LLM Factory for autoAgile1212
-Supports both OpenAI and Ollama based on LLM_PROVIDER environment variable
+LLM Factory for autoAgile
+Supports OpenAI, Ollama, and Groq based on LLM_PROVIDER environment variable
 """
 import os
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 
 def get_chat_model(temperature=0.3, model_name=None):
     """
@@ -15,7 +16,7 @@ def get_chat_model(temperature=0.3, model_name=None):
         model_name: Optional model name override
     
     Returns:
-        Chat model instance (ChatOpenAI or ChatOllama)
+        Chat model instance (ChatOpenAI, ChatOllama, or ChatGroq)
     """
     llm_provider = os.environ.get('LLM_PROVIDER', 'ollama').lower()
     
@@ -37,5 +38,15 @@ def get_chat_model(temperature=0.3, model_name=None):
             temperature=temperature,
             openai_api_key=api_key
         )
+    elif llm_provider == 'groq':
+        api_key = os.environ.get('GROQ_API_KEY', '').strip()
+        if not api_key:
+            raise ValueError("Groq API key not found. Set GROQ_API_KEY in environment.")
+        model = model_name or "llama-3.3-70b-versatile"
+        return ChatGroq(
+            model=model,
+            temperature=temperature,
+            api_key=api_key
+        )
     else:
-        raise ValueError(f"Unsupported LLM_PROVIDER: {llm_provider}. Use 'ollama' or 'openai'.")
+        raise ValueError(f"Unsupported LLM_PROVIDER: {llm_provider}. Use 'ollama', 'openai', or 'groq'.")

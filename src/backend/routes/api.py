@@ -7,10 +7,6 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
-from langchain_openai import ChatOpenAI
-from langchain_ollama import ChatOllama
-from langchain_groq import ChatGroq
-
 
 from backend.utils.helpers import allowed_file
 from backend.services.story_service import convert_stories_to_frontend_format
@@ -18,6 +14,7 @@ from core_engine.prompts import (
     extract_text_from_docx, refine_doc, extract_functionarity,
     extract_epics, get_epics, generate_test_cases, refine_requirements, rat
 )
+from core_engine.llm_factory import get_chat_model
 from core_engine.output import save_json_output
 from core_engine.validation import validate_output, validate_requirements_completeness, print_validation_report
 
@@ -98,35 +95,25 @@ def generate_stories():
             # Higher temperature for more creative/useful stories (0.5-0.7 range)
             # Lower temperature for more deterministic output (0.3-0.4 range)
             temp = float(os.environ.get('LLM_TEMPERATURE', '0.5'))
-            chat = None
             
+            # Get model name from request or use defaults
             if LLM_PROVIDER == 'ollama':
                 model_name = request.form.get('model', OLLAMA_MODEL)
                 logger.info(f"[Ollama] Initializing with model: {model_name}")
-                chat = ChatOllama(
-                    model=model_name,
-                    temperature=temp,
-                    base_url=OLLAMA_BASE_URL
-                )
-                
             elif LLM_PROVIDER == 'openai':
-                model = request.form.get('model', 'gpt-4o')
-                logger.info(f"[OpenAI] Initializing with model: {model}")
-                chat = ChatOpenAI(
-                    model=model,
-                    temperature=temp,
-                    openai_api_key=OPENAI_API_KEY
-                )
-                
+                model_name = request.form.get('model', 'gpt-4o')
+                logger.info(f"[OpenAI] Initializing with model: {model_name}")
             elif LLM_PROVIDER == 'groq':
+                model_name = "llama-3.3-70b-versatile"
                 logger.info("[Groq] Initializing ChatGroq instance...")
-                chat = ChatGroq(
-                    model="llama-3.3-70b-versatile",
-                    temperature=temp,
-                    api_key=GROQ_API_KEY
-                )
             else:
                 return jsonify({'error': f'Unknown LLM_PROVIDER: {LLM_PROVIDER}'}), 500
+            
+            # Use factory to create chat model
+            try:
+                chat = get_chat_model(temperature=temp, model_name=model_name)
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 500
             
             if chat is None:
                 return jsonify({'error': 'Failed to initialize LLM'}), 500

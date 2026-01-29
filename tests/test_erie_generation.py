@@ -1,9 +1,15 @@
 import pytest
 import json
 import io
+import sys
+import os
 from unittest.mock import patch, MagicMock
-from app import create_app
-from autoAgile.tests.test_doc_resources import doc_text_raw
+
+# Add src to path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
+
+from backend.app import create_app
+from core_engine.tests.test_doc_resources import doc_text_raw
 
 @pytest.fixture
 def client():

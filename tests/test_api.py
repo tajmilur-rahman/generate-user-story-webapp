@@ -1,8 +1,14 @@
 import pytest
 import json
 import io
+import sys
+import os
 from unittest.mock import patch, MagicMock
-from app import create_app
+
+# Add src to path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
+
+from backend.app import create_app
 
 @pytest.fixture
 def client():

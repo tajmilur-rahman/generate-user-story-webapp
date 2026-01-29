@@ -19,14 +19,20 @@ user-story-automation/
 │   │   ├── models/                # Database models
 │   │   │   ├── database.py       # Database setup
 │   │   │   └── user.py           # User model
-│   │   ├── utils/                 # Backend utilities
-│   │   │   └── helpers.py        # Helper functions
-│   │   └── llm/                   # LLM-related code (legacy)
+│   │   └── utils/                 # Backend utilities
+│   │       └── helpers.py        # Helper functions
 │   │
-│   ├── core_engine/               # Core business logic (independent)
-│   │   ├── prompts.py            # LLM prompts and story generation
-│   │   ├── validation.py         # Output validation
+│   ├── core_engine/               # Core business logic (autoAgile as foundation)
+│   │   ├── prompts.py            # LLM prompts (from autoAgile1212)
+│   │   ├── llm_factory.py        # LLM initialization (OpenAI, Ollama, Groq)
 │   │   ├── output.py              # Output formatting/saving
+│   │   ├── validation.py         # Output validation
+│   │   ├── cli.py                # Standalone CLI interface
+│   │   ├── tests/                # Test data and evaluation
+│   │   │   ├── docs/             # Test documents (.docx)
+│   │   │   ├── resources.py      # Erie Insurance test data
+│   │   │   ├── test_prompts.py   # Prompt tests
+│   │   │   └── evaluation.py     # Evaluation metrics
 │   │   └── __init__.py           # Package exports
 │   │
 │   └── frontend/                   # Frontend assets
@@ -66,11 +72,9 @@ user-story-automation/
 │   ├── setup/                     # Setup guides
 │   └── troubleshooting/           # Troubleshooting guides
 │
-├── autoAgile1212/                 # Integrated prompts and utilities
-│   ├── autoAgile.py               # Main autoAgile logic
-│   ├── save_output.py             # Output saving utilities
-│   ├── tests/                     # Test fixtures/resources
-│   └── utils/                     # Prompt utilities
+├── FINAL_STRUCTURE.md             # Final structure documentation
+├── MIGRATION_GUIDE.md             # Migration guide (historical)
+├── CONSOLIDATION_SUMMARY.md       # Consolidation summary (historical)
 │
 ├── instance/                       # Application instance data
 │   └── users.db                   # SQLite database

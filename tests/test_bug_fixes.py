@@ -1,7 +1,12 @@
 import pytest
 import json
 import os
-from services.story_service import (
+import sys
+
+# Add src to path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
+
+from backend.services.story_service import (
     validate_source_quote,
     detect_incomplete_templates,
     validate_no_metadata_leak,
