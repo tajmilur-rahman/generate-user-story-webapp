@@ -44,9 +44,7 @@ Visit [Google Cloud Console](https://console.cloud.google.com/)
 GOOGLE_CLIENT_ID=your_google_client_id_here    # Paste your Client ID
 GOOGLE_CLIENT_SECRET=your_google_client_secret_here    # Paste your Client Secret
 
-# This secret key has already been generated for you
-SECRET_KEY=3ec8ffdebd7291f7f9f21a64ae5b2273ae442f7a6e4
-```
+
 
 3. Save the `.env` file
 

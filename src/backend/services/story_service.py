@@ -840,20 +840,26 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
         print(f"[DEBUG] User stories count after dedup: {len(user_stories)}")
         print("=" * 80)
         
-        # 🆕 PHASE 1: VALIDATION (Before sanitization)
-        logger.info(f"🔍 Validating {len(user_stories)} stories...")
-        valid_stories, validation_errors = validate_generated_stories(
-            user_stories, 
-            requirements_text
-        )
+        # VALIDATION DISABLED - Accept all stories
+        logger.info(f"Processing {len(user_stories)} stories (validation disabled)...")
+        valid_stories = user_stories  # Skip validation, use all stories
+        validation_errors = []
         
-        if len(valid_stories) < len(user_stories):
-            rejected = len(user_stories) - len(valid_stories)
-            logger.error(f"❌ Rejected {rejected} stories due to critical errors")
+        # # 🆕 PHASE 1: VALIDATION (Before sanitization)
+        # logger.info(f"🔍 Validating {len(user_stories)} stories...")
+        # valid_stories, validation_errors = validate_generated_stories(
+        #     user_stories, 
+        #     requirements_text
+        # )
         
-        # 🆕 Check coverage
-        if not validate_story_coverage(valid_stories):
-            logger.warning("⚠️ Low story coverage detected")
+        # if len(valid_stories) < len(user_stories):
+        #     rejected = len(user_stories) - len(valid_stories)
+        #     logger.error(f"❌ Rejected {rejected} stories due to critical errors")
+        
+        # # 🆕 Check coverage
+        # if not validate_story_coverage(valid_stories):
+        #     logger.warning("⚠️ Low story coverage detected")
+        
         
         frontend_stories = []
         

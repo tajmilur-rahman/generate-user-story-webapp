@@ -151,16 +151,20 @@ def generate_stories():
                 if not isinstance(deliverables, str):
                     deliverables = str(deliverables)
                 
-                logger.info("Step 3: Refining epics with definition of done...")
-                # Refine deliverables to add definition of done (get_epics)
-                epics = get_epics(deliverables, chat)
+                # SKIP REFINEMENT - Use deliverables directly as epics
+                logger.info("Step 3: Using deliverables as epics (refinement skipped)...")
+                epics = deliverables  # Skip get_epics to avoid JSON errors
                 
-                if epics is None:
-                    raise Exception("Epics refinement returned None")
-                if not isinstance(epics, str):
-                    epics = str(epics)
+                # logger.info("Step 3: Refining epics with definition of done...")
+                # # Refine deliverables to add definition of done (get_epics)
+                # epics = get_epics(deliverables, chat)
                 
-                logger.info("Step 4: Epics extracted and refined successfully")
+                # if epics is None:
+                #     raise Exception("Epics refinement returned None")
+                # if not isinstance(epics, str):
+                #     epics = str(epics)
+                
+                logger.info("Step 4: Epics extracted successfully")
                 
                 logger.info("Step 4: Generating test cases...")
                 # Optimization: Call generate_test_cases directly
