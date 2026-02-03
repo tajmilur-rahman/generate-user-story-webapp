@@ -125,7 +125,7 @@ python run.py
 user-story-automation/
 ├── src/              # Source code
 │   ├── backend/     # Flask backend
-│   ├── core_engine/ # Core business logic
+│   ├── autoAgile/   # Core business logic (autoAgile engine)
 │   └── frontend/    # Web interface
 ├── tests/           # Test files
 ├── scripts/         # Utility scripts
@@ -151,7 +151,7 @@ See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for detailed structur
 
 The application follows a clean separation of concerns:
 
-- **Core Engine** (`src/core_engine/`) - Independent business logic
+- **AutoAgile Engine** (`src/autoAgile/`) - Independent business logic
 - **Backend** (`src/backend/`) - Flask API server
 - **Frontend** (`src/frontend/`) - Web interface
 
@@ -210,8 +210,8 @@ python scripts/run_test.py
 
 ### Key Directories
 
-- `src/core_engine/` - Core business logic (can be developed independently)
-- `src/backend/` - Flask API (depends on core_engine)
+- `src/autoAgile/` - Core business logic (autoAgile engine, can be developed independently)
+- `src/backend/` - Flask API (depends on autoAgile)
 - `src/frontend/` - Web UI (depends on backend API)
 - `tests/` - All test files
 - `scripts/` - Utility scripts

@@ -804,30 +804,50 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
             test_cases_data = test_cases_json
         
         # Try both "User Stories" and "Epics" keys (LLM might return either)
-        user_stories = epics_data.get('User Stories', [])
-        logger.info(f"[convert] Found {len(user_stories)} stories in 'User Stories' key")
+        # Also handle case where epics_data is a list directly
+        user_stories = []
         
-        if not user_stories:
-            # Try "Epics" key as fallback
-            epics_list = epics_data.get('Epics', [])
-            logger.info(f"[convert] Found {len(epics_list)} stories in 'Epics' key")
-            if epics_list:
-                logger.info(f"Found 'Epics' key instead of 'User Stories', using it...")
-                user_stories = epics_list
-            else:
-                # Last resort: check if epics_data itself is a list
-                if isinstance(epics_data, list):
-                    logger.info(f"[convert] epics_data is a list with {len(epics_data)} items, using it directly")
-                    user_stories = epics_data
+        if isinstance(epics_data, dict):
+            user_stories = epics_data.get('User Stories', [])
+            logger.info(f"[convert] Found {len(user_stories)} stories in 'User Stories' key")
+            
+            if not user_stories:
+                # Try "Epics" key as fallback
+                epics_list = epics_data.get('Epics', [])
+                logger.info(f"[convert] Found {len(epics_list)} stories in 'Epics' key")
+                if epics_list:
+                    logger.info(f"Found 'Epics' key instead of 'User Stories', using it...")
+                    user_stories = epics_list
                 else:
-                    logger.error(f"[convert] ⚠️ No user stories found! Available keys: {list(epics_data.keys()) if isinstance(epics_data, dict) else 'not a dict'}")
-                    logger.error(f"[convert] epics_data type: {type(epics_data)}, value: {str(epics_data)[:500]}")
+                    # Try "Functional Requirements" key (autoAgile might return this)
+                    func_reqs = epics_data.get('Functional Requirements', [])
+                    logger.info(f"[convert] Found {len(func_reqs)} stories in 'Functional Requirements' key")
+                    if func_reqs:
+                        logger.info(f"Found 'Functional Requirements' key, using it...")
+                        user_stories = func_reqs
+                    else:
+                        logger.error(f"[convert] ⚠️ No user stories found! Available keys: {list(epics_data.keys())}")
+        elif isinstance(epics_data, list):
+            # If epics_data is already a list, use it directly
+            logger.info(f"[convert] epics_data is a list with {len(epics_data)} items, using it directly")
+            user_stories = epics_data
+        else:
+            logger.error(f"[convert] ⚠️ epics_data is neither dict nor list! Type: {type(epics_data)}")
         
         # Handle different test cases formats
         # Format 1: {"Test Cases": {...}} - dictionary with keys
         # Format 2: {"testCases": [...]} - array of test case objects
-        test_cases_dict = test_cases_data.get('Test Cases', {})
-        test_cases_list = test_cases_data.get('testCases', [])
+        # Format 3: Direct list of test cases (autoAgile might return this)
+        if isinstance(test_cases_data, dict):
+            test_cases_dict = test_cases_data.get('Test Cases', {})
+            test_cases_list = test_cases_data.get('testCases', [])
+        elif isinstance(test_cases_data, list):
+            # If test_cases_data is already a list, use it directly
+            test_cases_list = test_cases_data
+            test_cases_dict = {}
+        else:
+            test_cases_dict = {}
+            test_cases_list = []
         
         # Remove duplicate stories based on similarity
         user_stories = remove_duplicate_stories(user_stories)

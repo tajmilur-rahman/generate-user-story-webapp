@@ -1,0 +1,107 @@
+{
+  "integrated_at": "20260203_105528",
+  "total_stories": 11,
+  "story_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "stories": [
+    {
+      "definitionOfDone": "• Database Schema Design: Design of the database schema to store sensor readings and metadata.",
+      "description": "The system must collect data from a set of instruments that measure water salinity, pH levels, dissolved oxygen, acoustic signals, and sea-surface temperature.",
+      "id": 1,
+      "source_quote": "",
+      "testCases": "Test: collect data from a set of instruments that measure water salinity, pH levels, dissolved oxygen, acoustic signals, and sea-surface temperature.\nExpected: System performs collect data from a set of instruments that measure water salinity, ph levels, dissolved oxygen, acoustic signals, and sea-surface temperature. successfully with valid output data",
+      "title": "Collect Data From A Set"
+    },
+    {
+      "definitionOfDone": "• Architecture Design: Implementation of real-time monitoring and alerting mechanisms for critical system parameters.",
+      "description": "The system must monitor sensors, hull integrity, and energy storage levels in real-time.",
+      "id": 2,
+      "source_quote": "",
+      "testCases": "Test: monitor sensors, hull integrity, and energy storage levels in real-time.\nExpected: System performs monitor sensors, hull integrity, and energy storage levels in real-time. successfully with valid output data",
+      "title": "Monitor Sensors Hull Integrity Energy"
+    },
+    {
+      "definitionOfDone": "• User Training Documentation: Training documentation for Fleet Operations Center personnel on fault reporting procedures.",
+      "description": "The system must report hardware faults to the Fleet Operations Center immediately.",
+      "id": 3,
+      "source_quote": "",
+      "testCases": "Test: report hardware faults to the Fleet Operations Center immediately.\nExpected: System performs report hardware faults to the fleet operations center immediately. successfully with valid output data",
+      "title": "Report Hardware Faults To Fleet"
+    },
+    {
+      "definitionOfDone": "• Production Support Plan: Development of a plan to address potential power management issues and ensure reliable operation.",
+      "description": "The system must manage system power, ensuring that high-energy sensors are activated only when battery reserves are above a safe threshold.",
+      "id": 4,
+      "source_quote": "",
+      "testCases": "Test: manage system power, ensuring that high-energy sensors are activated only when battery reserves are above a safe threshold.\nExpected: System performs manage system power, ensuring that high-energy sensors are activated only when battery reserves are above a safe threshold. successfully with valid output data",
+      "title": "Manage Power Ensuring That High-energy"
+    },
+    {
+      "definitionOfDone": "• Unit Tests: Unit tests to validate the functionality of the dynamic reconfiguration mechanism.",
+      "description": "The system must allow for dynamic reconfiguration where sensor sampling logic is updated and redundant sensors are switched on if a primary instrument fails due to corrosion.",
+      "id": 5,
+      "source_quote": "",
+      "testCases": "Test: allow for dynamic reconfiguration where sensor sampling logic is updated and redundant sensors are switched on if a primary instrument fails due to corrosion.\nExpected: System performs allow for dynamic reconfiguration where sensor sampling logic is updated and redundant sensors are switched on if a primary instrument fails due to corrosion. successfully with valid output data",
+      "title": "Allow Dynamic Reconfiguration Where Sensor"
+    },
+    {
+      "definitionOfDone": "• Architecture Design: Implementation of data aggregation and compression algorithms to optimize data transmission.",
+      "description": "The system must maintain data aggregation and compression before transmitting the compressed data packet when a stable satellite uplink is confirmed.",
+      "id": 6,
+      "source_quote": "",
+      "testCases": "Test: maintain data aggregation and compression before transmitting the compressed data packet when a stable satellite uplink is confirmed.\nExpected: System performs maintain data aggregation and compression before transmitting the compressed data packet when a stable satellite uplink is confirmed. successfully with valid output data",
+      "title": "Maintain Data Aggregation Compression Before"
+    },
+    {
+      "definitionOfDone": "• Database Schema Design: Design of the database schema to store energy consumption and storage data.",
+      "description": "The system must store energy in high-capacity flash storage until communication can be resumed if a connection is blocked by a severe storm.",
+      "id": 7,
+      "source_quote": "",
+      "testCases": "Test: store energy in high-capacity flash storage until communication can be resumed if a connection is blocked by a severe storm.\nExpected: System performs store energy in high-capacity flash storage until communication can be resumed if a connection is blocked by a severe storm. successfully with valid output data",
+      "title": "Store Energy In High-capacity Flash"
+    },
+    {
+      "definitionOfDone": "• User Training Documentation: Training documentation for Fleet Operations Center personnel on analyzing report data.",
+      "description": "The system must provide reports of mechanical wear or sensor drift to the Fleet Operations Center.",
+      "id": 8,
+      "source_quote": "",
+      "testCases": "Test: provide reports of mechanical wear or sensor drift to the Fleet Operations Center.\nExpected: System performs provide reports of mechanical wear or sensor drift to the fleet operations center. successfully with valid output data",
+      "title": "Provide Reports Of Mechanical Wear"
+    },
+    {
+      "definitionOfDone": "• Architecture Design: Implementation of OTA firmware update mechanisms and secure communication protocols.",
+      "description": "The system must push over-the-air (OTA) firmware updates to modify sensor sampling rates as needed.",
+      "id": 9,
+      "source_quote": "",
+      "testCases": "Test: push over-the-air (OTA) firmware updates to modify sensor sampling rates as needed.\nExpected: System performs push over-the-air (ota) firmware updates to modify sensor sampling rates as needed. successfully with valid output data",
+      "title": "Push Over-the-air (ota) Firmware Updates"
+    },
+    {
+      "definitionOfDone": "• Database Schema Design: Design of the database schema to store archived data and metadata.",
+      "description": "The system must allow for public and academic retrieval of archived data via the Global Shore-link Archive.",
+      "id": 10,
+      "source_quote": "",
+      "testCases": "Test: allow for public and academic retrieval of archived data via the Global Shore-link Archive.\nExpected: System performs allow for public and academic retrieval of archived data via the global shore-link archive. successfully with valid output data",
+      "title": "Allow Public Academic Retrieval Of"
+    },
+    {
+      "definitionOfDone": "• Production Support Plan: Development of a plan to ensure reliable satellite communication with buoys.",
+      "description": "The system must facilitate communication by satellite with all buoys to monitor hull integrity, battery health, and other key parameters.",
+      "id": 11,
+      "source_quote": "",
+      "testCases": "Test: facilitate communication by satellite with all buoys to monitor hull integrity, battery health, and other key parameters.\nExpected: System performs facilitate communication by satellite with all buoys to monitor hull integrity, battery health, and other key parameters. successfully with valid output data",
+      "title": "Facilitate Communication By Satellite All"
+    }
+  ]
+}

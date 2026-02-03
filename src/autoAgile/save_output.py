@@ -21,9 +21,19 @@ def save_json_output(requirements, epics, test_cases, docx_path):
     output_path = os.path.join(output_dir, output_file_name)
     
 
-    data1 = json.loads(epics)
-    data2 = json.loads(test_cases)
+    # Handle both string JSON and dict objects
+    if isinstance(epics, str):
+        data1 = json.loads(epics)
+    else:
+        data1 = epics
+    
+    if isinstance(test_cases, str):
+        data2 = json.loads(test_cases)
+    else:
+        data2 = test_cases
+    
     combined_data = {**data1, **data2}
+
 
     
 

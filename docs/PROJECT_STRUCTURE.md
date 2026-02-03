@@ -22,18 +22,19 @@ user-story-automation/
 │   │   └── utils/                 # Backend utilities
 │   │       └── helpers.py        # Helper functions
 │   │
-│   ├── core_engine/               # Core business logic (autoAgile as foundation)
-│   │   ├── prompts.py            # LLM prompts (from autoAgile1212)
-│   │   ├── llm_factory.py        # LLM initialization (OpenAI, Ollama, Groq)
-│   │   ├── output.py              # Output formatting/saving
-│   │   ├── validation.py         # Output validation
-│   │   ├── cli.py                # Standalone CLI interface
-│   │   ├── tests/                # Test data and evaluation
-│   │   │   ├── docs/             # Test documents (.docx)
-│   │   │   ├── resources.py      # Erie Insurance test data
-│   │   │   ├── test_prompts.py   # Prompt tests
-│   │   │   └── evaluation.py     # Evaluation metrics
-│   │   └── __init__.py           # Package exports
+│   ├── autoAgile/                  # Core business logic (autoAgile engine)
+│   │   ├── utils/                  # Utility modules
+│   │   │   ├── prompts.py          # LLM prompts
+│   │   │   ├── llm_factory.py      # LLM initialization (OpenAI, Ollama, Groq)
+│   │   │   └── utils.py            # Helper utilities
+│   │   ├── autoAgile.py            # Main CLI script
+│   │   ├── save_output.py          # Output formatting/saving
+│   │   ├── tests/                  # Test data and evaluation
+│   │   │   ├── docs/               # Test documents (.docx)
+│   │   │   ├── resources.py        # Test data
+│   │   │   ├── test_prompts.py     # Prompt tests
+│   │   │   └── evaluation.py       # Evaluation metrics
+│   │   └── __init__.py             # Package exports
 │   │
 │   └── frontend/                   # Frontend assets
 │       ├── templates/             # HTML templates
@@ -92,7 +93,7 @@ user-story-automation/
 
 ### `src/` - Source Code
 - **`backend/`**: Flask application, API routes, services, models
-- **`core_engine/`**: Core business logic (independent, can be developed separately)
+- **`autoAgile/`**: Core business logic (autoAgile engine, independent, can be developed separately)
 - **`frontend/`**: HTML, CSS, JavaScript for web interface
 
 ### `tests/` - Tests
@@ -156,8 +157,8 @@ user-story-automation/
 
 ## Notes
 
-- The `autoAgile1212/` directory contains the integrated prompts and utilities from the autoAgile1212 project
-- All core functionality has been consolidated into `src/core_engine/`
+- The `autoAgile/` directory contains the core engine from the autoAgile project
+- All core functionality has been consolidated into `src/autoAgile/`
 - Configuration should use `.env` file, not `config/SECRET_KEY.txt`
 - Test files reference data files using relative paths from project root
 - Output files are saved to `data/outputs/`

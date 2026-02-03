@@ -227,7 +227,7 @@ This document provides a comprehensive overview of every file in the User Story 
 
 ---
 
-## 🤖 Core Engine (`src/core_engine/`)
+## 🤖 AutoAgile Engine (`src/autoAgile/`)
 
 ### Main Files
 
@@ -277,7 +277,7 @@ This document provides a comprehensive overview of every file in the User Story 
 
 ---
 
-### Tests (`src/core_engine/tests/`)
+### Tests (`src/autoAgile/tests/`)
 
 #### `__init__.py`
 - **Purpose**: Tests package initializer

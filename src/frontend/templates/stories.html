@@ -12,7 +12,8 @@
     <div class="window-frame">
         <div class="title-bar">
             <div class="title-text">User Stories Dashboard</div>
-            <button class="btn btn-dashboard" onclick="goToMainPage()" title="Go back to main page to generate new stories">
+            <button class="btn btn-dashboard" onclick="goToMainPage()"
+                title="Go back to main page to generate new stories">
                 <span class="btn-icon">🏠</span>
                 <span class="btn-text">Dashboard</span>
             </button>
@@ -25,18 +26,29 @@
         <div class="main-layout">
             <div class="sidebar">
                 <h2 class="sidebar-header">User Stories</h2>
+                <div style="display: flex; gap: 8px; margin-bottom: 12px; padding: 0 12px;">
+                    <button class="btn" onclick="selectAllStories()"
+                        style="flex: 1; padding: 8px; font-size: 13px; background: #f0f0f0;">Select All</button>
+                    <button class="btn" onclick="deselectAllStories()"
+                        style="flex: 1; padding: 8px; font-size: 13px; background: #f0f0f0;">Deselect All</button>
+                </div>
                 <ul class="story-list" id="storyList">
                     <!-- Stories will be dynamically generated here -->
                 </ul>
-                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <button class="btn btn-export" onclick="exportToJSON()"
-                        style="flex: 1; background-color: #34A853; color: white; padding: 12px; font-size: 14px;">Export
-                        JSON</button>
-                    <button class="btn btn-export" onclick="exportToWord()"
-                        style="flex: 1; background-color: #4285F4; color: white; padding: 12px; font-size: 14px;">Export
-                        Word</button>
+                <div style="padding: 12px; border-top: 1px solid #ddd; background: #f9f9f9;">
+                    <div style="font-size: 13px; color: #666; margin-bottom: 8px;">
+                        <span id="selectedCount">0</span> selected
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button class="btn btn-export" onclick="exportSelectedToJSON()"
+                            style="flex: 1; background-color: #34A853; color: white; padding: 12px; font-size: 14px;">Export
+                            Selected JSON</button>
+                        <button class="btn btn-export" onclick="exportSelectedToWord()"
+                            style="flex: 1; background-color: #4285F4; color: white; padding: 12px; font-size: 14px;">Export
+                            Selected Word</button>
+                    </div>
+                    <button class="btn btn-integrate-all" onclick="integrateSelected()">Integrate Selected</button>
                 </div>
-                <button class="btn btn-integrate-all" onclick="integrateAll()">Integrate All</button>
             </div>
             <div class="content-panel">
                 <div class="story-details" id="storyDetails">
@@ -61,6 +73,7 @@
             </div>
         </div>
     </div>
+    <script src="/assets/js/multiselect.js"></script>
     <script src="/assets/js/script.js"></script>
 </body>
 

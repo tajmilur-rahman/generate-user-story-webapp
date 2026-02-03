@@ -212,10 +212,14 @@ def generate_stories():
             # Save output to JSON file
             output_file_path = None
             try:
+                logger.info(f"[API] Attempting to save output. Requirements type: {type(requirements)}, Epics type: {type(epics)}, Test cases type: {type(test_cases)}")
+                logger.info(f"[API] Filepath: {filepath}")
                 output_file_path = save_json_output(requirements, epics, test_cases, filepath)
-                logger.info(f"Output saved to: {output_file_path}")
+                logger.info(f"✅ Output saved successfully to: {output_file_path}")
             except Exception as save_error:
-                logger.warning(f"Could not save JSON output: {save_error}")
+                logger.error(f"❌ Could not save JSON output: {save_error}")
+                logger.error(f"Error traceback: {traceback.format_exc()}")
+            
             
             return jsonify({
                 'success': True,
@@ -249,10 +253,9 @@ def integrate_story():
         if not story_data:
             return jsonify({'error': 'Story data not provided'}), 400
         
-        # Save integrated story to json_output
-        # We need to find where autoAgile is. Assuming it's in the project root.
-        # current_app.root_path should point to where app.py is.
-        output_dir = os.path.join(current_app.root_path, "autoAgile", "json_output")
+        # Save integrated story to data/outputs
+        project_root = os.path.dirname(os.path.dirname(current_app.root_path))
+        output_dir = os.path.join(project_root, "data", "outputs")
         
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, mode=0o777, exist_ok=True)
@@ -295,7 +298,9 @@ def integrate_all():
         if not stories_data:
             return jsonify({'error': 'Stories data not provided'}), 400
         
-        output_dir = os.path.join(current_app.root_path, "autoAgile", "json_output")
+        # Save to data/outputs
+        project_root = os.path.dirname(os.path.dirname(current_app.root_path))
+        output_dir = os.path.join(project_root, "data", "outputs")
         
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, mode=0o777, exist_ok=True)

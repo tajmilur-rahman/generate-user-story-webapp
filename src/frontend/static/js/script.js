@@ -232,10 +232,32 @@ function renderStoryList() {
         const listItem = document.createElement('li');
         listItem.className = 'story-item';
         listItem.setAttribute('data-story-index', index);
-        listItem.textContent = `User story ${index + 1}`;
-        listItem.onclick = () => selectStory(index);
+
+        // Create checkbox
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'story-checkbox';
+        checkbox.style.marginRight = '8px';
+        checkbox.onchange = (e) => {
+            toggleStorySelection(index, e.target.checked);
+            e.stopPropagation(); // Prevent triggering selectStory
+        };
+
+        // Create label
+        const label = document.createElement('span');
+        label.textContent = `User story ${index + 1}`;
+        label.style.cursor = 'pointer';
+        label.onclick = () => selectStory(index);
+
+        listItem.appendChild(checkbox);
+        listItem.appendChild(label);
         storyList.appendChild(listItem);
     });
+
+    // Update selected count
+    if (typeof updateSelectedCount === 'function') {
+        updateSelectedCount();
+    }
 }
 
 // Select a story from the list by index
@@ -448,7 +470,7 @@ function goToMainPage() {
     // Clear session storage if needed (optional - comment out if you want to keep stories)
     // sessionStorage.removeItem('userStories');
     // sessionStorage.removeItem('projectDescription');
-    
+
     // Navigate to main page
     window.location.href = '/';
 }
