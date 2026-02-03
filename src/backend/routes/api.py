@@ -10,13 +10,12 @@ from werkzeug.utils import secure_filename
 
 from backend.utils.helpers import allowed_file
 from backend.services.story_service import convert_stories_to_frontend_format
-from core_engine.prompts import (
+from autoAgile.utils.prompts import (
     extract_text_from_docx, refine_doc, extract_functionarity,
     extract_epics, get_epics, generate_test_cases, refine_requirements, rat
 )
-from core_engine.llm_factory import get_chat_model
-from core_engine.output import save_json_output
-from core_engine.validation import validate_output, validate_requirements_completeness, print_validation_report
+from autoAgile.utils.llm_factory import get_chat_model
+from autoAgile.save_output import save_json_output
 
 api_bp = Blueprint('api', __name__)
 logger = logging.getLogger(__name__)
@@ -174,20 +173,21 @@ def generate_stories():
                 if not isinstance(test_cases, str):
                     test_cases = str(test_cases)
                     
+            
             except Exception as processing_error:
                 logger.error(f"Error during processing: {processing_error}")
                 logger.error(traceback.format_exc())
                 raise
             
-            # VALIDATION
-            epics_validation = validate_output(epics, extracted_text)
-            print_validation_report(epics_validation, "Epics/User Stories Validation")
+            # VALIDATION - Disabled (validation module removed with autoAgile core engine)
+            # epics_validation = validate_output(epics, extracted_text)
+            # print_validation_report(epics_validation, "Epics/User Stories Validation")
             
-            test_cases_validation = validate_output(test_cases, extracted_text)
-            print_validation_report(test_cases_validation, "Test Cases Validation")
+            # test_cases_validation = validate_output(test_cases, extracted_text)
+            # print_validation_report(test_cases_validation, "Test Cases Validation")
             
-            completeness_validation = validate_requirements_completeness(requirements, epics)
-            print_validation_report(completeness_validation, "Completeness Validation")
+            # completeness_validation = validate_requirements_completeness(requirements, epics)
+            # print_validation_report(completeness_validation, "Completeness Validation")
             
             # Log epics before conversion for debugging
             logger.info(f"[API] Epics length: {len(epics) if epics else 0}")

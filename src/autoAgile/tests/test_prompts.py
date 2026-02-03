@@ -1,14 +1,7 @@
 import logging
 import unittest
 import json
-import sys
-import os
-
-# Import from parent module (core_engine)
-from .. import prompts
-
-# Import all functions
-from ..prompts import *
+from utils.prompts import *
 
 #from .test_doc_resources import *
 from .insulim_resources import *
