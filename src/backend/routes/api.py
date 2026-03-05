@@ -199,7 +199,7 @@ def generate_stories():
             logger.info(f"[API] Converted stories count: {len(stories) if stories else 0}")
             
             if not stories or len(stories) == 0:
-                logger.error("[API] ⚠️ WARNING: No stories generated after conversion!")
+                logger.error("[API] WARNING: No stories generated after conversion!")
                 logger.error(f"[API] Epics was: {epics[:1000] if epics else 'None'}")
                 # Return error instead of empty success
                 return jsonify({
@@ -215,9 +215,9 @@ def generate_stories():
                 logger.info(f"[API] Attempting to save output. Requirements type: {type(requirements)}, Epics type: {type(epics)}, Test cases type: {type(test_cases)}")
                 logger.info(f"[API] Filepath: {filepath}")
                 output_file_path = save_json_output(requirements, epics, test_cases, filepath)
-                logger.info(f"✅ Output saved successfully to: {output_file_path}")
+                logger.info(f"Output saved successfully to: {output_file_path}")
             except Exception as save_error:
-                logger.error(f"❌ Could not save JSON output: {save_error}")
+                logger.error(f"Could not save JSON output: {save_error}")
                 logger.error(f"Error traceback: {traceback.format_exc()}")
             
             
@@ -270,7 +270,7 @@ def integrate_story():
                 'story': story_data
             }, f, indent=2, ensure_ascii=False)
         
-        logger.info(f"✅ Integrated story {story_id} saved to: {output_file}")
+        logger.info(f"Integrated story {story_id} saved to: {output_file}")
         
         return jsonify({
             'success': True,
@@ -316,7 +316,7 @@ def integrate_all():
                 'stories': stories_data
             }, f, indent=2, ensure_ascii=False)
         
-        logger.info(f"✅ Integrated {len(stories_data)} stories saved to: {output_file}")
+        logger.info(f"Integrated {len(stories_data)} stories saved to: {output_file}")
         
         return jsonify({
             'success': True,

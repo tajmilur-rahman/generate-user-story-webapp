@@ -12,4 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from backend.app import app
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # use_reloader=False prevents Flask from watching Python stdlib files
+    # (json/__init__.py, logging/__init__.py etc.) and restarting mid-request
+    # which caused ERR_CONNECTION_RESET in the browser.
+    # After changing backend code, just stop and restart the server manually.
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)

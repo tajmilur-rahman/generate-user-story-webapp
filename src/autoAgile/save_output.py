@@ -21,17 +21,34 @@ def save_json_output(requirements, epics, test_cases, docx_path):
     output_path = os.path.join(output_dir, output_file_name)
     
 
+    # Helper to extract JSON if it's wrapped in conversational text
+    def parse_robust(item):
+        if not isinstance(item, str):
+            return item
+        try:
+            return json.loads(item)
+        except json.JSONDecodeError:
+            # Try to find JSON block { ... } or [ ... ]
+            try:
+                start_dict = item.find('{')
+                end_dict = item.rfind('}')
+                if start_dict != -1 and end_dict != -1:
+                    json_str = item[start_dict:end_dict+1]
+                    return json.loads(json_str)
+            except:
+                pass
+            return {"raw_text": item}
+
     # Handle both string JSON and dict objects
-    if isinstance(epics, str):
-        data1 = json.loads(epics)
-    else:
-        data1 = epics
+    data1 = parse_robust(epics)
+    data2 = parse_robust(test_cases)
     
-    if isinstance(test_cases, str):
-        data2 = json.loads(test_cases)
-    else:
-        data2 = test_cases
-    
+    # Ensure they are dicts before merging
+    if not isinstance(data1, dict):
+        data1 = {"epics": data1}
+    if not isinstance(data2, dict):
+        data2 = {"test_cases": data2}
+        
     combined_data = {**data1, **data2}
 
 

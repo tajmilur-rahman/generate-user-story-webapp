@@ -692,6 +692,14 @@ def remove_duplicate_stories(stories):
     seen_texts = set()
     
     for story in stories:
+        # Safety: ensure each story item is a dict before calling .get()
+        if not isinstance(story, dict):
+            if isinstance(story, str) and story.strip():
+                story = {"User Story": story.strip(), "Deliverables": {}}
+            elif isinstance(story, list) and story:
+                story = {"User Story": str(story[0]).strip(), "Deliverables": {}}
+            else:
+                continue
         story_text = story.get('User Story', '').strip().lower()
         
         # Skip empty stories
@@ -740,13 +748,19 @@ def normalize_story_structure(story):
     Normalize story structure to match expected schema.
     Fixes common schema violations like flattened Deliverables.
     """
+    # Ensure story is a dictionary
+    if not isinstance(story, dict):
+        if isinstance(story, list) and len(story) > 0:
+            # If it's a list, try to make a dict from it
+            return {"User Story": str(story[0]), "Deliverables": {}}
+        return {"User Story": str(story), "Deliverables": {}}
+
     if 'Deliverables' in story and isinstance(story['Deliverables'], dict):
         deliverables = story['Deliverables']
         
         # Check if flattened: {"definitionOfDone": "..."} instead of {"name": {"definitionOfDone": "..."}}
         if 'definitionOfDone' in deliverables and isinstance(deliverables['definitionOfDone'], str):
             # It's flattened! Fix it by wrapping it.
-            # Use 'Main Deliverable' as the generic key
             story['Deliverables'] = {
                 "Main Deliverable": {
                     "definitionOfDone": deliverables['definitionOfDone']
@@ -767,41 +781,32 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
     print("=" * 80)
     
     try:
-        # Safe JSON parsing with fallbacks
-        if isinstance(epics_json, str):
+        # Robust JSON parsing function
+        def parse_robust(item, fallback_key="data"):
+            if not isinstance(item, str):
+                return item
             try:
-                epics_data = json.loads(epics_json)
+                return json.loads(item)
             except json.JSONDecodeError:
-                logger.warning(f"Error parsing epics_json, trying to clean...")
-                # Try cleaning
-                cleaned = epics_json.replace("```json", "").replace("```", "").strip()
-                start = cleaned.find('{')
-                end = cleaned.rfind('}')
-                if start != -1 and end != -1:
-                    cleaned = cleaned[start:end+1]
+                # Try to find JSON block { ... } or [ ... ]
                 try:
-                    epics_data = json.loads(cleaned)
+                    start_dict = item.find('{')
+                    end_dict = item.rfind('}')
+                    if start_dict != -1 and end_dict != -1:
+                        json_str = item[start_dict:end_dict+1]
+                        return json.loads(json_str)
+                    
+                    start_list = item.find('[')
+                    end_list = item.rfind(']')
+                    if start_list != -1 and end_list != -1:
+                        json_str = item[start_list:end_list+1]
+                        return json.loads(json_str)
                 except:
-                    epics_data = {"User Stories": []}
-        else:
-            epics_data = epics_json
-        
-        if isinstance(test_cases_json, str):
-            try:
-                test_cases_data = json.loads(test_cases_json)
-            except json.JSONDecodeError:
-                logger.warning(f"Error parsing test_cases_json, trying to clean...")
-                cleaned = test_cases_json.replace("```json", "").replace("```", "").strip()
-                start = cleaned.find('{')
-                end = cleaned.rfind('}')
-                if start != -1 and end != -1:
-                    cleaned = cleaned[start:end+1]
-                try:
-                    test_cases_data = json.loads(cleaned)
-                except:
-                    test_cases_data = {"Test Cases": {}}
-        else:
-            test_cases_data = test_cases_json
+                    pass
+                return {fallback_key: item}
+
+        epics_data = parse_robust(epics_json, "User Stories")
+        test_cases_data = parse_robust(test_cases_json, "Test Cases")
         
         # Try both "User Stories" and "Epics" keys (LLM might return either)
         # Also handle case where epics_data is a list directly
@@ -826,21 +831,23 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
                         logger.info(f"Found 'Functional Requirements' key, using it...")
                         user_stories = func_reqs
                     else:
-                        logger.error(f"[convert] ⚠️ No user stories found! Available keys: {list(epics_data.keys())}")
+                        logger.error(f"[convert] No user stories found! Available keys: {list(epics_data.keys())}")
         elif isinstance(epics_data, list):
             # If epics_data is already a list, use it directly
             logger.info(f"[convert] epics_data is a list with {len(epics_data)} items, using it directly")
             user_stories = epics_data
         else:
-            logger.error(f"[convert] ⚠️ epics_data is neither dict nor list! Type: {type(epics_data)}")
+            logger.error(f"[convert] epics_data is neither dict nor list! Type: {type(epics_data)}")
         
         # Handle different test cases formats
         # Format 1: {"Test Cases": {...}} - dictionary with keys
         # Format 2: {"testCases": [...]} - array of test case objects
         # Format 3: Direct list of test cases (autoAgile might return this)
         if isinstance(test_cases_data, dict):
-            test_cases_dict = test_cases_data.get('Test Cases', {})
-            test_cases_list = test_cases_data.get('testCases', [])
+            raw_tc_dict = test_cases_data.get('Test Cases', {})
+            test_cases_dict = raw_tc_dict if isinstance(raw_tc_dict, dict) else {}
+            raw_tc_list = test_cases_data.get('testCases', [])
+            test_cases_list = raw_tc_list if isinstance(raw_tc_list, list) else []
         elif isinstance(test_cases_data, list):
             # If test_cases_data is already a list, use it directly
             test_cases_list = test_cases_data
@@ -849,11 +856,11 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
             test_cases_dict = {}
             test_cases_list = []
         
+        # Normalize FIRST, then deduplicate to ensure all items are dicts
+        user_stories = [normalize_story_structure(s) for s in user_stories]
+        
         # Remove duplicate stories based on similarity
         user_stories = remove_duplicate_stories(user_stories)
-        
-        # Normalize story structure to handle LLM schema deviations
-        user_stories = [normalize_story_structure(s) for s in user_stories]
         
         print("=" * 80)
         print("[DEBUG] CONVERT_STORIES_TO_FRONTEND_FORMAT - About to validate")
@@ -1091,10 +1098,10 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
         is_valid, validation_errors = validate_story_output(sanitized_stories)
         
         if not is_valid:
-            logger.warning(f"⚠️ WARNING: {len(validation_errors)} validation issues found!")
+            logger.warning(f"WARNING: {len(validation_errors)} validation issues found!")
             # Continue anyway - don't block, but warn user
         else:
-            logger.info("✅ VALIDATION PASSED: No corruption detected!")
+            logger.info("VALIDATION PASSED: No corruption detected!")
         
         # 🆕 PHASE 3: QUALITY METRICS (Track quality)
         quality_metrics = log_quality_metrics(sanitized_stories, validation_errors)
