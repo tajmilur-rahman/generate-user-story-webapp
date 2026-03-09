@@ -221,6 +221,18 @@ body {
     font-weight: 500;
 }
 
+.story-item.selected {
+    background-color: #d4edda;
+    border-left: 3px solid #28a745;
+}
+
+.story-item.selected.active {
+    background-color: #c3e6cb;
+    border-left: 3px solid #28a745;
+    color: #007AFF;
+    font-weight: 500;
+}
+
 .no-stories {
     padding: 14px 18px;
     color: #999;
@@ -291,6 +303,49 @@ body {
     align-self: flex-end;
     font-size: 16px;
     font-weight: 600;
+}
+
+/* Export dropdown menu */
+.export-dropdown {
+    position: relative;
+}
+
+.export-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 4px;
+    z-index: 100;
+}
+
+.export-menu button {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: white;
+    cursor: pointer;
+    text-align: left;
+    font-size: 14px;
+    color: #333;
+    transition: background-color 0.2s;
+}
+
+.export-menu button:hover {
+    background-color: #f0f0f0;
+}
+
+.export-menu button:first-child {
+    border-radius: 4px 4px 0 0;
+}
+
+.export-menu button:last-child {
+    border-radius: 0 0 4px 4px;
 }
 
 /* Responsive adjustments for dashboard button */

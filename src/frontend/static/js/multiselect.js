@@ -13,33 +13,61 @@ function updateSelectedCount() {
 
 // Select all stories
 function selectAllStories() {
-    const checkboxes = document.querySelectorAll('.story-checkbox');
-    checkboxes.forEach((checkbox, index) => {
-        checkbox.checked = true;
+    const storyItems = document.querySelectorAll('.story-item');
+    storyItems.forEach((item, index) => {
         selectedStories.add(index);
     });
+    applySelectionClasses();
     updateSelectedCount();
 }
 
 // Deselect all stories
 function deselectAllStories() {
-    const checkboxes = document.querySelectorAll('.story-checkbox');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = false;
-    });
     selectedStories.clear();
+    applySelectionClasses();
     updateSelectedCount();
 }
 
-// Toggle story selection
-function toggleStorySelection(index, checked) {
-    if (checked) {
-        selectedStories.add(index);
-    } else {
+// Toggle story selection (without checkbox)
+function toggleStorySelection(index) {
+    if (selectedStories.has(index)) {
         selectedStories.delete(index);
+    } else {
+        selectedStories.add(index);
     }
+    applySelectionClasses();
     updateSelectedCount();
 }
+
+// Apply visual selection classes to story items
+function applySelectionClasses() {
+    const storyItems = document.querySelectorAll('.story-item');
+    storyItems.forEach((item) => {
+        const index = parseInt(item.getAttribute('data-story-index'));
+        if (selectedStories.has(index)) {
+            item.classList.add('selected');
+        } else {
+            item.classList.remove('selected');
+        }
+    });
+}
+
+// Toggle export dropdown menu
+function toggleExportDropdown() {
+    const menu = document.getElementById('exportMenu');
+    if (menu) {
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdown = document.querySelector('.export-dropdown');
+    const menu = document.getElementById('exportMenu');
+    if (dropdown && menu && !dropdown.contains(event.target)) {
+        menu.style.display = 'none';
+    }
+});
 
 // Get selected stories
 function getSelectedStories() {

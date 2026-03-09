@@ -39,13 +39,15 @@
                     <div style="font-size: 13px; color: #666; margin-bottom: 8px;">
                         <span id="selectedCount">0</span> selected
                     </div>
-                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                        <button class="btn btn-export" onclick="exportSelectedToJSON()"
-                            style="flex: 1; background-color: #34A853; color: white; padding: 12px; font-size: 14px;">Export
-                            Selected JSON</button>
-                        <button class="btn btn-export" onclick="exportSelectedToWord()"
-                            style="flex: 1; background-color: #4285F4; color: white; padding: 12px; font-size: 14px;">Export
-                            Selected Word</button>
+                    <div class="export-dropdown" style="position: relative; margin-bottom: 10px;">
+                        <button class="btn btn-export" onclick="toggleExportDropdown()"
+                            style="width: 100%; background-color: #34A853; color: white; padding: 12px; font-size: 14px;">
+                            Export Selected ▼
+                        </button>
+                        <div id="exportMenu" class="export-menu" style="display: none;">
+                            <button onclick="exportSelectedToJSON(); toggleExportDropdown();">Export as JSON</button>
+                            <button onclick="exportSelectedToWord(); toggleExportDropdown();">Export as Word</button>
+                        </div>
                     </div>
                     <button class="btn btn-integrate-all" onclick="integrateSelected()">Integrate Selected</button>
                 </div>

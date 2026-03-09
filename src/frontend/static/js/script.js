@@ -207,7 +207,10 @@ async function loadUserStories() {
 
     // Select first story by default if available
     if (userStories.length > 0) {
+        selectedStories.add(0);
         selectStory(0);
+        applySelectionClasses();
+        updateSelectedCount();
     }
 }
 
@@ -232,25 +235,14 @@ function renderStoryList() {
         const listItem = document.createElement('li');
         listItem.className = 'story-item';
         listItem.setAttribute('data-story-index', index);
-
-        // Create checkbox
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'story-checkbox';
-        checkbox.style.marginRight = '8px';
-        checkbox.onchange = (e) => {
-            toggleStorySelection(index, e.target.checked);
-            e.stopPropagation(); // Prevent triggering selectStory
+        
+        // Make entire item clickable - toggles selection AND shows details
+        listItem.onclick = () => {
+            toggleStorySelection(index);
+            selectStory(index);
         };
-
-        // Create label
-        const label = document.createElement('span');
-        label.textContent = `User story ${index + 1}`;
-        label.style.cursor = 'pointer';
-        label.onclick = () => selectStory(index);
-
-        listItem.appendChild(checkbox);
-        listItem.appendChild(label);
+        
+        listItem.textContent = `User story ${index + 1}`;
         storyList.appendChild(listItem);
     });
 
