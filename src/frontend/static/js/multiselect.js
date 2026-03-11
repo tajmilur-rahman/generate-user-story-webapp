@@ -69,6 +69,120 @@ document.addEventListener('click', function(event) {
     }
 });
 
+// GitHub integration helpers
+async function loadGitHubConfig() {
+    try {
+        const res = await fetch('/api/github-config');
+        if (!res.ok) {
+            return;
+        }
+        const data = await res.json();
+        const statusEl = document.getElementById('githubStatus');
+        const formEl = document.getElementById('githubConfigForm');
+        const connectButtons = document.getElementById('githubConnectButtons');
+        const manageButtons = document.getElementById('githubManageButtons');
+        const repoInput = document.getElementById('githubRepo');
+        const branchInput = document.getElementById('githubBranch');
+        const folderInput = document.getElementById('githubFolder');
+
+        if (!statusEl || !formEl || !connectButtons || !manageButtons) {
+            return;
+        }
+
+        if (data.authenticated && data.github && data.github.username) {
+            statusEl.textContent = `GitHub: Connected as ${data.github.username}`;
+            connectButtons.style.display = 'none';
+            manageButtons.style.display = 'flex';
+            formEl.style.display = 'none'; // Start collapsed
+
+            if (repoInput) repoInput.value = data.github.repo || '';
+            if (branchInput) branchInput.value = data.github.branch || '';
+            if (folderInput) folderInput.value = data.github.folder || '';
+        } else {
+            statusEl.textContent = 'GitHub: Not connected';
+            connectButtons.style.display = 'flex';
+            manageButtons.style.display = 'none';
+            formEl.style.display = 'none';
+        }
+    } catch (e) {
+        console.error('Error loading GitHub config:', e);
+    }
+}
+
+function toggleGitHubConfig() {
+    const formEl = document.getElementById('githubConfigForm');
+    if (formEl) {
+        formEl.style.display = formEl.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function connectGitHub() {
+    window.location.href = '/auth/github';
+}
+
+async function saveGitHubConfig() {
+    const repoInput = document.getElementById('githubRepo');
+    const branchInput = document.getElementById('githubBranch');
+    const folderInput = document.getElementById('githubFolder');
+    const formEl = document.getElementById('githubConfigForm');
+
+    if (!repoInput || !repoInput.value.trim()) {
+        alert('Please enter a GitHub repository name.');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/github-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                repo: repoInput.value.trim(),
+                branch: branchInput && branchInput.value.trim() ? branchInput.value.trim() : 'main',
+                folder: folderInput && folderInput.value.trim() ? folderInput.value.trim() : null
+            })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Failed to save GitHub config');
+        }
+
+        alert('GitHub configuration saved successfully.');
+        // Hide the form after successful save
+        if (formEl) {
+            formEl.style.display = 'none';
+        }
+    } catch (e) {
+        console.error('Error saving GitHub config:', e);
+        alert(`Error saving GitHub config: ${e.message}`);
+    }
+}
+
+async function disconnectGitHub() {
+    if (!confirm('Are you sure you want to disconnect GitHub? Your repository configuration will be removed.')) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/github-disconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Failed to disconnect GitHub');
+        }
+
+        alert('GitHub disconnected successfully.');
+        // Reload the page to refresh the UI
+        window.location.reload();
+    } catch (e) {
+        console.error('Error disconnecting GitHub:', e);
+        alert(`Error disconnecting GitHub: ${e.message}`);
+    }
+}
+
 // Get selected stories
 function getSelectedStories() {
     if (selectedStories.size === 0) {
@@ -164,16 +278,15 @@ async function integrateSelected() {
         return;
     }
 
-    if (!confirm(`Are you sure you want to integrate ${selected.length} selected user stories?`)) {
+    if (!confirm(`Are you sure you want to integrate ${selected.length} selected user stories to GitHub?`)) {
         return;
     }
 
     try {
-        const response = await fetch('/api/integrate-all', {
+        const response = await fetch('/api/integrate-selected-github', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                storyIds: selected.map((s, idx) => s.id || idx + 1),
                 stories: selected
             })
         });
@@ -192,10 +305,14 @@ async function integrateSelected() {
         }
 
         const data = JSON.parse(responseText);
-        alert(`${selected.length} selected stories integrated successfully!`);
-        console.log('Integration response:', data);
+        let msg = `${selected.length} selected stories integrated to GitHub successfully.`;
+        if (data.fileUrl) {
+            msg += `\n\nView file: ${data.fileUrl}`;
+        }
+        alert(msg);
+        console.log('GitHub integration response:', data);
     } catch (error) {
-        console.error('Error integrating selected stories:', error);
-        alert(`Error integrating stories: ${error.message}`);
+        console.error('Error integrating selected stories to GitHub:', error);
+        alert(`Error integrating stories to GitHub: ${error.message}`);
     }
 }

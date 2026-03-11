@@ -52,11 +52,13 @@ def create_app():
     # Configure Flask to serve static files and templates from new locations
     static_folder = os.path.join(project_root, 'src', 'frontend', 'static')
     template_folder = os.path.join(project_root, 'src', 'frontend', 'templates')
-    
-    app = Flask(__name__, 
+    instance_folder = os.path.join(project_root, 'instance')
+
+    app = Flask(__name__,
                 static_folder=static_folder,
                 static_url_path='/assets',
-                template_folder=template_folder)
+                template_folder=template_folder,
+                instance_path=instance_folder)
     CORS(app)  # Enable CORS for frontend
 
     # Configuration

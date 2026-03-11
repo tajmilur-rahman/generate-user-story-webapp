@@ -471,6 +471,11 @@ function goToMainPage() {
 if (window.location.pathname.includes('stories.html')) {
     // Load and render user stories when page loads
     loadUserStories();
+
+    // Load GitHub integration status/config
+    if (typeof loadGitHubConfig === 'function') {
+        loadGitHubConfig();
+    }
 }
 
 // Function to update stories from backend (call this when Python code generates stories)

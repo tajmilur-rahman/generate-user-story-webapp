@@ -3,6 +3,8 @@ import json
 import tempfile
 import logging
 import traceback
+import base64
+import requests
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
@@ -10,6 +12,7 @@ from werkzeug.utils import secure_filename
 
 from backend.utils.helpers import allowed_file
 from backend.services.story_service import convert_stories_to_frontend_format
+from backend.models import User, db
 from autoAgile.utils.prompts import (
     extract_text_from_docx, refine_doc, extract_functionarity,
     extract_epics, get_epics, generate_test_cases, refine_requirements, rat
@@ -332,6 +335,167 @@ def integrate_all():
             'details': traceback.format_exc().split('\n')[-5:]
         }), 500
 
+
+@api_bp.route('/integrate-selected-github', methods=['POST'])
+@login_required
+def integrate_selected_github():
+    """Integrate selected user stories into the current user's GitHub repository as a JSON file."""
+    try:
+        user: User = current_user
+
+        if not user.github_access_token or not user.github_username:
+            return jsonify({'error': 'GitHub is not connected for this user'}), 400
+
+        if not user.github_repo:
+            return jsonify({'error': 'GitHub repository is not configured'}), 400
+
+        data = request.json or {}
+        stories = data.get('stories', [])
+
+        if not stories:
+            return jsonify({'error': 'No stories provided'}), 400
+
+        import base64
+        import requests
+
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        filename = f"user_stories_{timestamp}.json"
+        folder = (user.github_folder or '').strip().strip('/')
+        path = f"{folder}/{filename}" if folder else filename
+
+        payload = {
+            'integratedAt': datetime.utcnow().isoformat() + 'Z',
+            'source': 'user-story-automation',
+            'user': {
+                'email': user.email,
+                'github': user.github_username
+            },
+            'totalStories': len(stories),
+            'stories': stories
+        }
+
+        json_str = json.dumps(payload, indent=2, ensure_ascii=False)
+        content_b64 = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+
+        github_api_url = f"https://api.github.com/repos/{user.github_username}/{user.github_repo}/contents/{path}"
+
+        headers = {
+            'Authorization': f"token {user.github_access_token}",
+            'Accept': 'application/vnd.github+json'
+        }
+
+        body = {
+            'message': f"Add user stories from user-story-automation at {timestamp}",
+            'content': content_b64,
+            'branch': user.github_branch or 'main'
+        }
+
+        response = requests.put(github_api_url, headers=headers, json=body)
+
+        if response.status_code not in (200, 201):
+            try:
+                error_data = response.json()
+                message = error_data.get('message', 'GitHub API error')
+            except Exception:
+                message = response.text[:200]
+            logger.error(f"GitHub integration failed: {response.status_code} - {message}")
+            return jsonify({'error': f'GitHub integration failed: {message}'}), 400
+
+        resp_json = response.json()
+        file_url = None
+        if isinstance(resp_json, dict):
+            content_info = resp_json.get('content') or {}
+            file_url = content_info.get('html_url')
+
+        return jsonify({
+            'success': True,
+            'fileUrl': file_url,
+            'path': path
+        })
+    except Exception as e:
+        logger.error(f"Error integrating selected stories to GitHub: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'error': f'Error integrating selected stories to GitHub: {str(e)}'
+        }), 500
+
+
+@api_bp.route('/github-config', methods=['GET'])
+@login_required
+def get_github_config():
+    """Return current user's GitHub repo configuration (excluding access token)."""
+    if not current_user.is_authenticated:
+        return jsonify({'authenticated': False}), 401
+
+    return jsonify({
+        'authenticated': True,
+        'github': {
+            'username': current_user.github_username,
+            'repo': current_user.github_repo,
+            'branch': current_user.github_branch,
+            'folder': current_user.github_folder
+        }
+    })
+
+
+@api_bp.route('/github-config', methods=['POST'])
+@login_required
+def update_github_config():
+    """Update current user's GitHub repo configuration (repo, branch, folder)."""
+    try:
+        data = request.json or {}
+        repo = data.get('repo')
+        branch = data.get('branch') or 'main'
+        folder = data.get('folder')
+
+        if not repo:
+            return jsonify({'error': 'Repository name (repo) is required'}), 400
+
+        user: User = current_user
+        user.github_repo = repo
+        user.github_branch = branch
+        user.github_folder = folder
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'github': {
+                'username': user.github_username,
+                'repo': user.github_repo,
+                'branch': user.github_branch,
+                'folder': user.github_folder
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error updating GitHub config: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'error': f'Error updating GitHub config: {str(e)}'
+        }), 500
+
+
+@api_bp.route('/github-disconnect', methods=['POST'])
+@login_required
+def disconnect_github():
+    """Disconnect GitHub by removing access token and configuration."""
+    try:
+        user: User = current_user
+        user.github_username = None
+        user.github_access_token = None
+        user.github_repo = None
+        user.github_branch = None
+        user.github_folder = None
+        db.session.commit()
+
+        logger.info(f"GitHub disconnected for user {user.email}")
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error disconnecting GitHub: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'error': f'Error disconnecting GitHub: {str(e)}'
+        }), 500
+
 @api_bp.route('/export-json', methods=['POST'])
 @login_required
 def export_json():
@@ -459,4 +623,80 @@ def export_docx():
         logger.error(traceback.format_exc())
         return jsonify({
             'error': f'Error exporting to DOCX: {str(e)}'
+        }), 500
+
+
+@api_bp.route('/push-to-github', methods=['POST'])
+@login_required
+def push_to_github():
+    """Push selected user stories to GitHub repository as JSON"""
+    try:
+        data = request.json or {}
+        stories = data.get('stories', [])
+
+        if not stories:
+            return jsonify({'error': 'No stories selected'}), 400
+
+        user: User = current_user
+
+        # Check if GitHub is configured
+        if not user.github_access_token:
+            return jsonify({'error': 'GitHub not connected. Please connect GitHub first.'}), 400
+
+        if not user.github_repo:
+            return jsonify({'error': 'GitHub repository not configured. Please configure your repository settings.'}), 400
+
+        # Prepare the JSON content
+        json_content = json.dumps({
+            'user_stories': stories,
+            'exported_at': datetime.utcnow().isoformat(),
+            'exported_by': user.email
+        }, indent=2)
+
+        # Prepare file path in repo
+        folder = user.github_folder.strip('/') + '/' if user.github_folder else ''
+        file_path = f"{folder}user-stories-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
+
+        # GitHub API URL
+        api_url = f"https://api.github.com/repos/{user.github_username}/{user.github_repo}/contents/{file_path}"
+
+        # Prepare the request
+        headers = {
+            'Authorization': f'token {user.github_access_token}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+
+        # Encode content to base64
+        content_encoded = base64.b64encode(json_content.encode()).decode()
+
+        # Create the file on GitHub
+        payload = {
+            'message': f'Add user stories export - {len(stories)} stories',
+            'content': content_encoded,
+            'branch': user.github_branch or 'main'
+        }
+
+        response = requests.put(api_url, headers=headers, json=payload)
+
+        if response.status_code in [201, 200]:
+            result = response.json()
+            logger.info(f"Successfully pushed {len(stories)} stories to GitHub for user {user.email}")
+            return jsonify({
+                'success': True,
+                'message': f'Successfully pushed {len(stories)} stories to GitHub',
+                'file_url': result.get('content', {}).get('html_url'),
+                'file_path': file_path
+            })
+        else:
+            logger.error(f"GitHub API error: {response.status_code} - {response.text}")
+            return jsonify({
+                'error': f'GitHub API error: {response.status_code}',
+                'details': response.json().get('message', 'Unknown error')
+            }), response.status_code
+
+    except Exception as e:
+        logger.error(f"Error pushing to GitHub: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'error': f'Error pushing to GitHub: {str(e)}'
         }), 500

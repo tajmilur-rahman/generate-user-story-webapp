@@ -1,9 +1,9 @@
 """
-Authentication routes for Google OAuth
+Authentication routes for Google OAuth and GitHub OAuth
 """
 import os
 import logging
-from flask import Blueprint, redirect, url_for, session, request, jsonify, render_template
+from flask import Blueprint, redirect, url_for, request, jsonify, render_template
 from flask_login import login_user, logout_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
 from datetime import datetime
@@ -16,10 +16,11 @@ logger = logging.getLogger(__name__)
 # Initialize OAuth
 oauth = OAuth()
 
+
 def init_oauth(app):
     """Initialize OAuth with Flask app"""
     oauth.init_app(app)
-    
+
     # Register Google OAuth provider
     oauth.register(
         name='google',
@@ -31,6 +32,26 @@ def init_oauth(app):
         }
     )
     logger.debug("Google OAuth initialized")
+
+    # Register GitHub OAuth provider
+    github_client_id = os.environ.get('GITHUB_CLIENT_ID')
+    github_client_secret = os.environ.get('GITHUB_CLIENT_SECRET')
+
+    if github_client_id and github_client_secret:
+        oauth.register(
+            name='github',
+            client_id=github_client_id,
+            client_secret=github_client_secret,
+            access_token_url='https://github.com/login/oauth/access_token',
+            authorize_url='https://github.com/login/oauth/authorize',
+            api_base_url='https://api.github.com/',
+            client_kwargs={
+                'scope': 'repo'
+            }
+        )
+        logger.debug("GitHub OAuth initialized")
+    else:
+        logger.warning("GitHub OAuth not configured (GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET missing)")
 
 @auth_bp.route('/login')
 def login():
@@ -145,3 +166,63 @@ def auth_status():
         'authenticated': current_user.is_authenticated,
         'user': current_user.to_dict() if current_user.is_authenticated else None
     })
+
+
+@auth_bp.route('/github')
+@login_required
+def github_login():
+    """Initiate GitHub OAuth flow for the current user"""
+    if 'github' not in oauth._registry:
+        logger.error("GitHub OAuth is not configured")
+        return redirect(url_for('auth.login'))
+
+    redirect_uri = url_for('auth.github_callback', _external=True)
+    logger.info(f"Redirecting to GitHub OAuth with callback: {redirect_uri}")
+    return oauth.github.authorize_redirect(redirect_uri)
+
+
+@auth_bp.route('/github/callback')
+def github_callback():
+    """Handle GitHub OAuth callback and store access token + username for current user"""
+    # Check if user is logged in
+    if not current_user.is_authenticated:
+        logger.error("GitHub callback called but user is not logged in")
+        return redirect(url_for('auth.login'))
+
+    if 'github' not in oauth._registry:
+        logger.error("GitHub OAuth is not configured")
+        return redirect('/stories.html')
+
+    try:
+        token = oauth.github.authorize_access_token()
+        if not token:
+            logger.error("Failed to obtain GitHub token")
+            return redirect('/stories.html')
+
+        # Fetch user info from GitHub
+        resp = oauth.github.get('user', token=token)
+        if resp.status_code != 200:
+            logger.error(f"Failed to fetch GitHub user info: {resp.status_code}")
+            return redirect('/stories.html')
+
+        github_data = resp.json()
+        github_username = github_data.get('login')
+
+        if not github_username:
+            logger.error("GitHub username not found in user info")
+            return redirect('/stories.html')
+
+        # Persist GitHub details on current user
+        user = current_user
+        user.github_username = github_username
+        user.github_access_token = token.get('access_token')
+        db.session.commit()
+
+        logger.info(f"GitHub connected for user {user.email} as {github_username}")
+
+        return redirect('/stories.html')
+    except Exception as e:
+        logger.error(f"Error in GitHub callback: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return redirect('/stories.html')

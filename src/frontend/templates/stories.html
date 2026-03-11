@@ -26,6 +26,29 @@
         <div class="main-layout">
             <div class="sidebar">
                 <h2 class="sidebar-header">User Stories</h2>
+                <div id="githubIntegrationPanel" style="padding: 0 12px 8px 12px; margin-bottom: 8px; font-size: 12px; border-bottom: 1px solid #eee;">
+                    <div id="githubStatus" style="margin-bottom: 6px; color: #666;">GitHub: Not connected</div>
+                    <div id="githubConnectButtons" style="display: flex; gap: 6px; margin-bottom: 6px;">
+                        <button class="btn" style="flex: 1; padding: 6px; font-size: 12px; background: #f0f0f0;"
+                            onclick="connectGitHub()">Connect GitHub</button>
+                    </div>
+                    <div id="githubManageButtons" style="display: none; gap: 6px; margin-bottom: 6px;">
+                        <button class="btn" style="flex: 1; padding: 6px; font-size: 12px; background: #e7f3ff; color: #0066cc;"
+                            onclick="toggleGitHubConfig()">Configure</button>
+                        <button class="btn" style="flex: 1; padding: 6px; font-size: 12px; background: #ffe7e7; color: #cc0000;"
+                            onclick="disconnectGitHub()">Disconnect</button>
+                    </div>
+                    <div id="githubConfigForm" style="display: none;">
+                        <input id="githubRepo" type="text" placeholder="Repository (e.g. my-backlog)"
+                            style="width: 100%; margin-bottom: 4px; padding: 4px 6px; font-size: 12px;">
+                        <input id="githubBranch" type="text" placeholder="Branch (default: main)"
+                            style="width: 100%; margin-bottom: 4px; padding: 4px 6px; font-size: 12px;">
+                        <input id="githubFolder" type="text" placeholder="Folder (optional, e.g. backlog/)"
+                            style="width: 100%; margin-bottom: 4px; padding: 4px 6px; font-size: 12px;">
+                        <button class="btn" style="width: 100%; padding: 6px; font-size: 12px; background: #e0e0e0;"
+                            onclick="saveGitHubConfig()">Save Config</button>
+                    </div>
+                </div>
                 <div style="display: flex; gap: 8px; margin-bottom: 12px; padding: 0 12px;">
                     <button class="btn" onclick="selectAllStories()"
                         style="flex: 1; padding: 8px; font-size: 13px; background: #f0f0f0;">Select All</button>
