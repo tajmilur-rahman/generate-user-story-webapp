@@ -639,18 +639,27 @@ def push_to_github():
 
         user: User = current_user
 
-        # Check if GitHub is configured
+        # Check if GitHub is configured with detailed validation
+        logger.info(f"Push to GitHub requested by user: {user.email}")
+        logger.info(f"GitHub username: {user.github_username}, Repo: {user.github_repo}, Has token: {bool(user.github_access_token)}")
+
+        if not user.github_username:
+            logger.error(f"GitHub username missing for user {user.email}")
+            return jsonify({'error': 'GitHub not connected. Please connect your GitHub account first.'}), 400
+
         if not user.github_access_token:
+            logger.error(f"GitHub access token missing for user {user.email}")
             return jsonify({'error': 'GitHub not connected. Please connect GitHub first.'}), 400
 
         if not user.github_repo:
+            logger.error(f"GitHub repository not configured for user {user.email}")
             return jsonify({'error': 'GitHub repository not configured. Please configure your repository settings.'}), 400
 
         # Prepare the JSON content
         json_content = json.dumps({
             'user_stories': stories,
             'exported_at': datetime.utcnow().isoformat(),
-            'exported_by': user.email
+            'exported_by': user.github_username  # Use GitHub username instead of email
         }, indent=2)
 
         # Prepare file path in repo
@@ -659,6 +668,7 @@ def push_to_github():
 
         # GitHub API URL
         api_url = f"https://api.github.com/repos/{user.github_username}/{user.github_repo}/contents/{file_path}"
+        logger.info(f"GitHub API URL: {api_url}")
 
         # Prepare the request
         headers = {

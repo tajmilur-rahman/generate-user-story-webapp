@@ -178,7 +178,8 @@ def github_login():
 
     redirect_uri = url_for('auth.github_callback', _external=True)
     logger.info(f"Redirecting to GitHub OAuth with callback: {redirect_uri}")
-    return oauth.github.authorize_redirect(redirect_uri)
+    # Force GitHub to show authorization prompt every time (useful for switching accounts)
+    return oauth.github.authorize_redirect(redirect_uri, prompt='consent')
 
 
 @auth_bp.route('/github/callback')
@@ -213,7 +214,12 @@ def github_callback():
             return redirect('/stories.html')
 
         # Persist GitHub details on current user
-        user = current_user
+        # Fetch the actual user object from database (current_user is a proxy)
+        user = User.query.get(current_user.id)
+        if not user:
+            logger.error("User not found in database")
+            return redirect('/stories.html')
+
         user.github_username = github_username
         user.github_access_token = token.get('access_token')
         db.session.commit()
