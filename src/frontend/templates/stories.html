@@ -39,11 +39,9 @@
                             onclick="disconnectGitHub()">Disconnect</button>
                     </div>
                     <div id="githubConfigForm" style="display: none;">
+                        <input id="githubOwner" type="text" placeholder="Owner/Organization (e.g. my-org or username)"
+                            style="width: 100%; margin-bottom: 4px; padding: 4px 6px; font-size: 12px;">
                         <input id="githubRepo" type="text" placeholder="Repository (e.g. my-backlog)"
-                            style="width: 100%; margin-bottom: 4px; padding: 4px 6px; font-size: 12px;">
-                        <input id="githubBranch" type="text" placeholder="Branch (default: main)"
-                            style="width: 100%; margin-bottom: 4px; padding: 4px 6px; font-size: 12px;">
-                        <input id="githubFolder" type="text" placeholder="Folder (optional, e.g. backlog/)"
                             style="width: 100%; margin-bottom: 4px; padding: 4px 6px; font-size: 12px;">
                         <button class="btn" style="width: 100%; padding: 6px; font-size: 12px; background: #e0e0e0;"
                             onclick="saveGitHubConfig()">Save Config</button>

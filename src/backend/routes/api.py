@@ -339,7 +339,7 @@ def integrate_all():
 @api_bp.route('/integrate-selected-github', methods=['POST'])
 @login_required
 def integrate_selected_github():
-    """Integrate selected user stories into the current user's GitHub repository as a JSON file."""
+    """Create GitHub Issues for selected user stories (one issue per story)."""
     try:
         user: User = current_user
 
@@ -355,68 +355,101 @@ def integrate_selected_github():
         if not stories:
             return jsonify({'error': 'No stories provided'}), 400
 
-        import base64
-        import requests
+        # Use github_owner if set, otherwise fallback to github_username
+        owner = user.github_owner if user.github_owner else user.github_username
 
-        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-        filename = f"user_stories_{timestamp}.json"
-        folder = (user.github_folder or '').strip().strip('/')
-        path = f"{folder}/{filename}" if folder else filename
+        if not owner:
+            return jsonify({'error': 'GitHub owner/organization is not configured'}), 400
 
-        payload = {
-            'integratedAt': datetime.utcnow().isoformat() + 'Z',
-            'source': 'user-story-automation',
-            'user': {
-                'email': user.email,
-                'github': user.github_username
-            },
-            'totalStories': len(stories),
-            'stories': stories
-        }
-
-        json_str = json.dumps(payload, indent=2, ensure_ascii=False)
-        content_b64 = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
-
-        github_api_url = f"https://api.github.com/repos/{user.github_username}/{user.github_repo}/contents/{path}"
+        # GitHub Issues API endpoint
+        github_api_url = f"https://api.github.com/repos/{owner}/{user.github_repo}/issues"
 
         headers = {
             'Authorization': f"token {user.github_access_token}",
             'Accept': 'application/vnd.github+json'
         }
 
-        body = {
-            'message': f"Add user stories from user-story-automation at {timestamp}",
-            'content': content_b64,
-            'branch': user.github_branch or 'main'
-        }
+        created_issues = []
+        errors = []
 
-        response = requests.put(github_api_url, headers=headers, json=body)
+        logger.info(f"Creating {len(stories)} GitHub issues for user {user.email}")
 
-        if response.status_code not in (200, 201):
+        # Create one issue per story
+        for story in stories:
             try:
-                error_data = response.json()
-                message = error_data.get('message', 'GitHub API error')
-            except Exception:
-                message = response.text[:200]
-            logger.error(f"GitHub integration failed: {response.status_code} - {message}")
-            return jsonify({'error': f'GitHub integration failed: {message}'}), 400
+                story_id = story.get('id', 'N/A')
 
-        resp_json = response.json()
-        file_url = None
-        if isinstance(resp_json, dict):
-            content_info = resp_json.get('content') or {}
-            file_url = content_info.get('html_url')
+                # Format issue title
+                issue_title = story.get('title', f"User Story {story_id}")
 
-        return jsonify({
-            'success': True,
-            'fileUrl': file_url,
-            'path': path
-        })
+                # Format issue body (Markdown)
+                description = story.get('description', 'No description provided')
+                definition_of_done = story.get('definitionOfDone', 'N/A')
+                test_cases = story.get('testCases', 'N/A')
+
+                issue_body = f"""## Description
+{description}
+
+## Definition of Done
+{definition_of_done}
+
+## Test Cases
+{test_cases}
+
+---
+*Created by user-story-automation on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC*
+*User: {user.github_username}*
+"""
+
+                # Create the issue
+                issue_data = {
+                    'title': issue_title,
+                    'body': issue_body,
+                    'labels': ['user-story', 'automated']
+                }
+
+                response = requests.post(github_api_url, headers=headers, json=issue_data)
+
+                if response.status_code == 201:
+                    issue_info = response.json()
+                    created_issues.append({
+                        'story_id': story_id,
+                        'issue_number': issue_info['number'],
+                        'issue_url': issue_info['html_url']
+                    })
+                    logger.info(f"Created issue #{issue_info['number']} for story {story_id}")
+                else:
+                    try:
+                        error_msg = response.json().get('message', 'Unknown error')
+                    except Exception:
+                        error_msg = response.text[:200]
+                    errors.append(f"Story {story_id}: {error_msg}")
+                    logger.error(f"Failed to create issue for story {story_id}: {response.status_code} - {error_msg}")
+
+            except Exception as e:
+                errors.append(f"Story {story.get('id', 'N/A')}: {str(e)}")
+                logger.error(f"Exception creating issue for story {story.get('id')}: {e}")
+
+        # Return results
+        if created_issues:
+            return jsonify({
+                'success': True,
+                'created_issues': created_issues,
+                'total_created': len(created_issues),
+                'total_failed': len(errors),
+                'errors': errors if errors else None
+            })
+        else:
+            return jsonify({
+                'error': 'Failed to create any issues',
+                'details': errors
+            }), 400
+
     except Exception as e:
-        logger.error(f"Error integrating selected stories to GitHub: {e}")
+        logger.error(f"Error creating GitHub issues: {e}")
         logger.error(traceback.format_exc())
         return jsonify({
-            'error': f'Error integrating selected stories to GitHub: {str(e)}'
+            'error': f'Error creating GitHub issues: {str(e)}'
         }), 500
 
 
@@ -431,6 +464,7 @@ def get_github_config():
         'authenticated': True,
         'github': {
             'username': current_user.github_username,
+            'owner': current_user.github_owner,
             'repo': current_user.github_repo,
             'branch': current_user.github_branch,
             'folder': current_user.github_folder
@@ -444,6 +478,7 @@ def update_github_config():
     """Update current user's GitHub repo configuration (repo, branch, folder)."""
     try:
         data = request.json or {}
+        owner = data.get('owner')
         repo = data.get('repo')
         branch = data.get('branch') or 'main'
         folder = data.get('folder')
@@ -452,6 +487,8 @@ def update_github_config():
             return jsonify({'error': 'Repository name (repo) is required'}), 400
 
         user: User = current_user
+        if owner:
+            user.github_owner = owner
         user.github_repo = repo
         user.github_branch = branch
         user.github_folder = folder
@@ -461,6 +498,7 @@ def update_github_config():
             'success': True,
             'github': {
                 'username': user.github_username,
+                'owner': user.github_owner,
                 'repo': user.github_repo,
                 'branch': user.github_branch,
                 'folder': user.github_folder
@@ -641,10 +679,14 @@ def push_to_github():
 
         # Check if GitHub is configured with detailed validation
         logger.info(f"Push to GitHub requested by user: {user.email}")
-        logger.info(f"GitHub username: {user.github_username}, Repo: {user.github_repo}, Has token: {bool(user.github_access_token)}")
 
-        if not user.github_username:
-            logger.error(f"GitHub username missing for user {user.email}")
+        # Use github_owner if set, otherwise fallback to github_username
+        owner = user.github_owner if user.github_owner else user.github_username
+
+        logger.info(f"GitHub owner: {owner}, Repo: {user.github_repo}, Has token: {bool(user.github_access_token)}")
+
+        if not owner:
+            logger.error(f"GitHub owner/username missing for user {user.email}")
             return jsonify({'error': 'GitHub not connected. Please connect your GitHub account first.'}), 400
 
         if not user.github_access_token:
@@ -667,7 +709,7 @@ def push_to_github():
         file_path = f"{folder}user-stories-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
 
         # GitHub API URL
-        api_url = f"https://api.github.com/repos/{user.github_username}/{user.github_repo}/contents/{file_path}"
+        api_url = f"https://api.github.com/repos/{owner}/{user.github_repo}/contents/{file_path}"
         logger.info(f"GitHub API URL: {api_url}")
 
         # Prepare the request

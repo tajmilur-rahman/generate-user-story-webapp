@@ -81,9 +81,8 @@ async function loadGitHubConfig() {
         const formEl = document.getElementById('githubConfigForm');
         const connectButtons = document.getElementById('githubConnectButtons');
         const manageButtons = document.getElementById('githubManageButtons');
+        const ownerInput = document.getElementById('githubOwner');
         const repoInput = document.getElementById('githubRepo');
-        const branchInput = document.getElementById('githubBranch');
-        const folderInput = document.getElementById('githubFolder');
 
         if (!statusEl || !formEl || !connectButtons || !manageButtons) {
             return;
@@ -95,9 +94,8 @@ async function loadGitHubConfig() {
             manageButtons.style.display = 'flex';
             formEl.style.display = 'none'; // Start collapsed
 
+            if (ownerInput) ownerInput.value = data.github.owner || data.github.username || '';
             if (repoInput) repoInput.value = data.github.repo || '';
-            if (branchInput) branchInput.value = data.github.branch || '';
-            if (folderInput) folderInput.value = data.github.folder || '';
         } else {
             statusEl.textContent = 'GitHub: Not connected';
             connectButtons.style.display = 'flex';
@@ -121,10 +119,14 @@ function connectGitHub() {
 }
 
 async function saveGitHubConfig() {
+    const ownerInput = document.getElementById('githubOwner');
     const repoInput = document.getElementById('githubRepo');
-    const branchInput = document.getElementById('githubBranch');
-    const folderInput = document.getElementById('githubFolder');
     const formEl = document.getElementById('githubConfigForm');
+
+    if (!ownerInput || !ownerInput.value.trim()) {
+        alert('Please enter a GitHub owner/organization name.');
+        return;
+    }
 
     if (!repoInput || !repoInput.value.trim()) {
         alert('Please enter a GitHub repository name.');
@@ -136,9 +138,10 @@ async function saveGitHubConfig() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                owner: ownerInput.value.trim(),
                 repo: repoInput.value.trim(),
-                branch: branchInput && branchInput.value.trim() ? branchInput.value.trim() : 'main',
-                folder: folderInput && folderInput.value.trim() ? folderInput.value.trim() : null
+                branch: 'main',
+                folder: null
             })
         });
 
@@ -305,9 +308,15 @@ async function integrateSelected() {
         }
 
         const data = JSON.parse(responseText);
-        let msg = `${selected.length} selected stories integrated to GitHub successfully.`;
-        if (data.fileUrl) {
-            msg += `\n\nView file: ${data.fileUrl}`;
+        let msg = `Created ${data.total_created} GitHub issue(s) successfully.`;
+        if (data.total_failed > 0) {
+            msg += ` (${data.total_failed} failed)`;
+        }
+        if (data.created_issues && data.created_issues.length > 0) {
+            msg += `\n\nView issues:`;
+            data.created_issues.forEach(issue => {
+                msg += `\n• Issue #${issue.issue_number}: ${issue.issue_url}`;
+            });
         }
         alert(msg);
         console.log('GitHub integration response:', data);

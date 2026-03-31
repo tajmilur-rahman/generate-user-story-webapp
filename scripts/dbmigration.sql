@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
 	last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 	github_username VARCHAR(255),
 	github_access_token VARCHAR(500),
+	github_owner VARCHAR(255),
 	github_repo VARCHAR(255),
 	github_branch VARCHAR(255),
 	github_folder VARCHAR(255)
@@ -66,6 +67,20 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='users' AND column_name='github_folder') THEN
         ALTER TABLE users ADD COLUMN github_folder VARCHAR(255);
+    END IF;
+END $$;
+
+-- ============================================================================
+-- MIGRATION 2: Add GitHub Owner Field for Organization Support (2026-03-31)
+-- ============================================================================
+-- Adds github_owner column to support both personal and organization repos
+
+DO $$
+BEGIN
+    -- Add github_owner column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='users' AND column_name='github_owner') THEN
+        ALTER TABLE users ADD COLUMN github_owner VARCHAR(255);
     END IF;
 END $$;
 
