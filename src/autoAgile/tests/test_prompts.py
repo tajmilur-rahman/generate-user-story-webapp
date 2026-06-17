@@ -7,7 +7,7 @@ from utils.prompts import *
 from .insulim_resources import *
 from .evaluation import evaluate
 
-output_file = "insulim_output_gpt35.txt"
+output_file = "insulin_output_gpt35.txt"
 api_key = os.environ['auth_key']
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("utls-test")

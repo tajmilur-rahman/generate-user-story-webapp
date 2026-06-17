@@ -287,43 +287,57 @@ def validate_user_story_format(story):
     print("=" * 80)
     
     story_id = story.get('id', 'unknown')
-    
+
     # Check required fields exist
-    # Note: 'Title' is optional - can be generated from 'User Story' if missing
+    # Note: 'Title' is optional for v1 format - can be generated from 'User Story' if missing
     required_fields = ['User Story', 'Deliverables']
     for field in required_fields:
         if field not in story or not story[field]:
             print(f"[REJECT] VALIDATION FAILED: Missing required field: {field}")
             return False, f"Missing required field: {field}"
-    
-    # Title is optional - will be generated if missing
+
+    # Title is optional for v1 - will be generated if missing
     if 'Title' not in story or not story.get('Title'):
         logger.debug(f"Story {story_id}: Title missing, will be generated from User Story")
-    
+
     # Check User Story format
     user_story = story.get('User Story', '').strip()
-    
+
     # Minimum length check
     if len(user_story) < 20:
         return False, f"User story too short ({len(user_story)} chars)"
-    
-    # Check for proper format: should contain "must" or "shall" or "can"
-    valid_keywords = ['must', 'shall', 'can', 'should', 'will']
-    has_valid_keyword = any(keyword in user_story.lower() for keyword in valid_keywords)
-    
-    if not has_valid_keyword:
-        return False, "User story doesn't contain action keywords (must/shall/can/should/will)"
-    
-    # Check for "so that" clause (business value) - WARNING only, not rejection
+
+    # Check for proper Agile format "As a [role], I want [feature], so that [benefit]"
+    # v2 format should have this, v1 may use "must/shall" format
+    has_agile_format = ('as a' in user_story.lower() or 'as the' in user_story.lower()) and 'i want' in user_story.lower()
+    has_traditional_format = any(keyword in user_story.lower() for keyword in ['must', 'shall', 'can', 'should', 'will'])
+
+    if not has_agile_format and not has_traditional_format:
+        return False, "User story doesn't follow proper format (neither 'As a...I want' nor 'must/shall' format)"
+
+    # Check for "so that" clause (business value) - WARNING only for traditional format
     if 'so that' not in user_story.lower():
-        logger.warning(f"Story {story_id}: Missing 'so that' clause - business value unclear")
-        # Don't reject - just warn
-    
+        if has_agile_format:
+            # For Agile format, "so that" is required
+            logger.warning(f"Story {story_id}: Agile format detected but missing 'so that' clause")
+        else:
+            # For traditional format, just warn
+            logger.warning(f"Story {story_id}: Missing 'so that' clause - business value unclear")
+
     # Check title - optional, will be generated if missing
     title = story.get('Title', '').strip()
     if title and len(title) < 3:
         return False, f"Title too short: '{title}'"
-    # If title is missing, it's OK - will be generated from User Story
+
+    # Check Acceptance Criteria (new in v2 format) - optional but recommended
+    acceptance_criteria = story.get('Acceptance Criteria', [])
+    if acceptance_criteria:
+        if not isinstance(acceptance_criteria, list):
+            logger.warning(f"Story {story_id}: Acceptance Criteria should be a list")
+        elif len(acceptance_criteria) < 2:
+            logger.warning(f"Story {story_id}: Only {len(acceptance_criteria)} acceptance criteria (recommend 3-5)")
+    else:
+        logger.debug(f"Story {story_id}: No Acceptance Criteria provided (optional for v1 format)")
     
     # Check deliverables exist and are not empty
     deliverables = story.get('Deliverables', {})
@@ -842,19 +856,32 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
         # Handle different test cases formats
         # Format 1: {"Test Cases": {...}} - dictionary with keys
         # Format 2: {"testCases": [...]} - array of test case objects
-        # Format 3: Direct list of test cases (autoAgile might return this)
+        # Format 3: {"test_cases": [...]} - snake_case array (v2 format)
+        # Format 4: Direct list of test cases (autoAgile might return this)
+        test_cases_list = []
+        test_cases_dict = {}
+
         if isinstance(test_cases_data, dict):
+            # Try all possible key variations
             raw_tc_dict = test_cases_data.get('Test Cases', {})
             test_cases_dict = raw_tc_dict if isinstance(raw_tc_dict, dict) else {}
-            raw_tc_list = test_cases_data.get('testCases', [])
-            test_cases_list = raw_tc_list if isinstance(raw_tc_list, list) else []
+
+            # Try multiple list key variations (order matters - try most specific first)
+            raw_tc_list = (test_cases_data.get('test_cases') or  # v2 snake_case
+                          test_cases_data.get('testCases') or     # camelCase
+                          test_cases_data.get('Test Cases'))      # space separated
+
+            if isinstance(raw_tc_list, list):
+                test_cases_list = raw_tc_list
+                logger.info(f"[convert] Found {len(test_cases_list)} test case groups in test_cases_data")
+            else:
+                logger.warning(f"[convert] No test_cases list found. Keys available: {list(test_cases_data.keys())}")
         elif isinstance(test_cases_data, list):
             # If test_cases_data is already a list, use it directly
             test_cases_list = test_cases_data
-            test_cases_dict = {}
+            logger.info(f"[convert] test_cases_data is a list with {len(test_cases_list)} groups")
         else:
-            test_cases_dict = {}
-            test_cases_list = []
+            logger.error(f"[convert] test_cases_data is neither dict nor list! Type: {type(test_cases_data)}")
         
         # Normalize FIRST, then deduplicate to ensure all items are dicts
         user_stories = [normalize_story_structure(s) for s in user_stories]
@@ -893,79 +920,98 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
         for idx, story in enumerate(valid_stories):
             # Extract user story title/description
             story_text = story.get('User Story', '').strip()
-            
+
             # Use title from LLM if available, otherwise generate one
             title = story.get('Title', '').strip()
-            
-            if not title:
+
+            # Generate title if not provided or if it's generic/truncated
+            if not title or title.endswith('Must') or title.endswith('Shall') or len(title) < 5:
                 # Generate a COMPLETE, meaningful title (3-5 words)
                 if story_text:
-                    # Check if story follows "The system must [action] so that [benefit]" pattern
-                    if ' so that ' in story_text.lower():
-                        # Extract action part (before "so that")
-                        action_part = story_text.split(' so that ')[0].strip()
-                        # Remove common prefixes
-                        action_part = action_part.replace('The system must ', '').replace('The system shall ', '').replace('Users can ', '').replace('The ', '').strip()
-                        
-                        # Extract meaningful action words (skip stop words but keep important verbs)
-                        words = action_part.split()
-                        meaningful_words = []
-                        stop_words = {'and', 'the', 'for', 'with', 'from', 'to', 'a', 'an', 'in', 'on', 'at', 'by'}
-                        
-                        for w in words:
-                            w_clean = w.rstrip(',;.').lower()
-                            # Keep verbs and important words, skip stop words
-                            if w_clean not in stop_words or w_clean in {'shall', 'must', 'can', 'will'}:
-                                meaningful_words.append(w.rstrip(',;.'))
-                            # Take 4-5 words for a complete title
-                            if len(meaningful_words) >= 5:
-                                break
-                        
-                        # If we have meaningful words, use them; otherwise use first 4 words
-                        if meaningful_words:
-                            title = ' '.join(meaningful_words[:5])
-                        else:
-                            title = ' '.join(words[:4])
-                        
-                        # Capitalize first letter of each word for title case
-                        title = ' '.join(word.capitalize() for word in title.split())
+                    # Remove common prefixes to get to the core action
+                    action_text = story_text
+                    prefixes_to_remove = [
+                        'The Insulin Pump system must ',
+                        'The Insulin Pump system shall ',
+                        'The insulin pump system must ',
+                        'The insulin pump system shall ',
+                        'Insulin Pump system must ',
+                        'The system must ',
+                        'The system shall ',
+                        'System must ',
+                        'System shall '
+                    ]
+
+                    for prefix in prefixes_to_remove:
+                        if action_text.startswith(prefix):
+                            action_text = action_text[len(prefix):]
+                            break
+
+                    # Extract the action part (before "so that")
+                    if ' so that ' in action_text.lower():
+                        action_part = action_text.split(' so that ')[0].strip()
                     else:
-                        # Fallback: extract first 4-5 meaningful words
-                        words = story_text.split()
-                        meaningful_words = []
-                        stop_words = {'the', 'system', 'must', 'shall', 'can', 'will', 'and', 'for', 'with'}
-                        for w in words:
-                            w_clean = w.rstrip(',;.').lower()
-                            if w_clean not in stop_words:
-                                meaningful_words.append(w.rstrip(',;.'))
-                            if len(meaningful_words) >= 5:
-                                break
-                        title = ' '.join(meaningful_words) if meaningful_words else ' '.join(words[:4])
-                        title = ' '.join(word.capitalize() for word in title.split())
+                        action_part = action_text
+
+                    # Remove common stop words and extract meaningful keywords
+                    words = action_part.split()
+                    meaningful_words = []
+                    stop_words = {'the', 'a', 'an', 'and', 'or', 'for', 'with', 'from', 'to', 'in', 'on', 'at', 'by', 'of', 'be', 'is', 'are'}
+
+                    for w in words:
+                        w_clean = w.rstrip(',;.').lower()
+                        # Skip stop words unless it's a key verb
+                        if w_clean not in stop_words or w_clean in {'collect', 'calculate', 'compute', 'send', 'deliver', 'monitor', 'process'}:
+                            meaningful_words.append(w.rstrip(',;.'))
+                        # Stop at 4-5 words for a good title length
+                        if len(meaningful_words) >= 5:
+                            break
+
+                    # Use first 3-5 meaningful words as title
+                    if meaningful_words:
+                        title = ' '.join(meaningful_words[:5])
+                    else:
+                        # Fallback: use first 4 words
+                        title = ' '.join(words[:4])
+
+                    # Capitalize properly for title case
+                    title = ' '.join(word.capitalize() for word in title.split())
                 else:
                     title = f'User Story {idx + 1}'
             
+            # Extract Acceptance Criteria (new in v2 format)
+            acceptance_criteria = story.get('Acceptance Criteria', [])
+            ac_items = []
+            if acceptance_criteria and isinstance(acceptance_criteria, list):
+                for criterion in acceptance_criteria:
+                    if isinstance(criterion, str) and criterion.strip():
+                        ac_items.append(f"  - {criterion.strip()}")
+
             # Extract deliverables and format properly
             deliverables = story.get('Deliverables', {})
             deliverable_items = []
-            
+
             if deliverables and isinstance(deliverables, dict):
                 # Remove "User Story" key if it exists (it's redundant)
                 deliverables_filtered = {k: v for k, v in deliverables.items() if k != 'User Story'}
-                
+
                 for key, value in deliverables_filtered.items():
                     # Format key name (convert snake_case to Title Case)
                     formatted_key = key.replace('_', ' ').title()
-                    
+
                     if isinstance(value, dict):
                         # Try multiple fields for definition of done
-                        dod = (value.get('definition_of_done') or 
-                               value.get('definitionOfDone') or 
-                               value.get('description') or 
-                               value.get('criteria') or
-                               str(value))
-                        # Skip if it's just "TBD" or empty
-                        if dod and dod.strip() and dod.strip().upper() != 'TBD':
+                        dod = (value.get('definition_of_done') or
+                               value.get('definitionOfDone') or
+                               value.get('description') or
+                               value.get('criteria'))
+
+                        # Handle list format (v2 format uses arrays for DoD)
+                        if isinstance(dod, list):
+                            dod_text = '\n    '.join([f"- {item}" for item in dod if isinstance(item, str) and item.strip()])
+                            if dod_text:
+                                deliverable_items.append(f"• {formatted_key}:\n    {dod_text}")
+                        elif isinstance(dod, str) and dod.strip() and dod.strip().upper() != 'TBD':
                             # Remove invented metrics from DoD
                             dod_cleaned = remove_invented_metrics(dod)
                             deliverable_items.append(f"• {formatted_key}: {dod_cleaned}")
@@ -976,57 +1022,133 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
                             # Remove invented metrics from value
                             value_cleaned = remove_invented_metrics(value_str)
                             deliverable_items.append(f"• {formatted_key}: {value_cleaned}")
-            
-            # If no deliverables found, try to infer from story text
-            if not deliverable_items:
-                # Extract key functionality from story text as a fallback
+
+            # Build Definition of Done with Acceptance Criteria + Deliverables
+            dod_parts = []
+
+            # Add Acceptance Criteria section if present
+            if ac_items:
+                dod_parts.append("Acceptance Criteria:")
+                dod_parts.extend(ac_items)
+                if deliverable_items:
+                    dod_parts.append("")  # Blank line separator
+
+            # Add Deliverables section
+            if deliverable_items:
+                if ac_items:
+                    dod_parts.append("Deliverables:")
+                dod_parts.extend(deliverable_items)
+
+            # Fallback if nothing found
+            if not dod_parts:
                 if story_text:
                     # Try to identify the main feature/component
                     action_part = story_text.split(' so that ')[0] if ' so that ' in story_text.lower() else story_text
                     # Remove common prefixes
-                    action_part = action_part.replace('The system must ', '').replace('The system shall ', '').replace('The ', '').strip()
+                    action_part = action_part.replace('As a ', '').replace('I want ', '').replace('The system must ', '').replace('The ', '').strip()
                     # Create a basic deliverable from the action
                     if action_part:
-                        deliverable_items.append(f"• Feature Implementation: {action_part}")
-            
-            definition_of_done = '\n'.join(deliverable_items) if deliverable_items else 'Deliverables will be defined during sprint planning'
+                        dod_parts.append(f"• Feature Implementation: {action_part}")
+
+            definition_of_done = '\n'.join(dod_parts) if dod_parts else 'Deliverables will be defined during sprint planning'
             # Remove any invented metrics from the final definition_of_done
             definition_of_done = remove_invented_metrics(definition_of_done)
             
             # Get test cases for this story
             # Try multiple matching strategies
             test_cases = None
-            
-            # Strategy 1: Match by requirement ID (try multiple field name variations)
+
+            # Helper function for fuzzy text matching
+            def fuzzy_match_requirement(req_text, story_text):
+                """Match requirement text to user story using fuzzy keyword matching"""
+                if not req_text or not story_text:
+                    return False
+
+                # Normalize both texts
+                req_normalized = req_text.lower()
+                story_normalized = story_text.lower()
+
+                # Remove common prefixes that differ between formats
+                prefixes_to_remove = [
+                    'the system shall ', 'the system must ', 'system shall ', 'system must ',
+                    'the insulin pump system must ', 'the insulin pump system shall ',
+                    'insulin pump system must ', 'insulin pump system shall '
+                ]
+
+                for prefix in prefixes_to_remove:
+                    req_normalized = req_normalized.replace(prefix, '')
+                    story_normalized = story_normalized.replace(prefix, '')
+
+                # Extract meaningful keywords (longer than 4 chars)
+                req_keywords = set([w for w in req_normalized.split() if len(w) > 4])
+                story_keywords = set([w for w in story_normalized.split() if len(w) > 4])
+
+                # Calculate overlap
+                if len(req_keywords) > 0 and len(story_keywords) > 0:
+                    overlap = len(req_keywords & story_keywords)
+                    # If at least 50% of keywords match, consider it a match
+                    min_keywords = min(len(req_keywords), len(story_keywords))
+                    if overlap >= min_keywords * 0.5:
+                        return True
+
+                return False
+
+            # Strategy 1: Match by requirement text (v2 format with nested structure)
             if isinstance(test_cases_list, list) and len(test_cases_list) > 0:
-                matching_tests = []
-                for test_case in test_cases_list:
-                    if isinstance(test_case, dict):
-                        # Try different field name variations (camelCase and snake_case)
-                        req_id = (test_case.get('requirementId') or 
-                                 test_case.get('requirementID') or 
-                                 test_case.get('requirement_id') or 
-                                 test_case.get('req_id'))
-                        
-                        # Match by index (1-based) - STRICT matching
-                        if req_id and req_id == idx + 1:
-                            matching_tests.append(test_case)
-                        # Also try matching by story text keywords
-                        elif story_text:
-                            test_case_text = str(test_case).lower()
-                            story_keywords = [w for w in story_text.lower().split() if len(w) > 4]
-                            if any(kw in test_case_text for kw in story_keywords[:3]):
-                                matching_tests.append(test_case)
-                
-                if matching_tests:
-                    # Format test cases nicely
+                matching_test_cases = []
+                logger.debug(f"[Story {idx + 1}] Searching for test cases. Total test groups: {len(test_cases_list)}")
+
+                for test_group in test_cases_list:
+                    if isinstance(test_group, dict):
+                        # v2 format: {"requirement": "...", "test_cases": [{...}, {...}]}
+                        requirement_text = test_group.get('requirement', '')
+                        nested_test_cases = test_group.get('test_cases', [])
+
+                        if requirement_text and isinstance(nested_test_cases, list):
+                            # Try fuzzy matching with story text
+                            is_match = fuzzy_match_requirement(requirement_text, story_text)
+                            logger.debug(f"[Story {idx + 1}] Comparing:")
+                            logger.debug(f"  Requirement: '{requirement_text[:60]}...'")
+                            logger.debug(f"  User Story: '{story_text[:60]}...'")
+                            logger.debug(f"  Match: {is_match}")
+
+                            if is_match:
+                                matching_test_cases.extend(nested_test_cases)
+                                logger.info(f"✅ Matched {len(nested_test_cases)} test cases for story {idx + 1} using requirement: '{requirement_text[:50]}...'")
+                        else:
+                            logger.debug(f"[Story {idx + 1}] Test group missing requirement or test_cases: {list(test_group.keys())}")
+                    else:
+                        logger.warning(f"[Story {idx + 1}] Test group is not a dict: {type(test_group)}")
+
+                if matching_test_cases:
+                    # Format test cases with detailed structure (ID, description, steps, expected result)
                     formatted_tests = []
-                    for test in matching_tests:
-                        test_name = test.get('name') or test.get('testCaseName') or test.get('test_case_name') or 'Test Case'
-                        test_desc = test.get('description') or test.get('testDescription') or ''
-                        formatted_tests.append(f"{test_name}: {test_desc}")
-                    test_cases = '\n'.join(formatted_tests) if formatted_tests else json.dumps(matching_tests, indent=2)
-                    logger.debug(f"Found {len(matching_tests)} test cases for story {idx + 1}")
+                    for test in matching_test_cases:
+                        if isinstance(test, dict):
+                            test_id = test.get('id', '')
+                            test_desc = test.get('description', '')
+                            test_steps = test.get('steps', [])
+                            test_expected = test.get('expected_result', '')
+
+                            # Format nicely with ID, description, steps, and expected result
+                            test_formatted_parts = []
+                            if test_id:
+                                test_formatted_parts.append(f"**{test_id}**: {test_desc}")
+                            else:
+                                test_formatted_parts.append(f"**Test**: {test_desc}")
+
+                            if test_steps and isinstance(test_steps, list):
+                                test_formatted_parts.append("**Steps**:")
+                                for i, step in enumerate(test_steps, 1):
+                                    test_formatted_parts.append(f"  {i}. {step}")
+
+                            if test_expected:
+                                test_formatted_parts.append(f"**Expected**: {test_expected}")
+
+                            formatted_tests.append('\n'.join(test_formatted_parts))
+
+                    test_cases = '\n\n'.join(formatted_tests) if formatted_tests else json.dumps(matching_test_cases, indent=2)
+                    logger.info(f"Found and formatted {len(matching_test_cases)} detailed test cases for story {idx + 1}")
             
             # Strategy 2: Try dictionary lookup by index
             if not test_cases and test_cases_dict:

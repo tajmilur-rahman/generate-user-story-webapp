@@ -15,7 +15,8 @@ from backend.services.story_service import convert_stories_to_frontend_format
 from backend.models import User, db
 from autoAgile.utils.prompts import (
     extract_text_from_docx, refine_doc, extract_functionarity,
-    extract_epics, get_epics, generate_test_cases, refine_requirements, rat
+    extract_epics, get_epics, generate_test_cases, refine_requirements, rat,
+    extract_epics_v2, get_epics_v2, generate_test_cases_v2
 )
 from autoAgile.utils.llm_factory import get_chat_model
 from autoAgile.save_output import save_json_output
@@ -31,6 +32,9 @@ OPENAI_API_KEY = OPENAI_API_KEY.strip() if OPENAI_API_KEY else ''
 OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'llama3.2:latest')
 
+# Use improved v2 prompts by default (set USE_V2_PROMPTS=false in .env to use old prompts)
+USE_V2_PROMPTS = os.environ.get('USE_V2_PROMPTS', 'true').lower() == 'true'
+
 @api_bp.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -39,7 +43,7 @@ def health_check():
         'provider': LLM_PROVIDER,
         'api_key_configured': bool(OPENAI_API_KEY if LLM_PROVIDER == 'openai' else GROQ_API_KEY if LLM_PROVIDER == 'groq' else True),
         'ollama_url': OLLAMA_BASE_URL if LLM_PROVIDER == 'ollama' else None,
-        'model': OLLAMA_MODEL if LLM_PROVIDER == 'ollama' else 'llama-3.3-70b-versatile' if LLM_PROVIDER == 'groq' else 'gpt-4o'
+        'model': OLLAMA_MODEL if LLM_PROVIDER == 'ollama' else 'llama-3.3-70b-versatile' if LLM_PROVIDER == 'groq' else 'gpt-4-turbo'
     })
 
 @api_bp.route('/generate-stories', methods=['POST'])
@@ -103,7 +107,7 @@ def generate_stories():
                 model_name = request.form.get('model', OLLAMA_MODEL)
                 logger.info(f"[Ollama] Initializing with model: {model_name}")
             elif LLM_PROVIDER == 'openai':
-                model_name = request.form.get('model', 'gpt-4o')
+                model_name = request.form.get('model', 'gpt-4-turbo')
                 logger.info(f"[OpenAI] Initializing with model: {model_name}")
             elif LLM_PROVIDER == 'groq':
                 model_name = "llama-3.3-70b-versatile"
@@ -137,40 +141,49 @@ def generate_stories():
             try:
                 logger.info("STEP 1: Extracting requirements...")
                 requirements = rat(refine_doc, extract_functionarity, extracted_text, chat, mode)
-                
+
                 if requirements is None:
                     raise Exception("Requirements extraction returned None")
-                
+
                 if not isinstance(requirements, str):
                     requirements = str(requirements)
-                
-                logger.info("Step 2: Extracting deliverables/epics...")
+
+                # Select which version of functions to use
+                extract_epics_func = extract_epics_v2 if USE_V2_PROMPTS else extract_epics
+                get_epics_func = get_epics_v2 if USE_V2_PROMPTS else get_epics
+                generate_test_cases_func = generate_test_cases_v2 if USE_V2_PROMPTS else generate_test_cases
+
+                logger.info(f"Step 2: Extracting deliverables/epics... (using {'v2' if USE_V2_PROMPTS else 'v1'} prompts)")
                 # Use two-step process: extract deliverables, then refine with DoD
-                deliverables = extract_epics(requirements, chat, mode)
-                
+                deliverables = extract_epics_func(requirements, chat, mode)
+
                 if deliverables is None:
                     raise Exception("Deliverables extraction returned None")
                 if not isinstance(deliverables, str):
                     deliverables = str(deliverables)
-                
-                # SKIP REFINEMENT - Use deliverables directly as epics
-                logger.info("Step 3: Using deliverables as epics (refinement skipped)...")
-                epics = deliverables  # Skip get_epics to avoid JSON errors
-                
-                # logger.info("Step 3: Refining epics with definition of done...")
-                # # Refine deliverables to add definition of done (get_epics)
-                # epics = get_epics(deliverables, chat)
-                
-                # if epics is None:
-                #     raise Exception("Epics refinement returned None")
-                # if not isinstance(epics, str):
-                #     epics = str(epics)
-                
+
+                # Use get_epics to refine with Definition of Done (v2 has better DoD generation)
+                if USE_V2_PROMPTS:
+                    logger.info("Step 3: Refining epics with detailed definition of done (v2)...")
+                    try:
+                        epics = get_epics_func(deliverables, chat)
+                        if epics is None:
+                            raise Exception("Epics refinement returned None")
+                        if not isinstance(epics, str):
+                            epics = str(epics)
+                    except Exception as e:
+                        logger.warning(f"Refinement failed, using deliverables directly: {e}")
+                        epics = deliverables
+                else:
+                    # SKIP REFINEMENT for v1 - Use deliverables directly as epics
+                    logger.info("Step 3: Using deliverables as epics (v1 - refinement skipped)...")
+                    epics = deliverables  # Skip get_epics to avoid JSON errors
+
                 logger.info("Step 4: Epics extracted successfully")
-                
-                logger.info("Step 4: Generating test cases...")
-                # Optimization: Call generate_test_cases directly
-                test_cases = generate_test_cases(requirements, chat, mode)
+
+                logger.info(f"Step 5: Generating test cases... (using {'v2' if USE_V2_PROMPTS else 'v1'} prompts)")
+                # Call generate_test_cases
+                test_cases = generate_test_cases_func(requirements, chat, mode)
                 if test_cases is None:
                     raise Exception("Test cases generation returned None")
                 if not isinstance(test_cases, str):
