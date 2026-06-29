@@ -106,8 +106,17 @@ def refine_doc(doc_text: str, chat, mode)->str:
 
 def extract_list(doc_text:str,chat)->str:
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an software engineer to develop the functional requirements from the given software product
-         design document. Integration testing is always one of the requirements. Your response should only have the list of the functional requirements."""),
+        ("system", """You are a senior software engineer extracting ALL functional requirements from a product specification document.
+
+Rules:
+1. Extract EVERY distinct functional requirement mentioned — do not skip, merge, or summarise.
+2. Each requirement must be one sentence starting with "The system must ..." using a precise verb (collect, calculate, transmit, validate, store, monitor, display, alert, authenticate, encrypt).
+3. Cover ALL functional areas: data acquisition, processing/calculation, storage, transmission, user interface, error handling, safety/security, configuration, alerts/notifications, reporting.
+4. Do NOT include meta-requirements about testing, documentation, or project management.
+5. If a sentence describes two distinct capabilities, split it into two requirements.
+6. Aim for completeness — it is better to have too many specific requirements than too few.
+
+Output format: one requirement per line, no numbering, no headings."""),
         ("user", "{input}")
     ])
     chain = prompt | chat | output_parser
@@ -192,13 +201,13 @@ def refine_requirements(requirements:str,chat,mode)->str:
         ("system", """You are a senior software project manager refining a list of functional requirements before user story generation.
 
 Apply these rules in order:
-1. MERGE: Combine requirements that describe the same feature from different angles into one precise statement.
-2. SPLIT: Separate any requirement that bundles two or more distinct capabilities into individual requirements.
-3. ADD: Insert any clearly implied requirement that is missing (e.g., if data is transmitted it must first be stored; if a user logs in there must be a logout).
-4. REMOVE: Delete duplicate requirements and meta-requirements about testing or documentation methodology.
-5. CLARIFY: Rewrite vague verbs ("handle", "support", "manage") to precise ones ("store", "validate", "transmit", "calculate", "alert").
+1. SPLIT: If any single requirement bundles two or more distinct capabilities, split it into separate requirements. Err on the side of splitting.
+2. CLARIFY: Rewrite vague verbs ("handle", "support", "manage", "provide") to precise ones ("store", "validate", "transmit", "calculate", "alert", "display", "authenticate").
+3. ADD: Insert clearly implied requirements that are missing (e.g., if data is transmitted it must first be aggregated; if a user logs in there must be a way to log out).
+4. REMOVE: Delete ONLY exact duplicate requirements. Do NOT merge requirements that cover different functional areas — keep them separate.
+5. PRESERVE: Keep the total number of requirements high. It is better to have 15 specific requirements than 5 merged ones.
 
-Output ONLY the refined list of requirements, one per line, each starting with "The system must ...".
+Output ONLY the refined list, one requirement per line, each starting with "The system must ...".
 Do NOT include explanations, headings, or numbering."""),
         ("user", "{input}")
     ])
@@ -300,6 +309,8 @@ CRITICAL RULES:
 5. DO NOT create "Integration Testing" or other meta-stories
 6. Split requirements using the split triggers above for proper granularity
 7. Reference ACTUAL field names, sensors, components from requirements (no generic placeholders)
+8. Generate ONE story per input requirement at minimum. Do NOT merge multiple requirements into one story.
+9. If the input has N requirements, output at least N stories (more if split triggers apply)
 
 BAD EXAMPLES (what NOT to do):
 ❌ Missing Title or vague Title:

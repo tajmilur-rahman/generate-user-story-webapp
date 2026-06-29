@@ -936,7 +936,9 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
         
         
         frontend_stories = []
-        
+        # Track which TC groups have been claimed so each group goes to exactly one story
+        claimed_tc_groups = set()
+
         for idx, story in enumerate(valid_stories):
             # Extract user story title/description
             story_text = story.get('User Story', '').strip()
@@ -1078,67 +1080,54 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
             # Try multiple matching strategies
             test_cases = None
 
-            # Helper function for fuzzy text matching
-            def fuzzy_match_requirement(req_text, story_text):
-                """Match requirement text to user story using fuzzy keyword matching"""
+            def _tc_similarity(req_text, story_text):
+                """Return Jaccard similarity (0-1) between two requirement texts."""
                 if not req_text or not story_text:
-                    return False
+                    return 0.0
+                stop = {'the', 'a', 'an', 'and', 'or', 'for', 'with', 'from', 'to',
+                        'in', 'on', 'at', 'by', 'of', 'be', 'is', 'are', 'that',
+                        'this', 'must', 'shall', 'will', 'can', 'system', 'using'}
+                def keywords(t):
+                    return set(w.strip('.,;:[]()') for w in t.lower().split()
+                               if len(w) > 3 and w.lower() not in stop)
+                req_kw = keywords(req_text)
+                story_kw = keywords(story_text)
+                if not req_kw or not story_kw:
+                    return 0.0
+                intersection = req_kw & story_kw
+                union = req_kw | story_kw
+                return len(intersection) / len(union)
 
-                # Normalize both texts
-                req_normalized = req_text.lower()
-                story_normalized = story_text.lower()
-
-                # Remove common prefixes that differ between formats
-                prefixes_to_remove = [
-                    'the system shall ', 'the system must ', 'system shall ', 'system must ',
-                    'the insulin pump system must ', 'the insulin pump system shall ',
-                    'insulin pump system must ', 'insulin pump system shall '
-                ]
-
-                for prefix in prefixes_to_remove:
-                    req_normalized = req_normalized.replace(prefix, '')
-                    story_normalized = story_normalized.replace(prefix, '')
-
-                # Extract meaningful keywords (longer than 4 chars)
-                req_keywords = set([w for w in req_normalized.split() if len(w) > 4])
-                story_keywords = set([w for w in story_normalized.split() if len(w) > 4])
-
-                # Calculate overlap
-                if len(req_keywords) > 0 and len(story_keywords) > 0:
-                    overlap = len(req_keywords & story_keywords)
-                    # If at least 50% of keywords match, consider it a match
-                    min_keywords = min(len(req_keywords), len(story_keywords))
-                    if overlap >= min_keywords * 0.5:
-                        return True
-
-                return False
-
-            # Strategy 1: Match by requirement text (v2 format with nested structure)
+            # Strategy 1: Best-match assignment — each TC group claimed by at most one story.
+            # Score every unclaimed group against this story; take the highest scoring one
+            # above the threshold. This prevents the same TCs appearing in multiple stories.
             if isinstance(test_cases_list, list) and len(test_cases_list) > 0:
                 matching_test_cases = []
-                logger.debug(f"[Story {idx + 1}] Searching for test cases. Total test groups: {len(test_cases_list)}")
+                best_score = 0.0
+                best_group_idx = -1
+                best_nested = []
 
-                for test_group in test_cases_list:
-                    if isinstance(test_group, dict):
-                        # v2 format: {"requirement": "...", "test_cases": [{...}, {...}]}
-                        requirement_text = test_group.get('requirement', '')
-                        nested_test_cases = test_group.get('test_cases', [])
+                for group_idx, test_group in enumerate(test_cases_list):
+                    if group_idx in claimed_tc_groups:
+                        continue  # already assigned to an earlier story
+                    if not isinstance(test_group, dict):
+                        continue
+                    requirement_text = test_group.get('requirement', '')
+                    nested_test_cases = test_group.get('test_cases', [])
+                    if not requirement_text or not isinstance(nested_test_cases, list):
+                        continue
+                    score = _tc_similarity(requirement_text, story_text)
+                    logger.debug(f"[Story {idx+1}] group {group_idx} score={score:.2f} req='{requirement_text[:50]}'")
+                    if score > best_score:
+                        best_score = score
+                        best_group_idx = group_idx
+                        best_nested = nested_test_cases
 
-                        if requirement_text and isinstance(nested_test_cases, list):
-                            # Try fuzzy matching with story text
-                            is_match = fuzzy_match_requirement(requirement_text, story_text)
-                            logger.debug(f"[Story {idx + 1}] Comparing:")
-                            logger.debug(f"  Requirement: '{requirement_text[:60]}...'")
-                            logger.debug(f"  User Story: '{story_text[:60]}...'")
-                            logger.debug(f"  Match: {is_match}")
-
-                            if is_match:
-                                matching_test_cases.extend(nested_test_cases)
-                                logger.info(f"✅ Matched {len(nested_test_cases)} test cases for story {idx + 1} using requirement: '{requirement_text[:50]}...'")
-                        else:
-                            logger.debug(f"[Story {idx + 1}] Test group missing requirement or test_cases: {list(test_group.keys())}")
-                    else:
-                        logger.warning(f"[Story {idx + 1}] Test group is not a dict: {type(test_group)}")
+                # Claim the best group if it clears the minimum threshold
+                if best_group_idx != -1 and best_score >= 0.25:
+                    claimed_tc_groups.add(best_group_idx)
+                    matching_test_cases = best_nested
+                    logger.info(f"Claimed TC group {best_group_idx} for story {idx+1} (score={best_score:.2f})")
 
                 if matching_test_cases:
                     # Format test cases with detailed structure (ID, description, steps, expected result)
