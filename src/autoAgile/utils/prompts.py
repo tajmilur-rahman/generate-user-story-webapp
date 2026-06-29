@@ -18,8 +18,59 @@ output_parser = StrOutputParser()
 threshold = 5
 
 def _strip_fences(text: str) -> str:
-    """Remove markdown code fences (```json ... ```) without touching content."""
-    return _re.sub(r'^```(?:json)?\s*$', '', text, flags=_re.MULTILINE).strip()
+    """
+    Remove markdown code fences and extract the outermost JSON block from prose.
+
+    Local LLMs frequently wrap JSON in explanatory text, e.g.:
+        "Here are the user stories:\n```json\n{...}\n```\nLet me know..."
+    A simple .replace("```","") strips fences but leaves the prose, which
+    breaks json.loads(). This function uses depth-tracked brace matching so
+    the returned string is always the raw JSON object/array — never mixed prose.
+    """
+    # 1. Strip code-fence marker lines (```json or ```)
+    text = _re.sub(r'^```(?:json)?\s*$', '', text, flags=_re.MULTILINE).strip()
+
+    # 2. If the whole string is already valid JSON, return it as-is
+    try:
+        json.loads(text)
+        return text
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # 3. Use depth-tracked search to find the outermost { ... } or [ ... ]
+    for start_char, end_char in [('{', '}'), ('[', ']')]:
+        start_idx = text.find(start_char)
+        if start_idx == -1:
+            continue
+        depth = 0
+        in_string = False
+        escape_next = False
+        for i, ch in enumerate(text[start_idx:], start=start_idx):
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\' and in_string:
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == start_char:
+                depth += 1
+            elif ch == end_char:
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start_idx:i + 1]
+                    try:
+                        json.loads(candidate)
+                        return candidate
+                    except (json.JSONDecodeError, ValueError):
+                        break  # malformed — try [ ... ] next
+
+    # 4. Nothing parseable found; return whatever we have
+    return text
 
 def extract_text_from_docx(docx_path):
     doc = Document(docx_path)
@@ -643,8 +694,6 @@ def get_epics(deliverables: str, chat)->str:
 
 def get_epics_v2(deliverables: str, chat)->str:
     """Improved version using refine_epics_v2 for detailed Definition of Done"""
-    # Filter meta-stories before enriching with DoD
-    deliverables = filter_meta_stories(deliverables)
     just_tasks = json.loads(deliverables)
     _key = "Epics"
     new_key = "User Stories"

@@ -802,22 +802,42 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
             try:
                 return json.loads(item)
             except json.JSONDecodeError:
-                # Try to find JSON block { ... } or [ ... ]
-                try:
-                    start_dict = item.find('{')
-                    end_dict = item.rfind('}')
-                    if start_dict != -1 and end_dict != -1:
-                        json_str = item[start_dict:end_dict+1]
-                        return json.loads(json_str)
-                    
-                    start_list = item.find('[')
-                    end_list = item.rfind(']')
-                    if start_list != -1 and end_list != -1:
-                        json_str = item[start_list:end_list+1]
-                        return json.loads(json_str)
-                except:
-                    pass
-                return {fallback_key: item}
+                pass
+
+            # Use depth-tracked brace matching to extract a JSON block from prose
+            for start_char, end_char in [('{', '}'), ('[', ']')]:
+                start_idx = item.find(start_char)
+                if start_idx == -1:
+                    continue
+                depth = 0
+                in_string = False
+                escape_next = False
+                for i, ch in enumerate(item[start_idx:], start=start_idx):
+                    if escape_next:
+                        escape_next = False
+                        continue
+                    if ch == '\\' and in_string:
+                        escape_next = True
+                        continue
+                    if ch == '"':
+                        in_string = not in_string
+                        continue
+                    if in_string:
+                        continue
+                    if ch == start_char:
+                        depth += 1
+                    elif ch == end_char:
+                        depth -= 1
+                        if depth == 0:
+                            try:
+                                return json.loads(item[start_idx:i + 1])
+                            except json.JSONDecodeError:
+                                break  # try [ ... ] next
+
+            # Nothing parseable — return an empty structure, NOT the raw string.
+            # Returning the raw string causes iteration over characters downstream.
+            logger.warning(f"[parse_robust] Could not parse JSON from input (first 200 chars): {item[:200]}")
+            return {fallback_key: []}
 
         epics_data = parse_robust(epics_json, "User Stories")
         test_cases_data = parse_robust(test_cases_json, "Test Cases")
