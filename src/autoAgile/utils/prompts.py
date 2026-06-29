@@ -247,7 +247,7 @@ def extract_epics(requirements:str,chat, mode)->str:
 
 def extract_epics_v2(requirements:str,chat, mode)->str:
     """Enhanced v2: Creates detailed user stories with specific elements clause and proper decomposition"""
-    pp = """RESPOND WITH JSON ONLY. Do not include any prose, explanations, markdown headers, or text outside the JSON. Your entire response must be a single valid JSON object starting with { and ending with }.
+    pp = """RESPOND WITH JSON ONLY. Do not include any prose, explanations, markdown headers, or text outside the JSON. Your entire response must be a single valid JSON object starting with {{ and ending with }}.
 
 You are an automated requirements-to-user-story engine. Generate detailed, engineering-ready user stories.
 
@@ -395,7 +395,7 @@ def refine_epics(epic:str,chat)->str:
 
 def refine_epics_v2(epic:str,chat)->str:
     """Enhanced v2: Generates comprehensive Definition of Done arrays with specific deliverable-type guidance"""
-    pp = """RESPOND WITH JSON ONLY. Do not include any prose, explanations, or text outside the JSON. Your entire response must be a single valid JSON object starting with { and ending with }.
+    pp = """RESPOND WITH JSON ONLY. Do not include any prose, explanations, or text outside the JSON. Your entire response must be a single valid JSON object starting with {{ and ending with }}.
 
 You are a Definition of Done generator. Your job: take a user story with deliverables and return the SAME structure with each deliverable enriched by a "definition_of_done" array of 4-6 specific, actionable, measurable criteria.
 
@@ -529,7 +529,7 @@ def generate_test_cases(requirements:str,chat, mode)->str:
 
 def generate_test_cases_v2(requirements:str,chat, mode)->str:
     """Enhanced v2: Generates detailed, globally-numbered test cases with concrete expected results"""
-    pp = """RESPOND WITH JSON ONLY. Do not include any prose, explanations, or text outside the JSON. Your entire response must be a single valid JSON object starting with { and ending with }.
+    pp = """RESPOND WITH JSON ONLY. Do not include any prose, explanations, or text outside the JSON. Your entire response must be a single valid JSON object starting with {{ and ending with }}.
 
 You are an automated test case generator. Generate comprehensive, executable test cases for each requirement.
 
