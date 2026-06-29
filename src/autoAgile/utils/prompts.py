@@ -167,76 +167,107 @@ def extract_epics(requirements:str,chat, mode)->str:
     return re.replace("json","").replace("```","")
 
 def extract_epics_v2(requirements:str,chat, mode)->str:
-    """Enhanced v2: Same structure as v1, but with better prompts for higher quality output"""
-    pp = """Given the input software requirements, create comprehensive, detailed user stories with specific deliverables.
+    """Enhanced v2: Creates detailed user stories with specific elements clause and proper decomposition"""
+    pp = """You are an automated requirements-to-user-story engine. Generate detailed, engineering-ready user stories.
 
-IMPORTANT: You must create user stories that are:
-1. DETAILED and SPECIFIC - Reference exact components, features, and functionality from the requirements
-2. COMPREHENSIVE - Combine multiple related requirements into cohesive user stories where appropriate
-3. ACTIONABLE - Deliverables should be clear enough for developers to implement
+USER STORY FORMAT (MANDATORY):
+The <system/actor> must <capability> using [specific elements: <concrete items, fields, instruments, parameters, or thresholds taken verbatim from the requirements>], so that <business/engineering value>.
 
-USER STORY FORMAT:
-- Write clear, complete descriptions of what the system must do
-- Include WHO benefits (users, system, administrators), WHAT they need, and WHY it matters
-- Be specific about the functionality, not generic
-- Reference specific system components, modules, or features mentioned in requirements
+The [specific elements: ...] clause is MANDATORY. It must list the actual components, fields, sensors, data items, or parameters mentioned in the requirement.
 
-DELIVERABLE DESCRIPTIONS MUST BE HIGHLY SPECIFIC:
-- Don't just say "Design of the module" - specify WHICH modules, WHAT components, WHAT functionality
-- Don't just say "Tests to ensure accuracy" - specify WHAT is being tested, WHAT accuracy means for this feature
-- Include technical details: algorithms, data structures, interfaces, workflows
-- Reference specific components from the user story
+WHEN TO SPLIT A REQUIREMENT INTO MULTIPLE STORIES (SPLIT TRIGGERS):
+Split a requirement into separate user stories whenever it contains:
+(a) Multiple actors or subsystems involved
+(b) Multiple distinct capabilities or workflows
+(c) Separable concerns: data acquisition vs. processing/aggregation vs. storage vs. transmission
+(d) Happy path PLUS failure/recovery/fault-reporting/degraded-mode behavior
+(e) Configuration, monitoring, or administrative variants of the same feature
+(f) A distinct non-functional requirement (security, performance, power, reliability) attached to a functional feature
+(g) Lifecycle operations: install, update/upgrade, reconfigure, backup/failover, decommission
 
-DELIVERABLE OPTIONS (select 2-4 per user story based on requirements):
-- architecture_design: Design of specific modules, components, algorithms, or system architecture
-- database_schema_design: Database schema, data models, or data storage design
-- unit_tests: Tests to verify specific functionality and accuracy
-- user_training_documentation: Documentation for end users
-- production_support_plan: Plans for system availability, monitoring, maintenance, or operations
+Example: "The system must collect sensor data, process it, and transmit to server when connection is available"
+→ Split into 3 stories: (1) Collect sensor data, (2) Process sensor data, (3) Transmit data to server
 
-Your response must be in JSON format following this exact structure:
+DO NOT CREATE META-STORIES:
+- Do NOT create stories about "Integration Testing", "Documentation", "Testing Coverage"
+- These are HOW you validate, not WHAT you build
+- Create ONLY functional and non-functional requirement stories
+
+DELIVERABLE OPTIONS (select 2-4 per user story):
+- architecture_design: Design of specific modules, components, algorithms, system architecture
+- database_schema_design: Database schema with specific tables, fields, relationships
+- api_endpoints: API/interface contracts for integration points
+- unit_tests: Tests to verify specific functionality
+- integration_tests: Tests for component interactions
+- error_handling: Fault detection, reporting, and recovery mechanisms
+- security_controls: Authentication, authorization, encryption, validation
+- performance_optimization: Caching, indexing, query optimization
+- monitoring_logging: Telemetry, metrics, alerts, observability
+- user_documentation: End-user guides and training materials
+
+OUTPUT FORMAT:
 {{
     "Epics": [
         {{
-            "User Story": "The [specific system/component] must [detailed action with specific components] using [specific technology/approach], so that [specific benefit with measurable outcome].",
+            "User Story": "The <system> must <capability> using [specific elements: <field1, field2, sensor3, parameter4>], so that <value>.",
             "Deliverables": {{
-                "architecture_design": "Design of the [specific module names] including [specific components: data flow, algorithms, interfaces] to enable [specific functionality].",
-                "database_schema_design": "Schema for storing and retrieving [specific data types] including [specific fields/tables] to support [specific queries/operations].",
-                "unit_tests": "Tests to ensure [specific component] correctly [specific behavior] with [specific test scenarios: edge cases, error conditions]."
-            }}
-        }},
-        {{
-            "User Story": "The system must include integration testing to verify that all components work together as intended and meet the specified requirements.",
-            "Deliverables": {{
-                "unit_tests": "Comprehensive integration tests to validate the interaction between [list specific components], verify end-to-end functionality, and ensure seamless operation of the complete system."
+                "architecture_design": "Design of the <specific module names> including <specific components: algorithms, interfaces, workflows> to enable <specific functionality>.",
+                "database_schema_design": "Schema with tables <table1, table2> containing fields [field1, field2, field3] to support <specific operations>.",
+                "unit_tests": "Tests to verify <specific component> correctly <specific behavior> with <specific scenarios>."
             }}
         }}
     ]
 }}
 
-CRITICAL REQUIREMENTS:
-1. Each user story should be 40-100 words (not too short!)
-2. Deliverable descriptions should be 20-50 words each (highly detailed!)
-3. Always include "Integration Testing" as the final user story
-4. Reference specific components, modules, features from the requirements document
-5. Be precise about what needs to be designed, built, or tested
-6. Combine related requirements into single cohesive user stories where it makes sense
+CRITICAL RULES:
+1. User Story MUST include [specific elements: ...] clause with actual components from requirements
+2. Each story should be 40-100 words
+3. Deliverable descriptions should be 20-50 words with technical specifics
+4. DO NOT create "Integration Testing" or other meta-stories
+5. Split requirements using the split triggers above for proper granularity
+6. Reference ACTUAL field names, sensors, components from requirements (no generic placeholders)
 
-BAD EXAMPLE (too vague):
+BAD EXAMPLES (what NOT to do):
+❌ Missing [specific elements] clause:
+"User Story": "The system must process data." ← No specific elements listed!
+
+❌ Generic placeholders instead of actual components:
+"User Story": "The system must collect sensor data using [sensors], so that data is available." ← "sensors" is generic!
+
+❌ Meta-story that shouldn't exist:
+"User Story": "The system must include integration testing..." ← This is about testing methodology, not a feature!
+
+GOOD EXAMPLES (correct format):
+
+Example 1 - Patient Demographics:
 {{
-    "User Story": "The system must process data.",
+    "User Story": "The patient information system must record patient demographics using [specific elements: name, address, age, next_of_kin], so that complete patient profiles can be maintained for medical staff access.",
     "Deliverables": {{
-        "architecture_design": "Design of the processing module."
+        "architecture_design": "Design of the patient demographics module with data entry forms, validation rules for the 4 required fields (name, address, age, next_of_kin), and storage interface.",
+        "database_schema_design": "Schema with patients table containing fields [patient_id, name, address, age, next_of_kin, created_at, updated_at] with appropriate indexes and constraints.",
+        "unit_tests": "Tests to verify all 4 demographic fields are captured, validated, stored, and retrievable with edge cases for missing/invalid data."
     }}
 }}
 
-GOOD EXAMPLE (specific and detailed):
+Example 2 - Sensor Data Collection (demonstrates split):
+Requirement: "The weather station must collect wind speed, temperature, and pressure data every 5 minutes and transmit to the server."
+→ Split into 2 stories:
+
+Story 1 - Data Collection:
 {{
-    "User Story": "The insulin pump system must continuously monitor the user's blood sugar levels using an implanted microsensor and accurately calculate the blood sugar level from the electrical conductivity data provided by the sensor, so that insulin delivery can be precisely controlled.",
+    "User Story": "The weather station must collect periodic readings using [specific elements: anemometer for wind_speed, thermometer for air_temperature, barometer for barometric_pressure] sampled every 5 minutes, so that accurate weather observations are available for aggregation.",
     "Deliverables": {{
-        "architecture_design": "Design of the continuous monitoring and data calculation modules within the insulin pump system, including sensor interface specifications and blood sugar calculation algorithms.",
-        "database_schema_design": "Schema for storing and retrieving blood sugar data readings, calculation results, and historical trends to support real-time monitoring and analysis.",
-        "unit_tests": "Tests to ensure the microsensor's data collection occurs continuously without interruption and blood sugar calculation accuracy is within required medical standards."
+        "architecture_design": "Design of the data collection module with per-sensor driver interfaces (anemometer, thermometer, barometer), 5-minute scheduler, and local buffer for readings.",
+        "database_schema_design": "Schema with readings table containing fields [reading_id, sensor_type, timestamp, value, unit, quality_flag] indexed by timestamp and sensor_type."
+    }}
+}}
+
+Story 2 - Data Transmission:
+{{
+    "User Story": "The weather station must transmit aggregated sensor readings using [specific elements: compressed data packets containing wind_speed, air_temperature, barometric_pressure readings] when satellite uplink is confirmed, so that data reaches the operations center reliably.",
+    "Deliverables": {{
+        "architecture_design": "Design of the transmission module with data aggregation, compression algorithm, uplink confirmation protocol, and retry mechanism for failed transmissions.",
+        "error_handling": "Fault detection for transmission failures, local storage of unsent packets, automatic retry with exponential backoff, and alert generation for prolonged outages."
     }}
 }}
 """
@@ -260,19 +291,62 @@ def refine_epics(epic:str,chat)->str:
     return re.replace("json","").replace("```","")
 
 def refine_epics_v2(epic:str,chat)->str:
-    """Enhanced v2: Same structure as v1, but generates detailed Definition of Done arrays"""
-    pp = """Given the input epic with User Story and Deliverables, generate a comprehensive, detailed Definition of Done for each deliverable.
+    """Enhanced v2: Generates comprehensive Definition of Done arrays with specific deliverable-type guidance"""
+    pp = """You are a Definition of Done generator. For each deliverable, create 4-6 specific, actionable, measurable DoD criteria.
 
-For each deliverable, create 5-7 specific, actionable, and measurable Definition of Done criteria that:
-1. Clearly define what "complete" means for that deliverable
-2. Include technical specifications and implementation details
-3. Reference specific components, modules, or functionality from the user story
-4. Are verifiable and testable (someone can check if it's done)
-5. Include quality criteria (code coverage, performance, accuracy standards)
-6. Include review/approval requirements where appropriate
-7. Are SPECIFIC to this user story (not generic)
+Each deliverable type has specific requirements:
 
-Your response must be in JSON format, expanding the input structure with detailed DoD arrays.
+ARCHITECTURE DESIGN DoD must include:
+- Complete system/component diagram showing all modules and interactions
+- Detailed design document describing algorithms, data flow, interfaces
+- API/interface specifications with data formats and error codes
+- Error handling and fault recovery mechanisms
+- Design review and approval sign-off
+
+DATABASE/DATA SCHEMA DESIGN DoD must include:
+- Schema design with specific tables/collections listed
+- All key fields enumerated [field1, field2, field3...]
+- Indexes, relationships, and constraints defined
+- Migration scripts created and tested
+- Schema review and approval
+- Special case: If story has NO persistence needs, write "N/A — no persistence in scope for this story"
+
+API/INTERFACE CONTRACT DoD must include:
+- API endpoints documented (request/response formats)
+- Authentication and authorization mechanisms defined
+- Error codes and validation rules specified
+- Rate limiting and security controls implemented
+- API documentation generated (OpenAPI/Swagger)
+
+ERROR HANDLING & FAULT REPORTING DoD must include:
+- Fault detection mechanisms implemented
+- Error logging with severity levels and context
+- Recovery procedures defined and tested
+- Alert generation for critical failures
+- Graceful degradation behavior verified
+
+SECURITY CONTROLS DoD must include:
+- Authentication and authorization implemented
+- Input validation and sanitization added
+- Encryption for data at rest and in transit
+- Security testing completed (no critical vulnerabilities)
+- Compliance with relevant standards verified
+
+UNIT TESTS / INTEGRATION TESTS DoD must include:
+- Tests written for all core functions/workflows
+- Code coverage meets minimum threshold (specify %, e.g., 80%)
+- All tests passing in CI/CD pipeline
+- Edge cases and error conditions tested
+- Test documentation completed
+
+CRITICAL RULES:
+1. PRESERVE the User Story text exactly as provided
+2. Each deliverable gets 4-6 DoD items (not more, not less)
+3. DoD items must be 15-30 words (detailed enough to be actionable)
+4. Reference SPECIFIC technical details from the user story (actual component names, field names, modules)
+5. Be CONCRETE (avoid "ensure quality", "test thoroughly")
+6. Include measurable criteria where possible (percentages, counts, standards)
+7. Output format: "definition_of_done" as an ARRAY, not a string
 
 EXAMPLE INPUT:
 {{
@@ -314,34 +388,40 @@ EXAMPLE OUTPUT:
     }}
 }}
 
-CRITICAL REQUIREMENTS:
-- PRESERVE the User Story text exactly as provided in input
-- Each deliverable must have 5-7 specific Definition of Done items (not more, not less)
-- DoD items must be 15-30 words each (detailed enough to be actionable)
-- Reference specific technical details from the user story
-- Be concrete and specific (avoid generic phrases like "ensure quality" or "test thoroughly")
-- Include measurable criteria where possible (percentages, counts, standards)
-- Each DoD item should start with a clear action or deliverable
-
-BAD EXAMPLE (too generic):
+OUTPUT SCHEMA:
 {{
-    "definition_of_done": [
-        "Design is complete",
-        "Tests pass",
-        "Documentation exists"
-    ]
+    "User Story": "<preserve exactly from input>",
+    "Deliverables": {{
+        "<deliverable_name>": {{
+            "description": "<preserve from input>",
+            "definition_of_done": [
+                "<DoD item 1: 15-30 words, specific and actionable>",
+                "<DoD item 2: 15-30 words, specific and actionable>",
+                "<DoD item 3: 15-30 words, specific and actionable>",
+                "<DoD item 4: 15-30 words, specific and actionable>",
+                "<DoD item 5 (optional): 15-30 words, specific and actionable>",
+                "<DoD item 6 (optional): 15-30 words, specific and actionable>"
+            ]
+        }}
+    }}
 }}
 
-GOOD EXAMPLE (specific and detailed):
-{{
-    "definition_of_done": [
-        "Complete architecture diagram showing all 5 modules (sensor interface, data processor, calculator, storage, alert system) with detailed component interactions",
-        "Unit tests written for all 12 calculation functions achieving 92% code coverage measured by coverage.py",
-        "Test documentation completed including 25 test cases with specific inputs, expected outputs, and edge case scenarios"
-    ]
-}}
+BAD EXAMPLES (too generic):
+❌ "Design is complete" ← No specifics! What design? Complete how?
+❌ "Tests pass" ← Which tests? What criteria?
+❌ "90% code coverage" ← Only if the requirement specifies 90%! Otherwise it's invented.
 
-Your response should preserve the User Story exactly as provided, and expand each deliverable with a detailed definition_of_done array.
+GOOD EXAMPLES (specific with actual components):
+✅ "Complete architecture diagram showing monitoring_module, calculation_module, and sensor_interface with all component interactions documented"
+✅ "Database schema designed with patients table containing fields [patient_id, name, address, age, next_of_kin, created_at] with indexes on patient_id and created_at"
+✅ "Unit tests written for patient_create(), patient_update(), patient_retrieve() functions covering happy path and 5 edge cases (missing name, invalid age, duplicate patient_id, null next_of_kin, SQL injection attempt)"
+✅ "All tests passing in CI/CD pipeline with zero failures and no deprecated warnings"
+
+Remember:
+- Output "definition_of_done" as an ARRAY of strings, not a single string
+- 4-6 items per deliverable
+- Reference ACTUAL component/field names from the user story
+- Be SPECIFIC and MEASURABLE
 """
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),
@@ -364,102 +444,157 @@ def generate_test_cases(requirements:str,chat, mode)->str:
     return re.replace("json","").replace("```","")
 
 def generate_test_cases_v2(requirements:str,chat, mode)->str:
-    """Enhanced v2: Same structure as v1, but generates highly detailed test cases"""
-    pp = """Given the input software requirements, generate comprehensive, detailed test cases for each requirement that can actually be executed by QA testers.
+    """Enhanced v2: Generates detailed, globally-numbered test cases with concrete expected results"""
+    pp = """You are an automated test case generator. Generate comprehensive, executable test cases for each requirement.
 
-Each test case MUST include:
-1. id: Unique sequential identifier (format: "TC1", "TC2", "TC3", etc.)
-2. description: Clear, specific description of what functionality is being tested (15-30 words)
-3. steps: Array of 3-5 detailed, actionable step-by-step procedures that a tester can follow
-4. expected_result: Specific, measurable expected outcome that can be verified (not generic like "works correctly")
+GLOBAL TEST CASE NUMBERING (CRITICAL):
+- Test case numbering (TC1, TC2, TC3...) is GLOBAL and CONTINUOUS across ALL requirements in the input
+- NEVER restart numbering per requirement
+- NEVER reuse a TC number
+- NEVER duplicate test case content across requirements
+- Each requirement gets its own UNIQUE test cases that test ONLY that requirement's functionality
 
-Your response must be in JSON format following this exact structure:
+OUTPUT FORMAT:
 {{
   "test_cases": [
     {{
-      "requirement": "Copy the exact requirement text being tested here",
+      "requirement": "Copy the exact requirement text being tested here (word-for-word from input)",
       "test_cases": [
         {{
           "id": "TC1",
-          "description": "Verify that [specific component] [specific action] under [specific conditions]",
+          "description": "Verify that [specific component from requirement] [specific action from requirement] under [specific conditions from requirement]",
           "steps": [
-            "Specific action step with actual values or parameters",
-            "Another actionable step with expected intermediate result",
-            "Measurement or verification step with specific criteria"
+            "Step 1: Specific action with actual field names, values, or components from the requirement",
+            "Step 2: Another actionable step referencing specific elements from the requirement",
+            "Step 3: Measurement step using actual metrics, thresholds, or criteria from the requirement"
           ],
-          "expected_result": "Specific measurable outcome with actual values, thresholds, or success criteria"
+          "expected_result": "Concrete, measurable outcome using actual values, field names, or states from the requirement. NO invented metrics."
         }},
         {{
           "id": "TC2",
-          "description": "Check [specific functionality] accuracy against [known standard or baseline]",
-          "steps": [
-            "Setup step with specific configuration details",
-            "Execute test with specific test data",
-            "Compare results with specific comparison method"
-          ],
-          "expected_result": "Results match expected values within [specific margin or tolerance]"
+          "description": "Test negative/edge case for [specific element from requirement]",
+          "steps": [...],
+          "expected_result": "Specific error message, state, or recovery behavior described in or implied by the requirement"
+        }}
+      ]
+    }},
+    {{
+      "requirement": "Next requirement text...",
+      "test_cases": [
+        {{
+          "id": "TC3",
+          "description": "...",
+          ...
         }}
       ]
     }}
   ]
 }}
 
-CRITICAL REQUIREMENTS:
-- Each requirement should have 2-3 test cases covering different aspects (normal operation, edge cases, error conditions)
-- Test IDs must be strictly sequential: TC1, TC2, TC3... (no gaps, no duplicates)
-- Steps must be 10-25 words each (specific enough to execute, not too verbose)
-- Expected results must be 15-30 words (specific enough to verify pass/fail)
-- Reference actual system components, values, thresholds from the requirements
-- Include concrete test data, parameters, or configurations
-- Cover positive scenarios, negative scenarios, and edge cases
-- NO generic phrases like "system works", "data is correct", "test passes"
+CRITICAL RULES:
+1. GLOBAL TC NUMBERING: TC1, TC2, TC3... across ALL requirements. If requirement 1 ends at TC3, requirement 2 starts at TC4.
+2. CONCRETE EXPECTED RESULTS: Use actual field names, values, states, error codes from the requirements document.
+   - ✅ GOOD: "All 6 fields (name, address, age, next_of_kin, medical_history, allergies) populated from source"
+   - ✅ GOOD: "Error code 404 returned with message 'Patient not found'"
+   - ❌ BAD: "Data is correct" (vague)
+   - ❌ BAD: "System works as expected" (generic)
+   - ❌ BAD: "Response within 5% margin" (invented metric not in requirement)
+3. NO INVENTED METRICS: Do NOT add percentages, time intervals, accuracy thresholds unless explicitly stated in the requirement.
+   - If you must infer a metric, tag it: "[Assumption: response time <2s]"
+4. UNIQUE TEST CASES: Each requirement gets DIFFERENT test cases testing DIFFERENT functionality.
+   - ❌ BAD: Copy-pasting "verify patient record creation" test case to 5 different requirements
+   - ✅ GOOD: "Verify management report generation" for reporting requirement, "Verify patient confidentiality" for security requirement
+5. REQUIREMENT-SPECIFIC: Test cases must reference the SPECIFIC components, fields, instruments, or parameters mentioned in that requirement.
+   - If requirement mentions "anemometer, wind speed, barometric pressure", test case must test THOSE specific sensors
+   - If requirement mentions "name, address, age, next of kin", test case must verify THOSE specific fields
+6. Each requirement should have 2-3 test cases: at least 1 positive (happy path) and 1 negative/edge case
 
-GOOD EXAMPLE (specific and executable):
+GOOD EXAMPLE (demonstrates global numbering and concrete results):
 {{
-  "requirement": "The insulin pump system must continuously monitor the user's blood sugar levels using an implanted microsensor.",
   "test_cases": [
     {{
-      "id": "TC1",
-      "description": "Verify that the microsensor continuously monitors blood sugar levels without interruption for 24 hours",
-      "steps": [
-        "Ensure the microsensor is properly implanted, calibrated, and connected to the monitoring system",
-        "Start the monitoring process and record the start timestamp",
-        "Monitor and log data output continuously for 24 hours without system intervention",
-        "Review the complete data log for any gaps, missing readings, or interruptions"
-      ],
-      "expected_result": "Continuous data output captured every 5 minutes for full 24-hour period with zero gaps or missing data points"
+      "requirement": "The patient information system must record patient demographics including name, address, age, and next of kin.",
+      "test_cases": [
+        {{
+          "id": "TC1",
+          "description": "Verify that all 4 demographic fields (name, address, age, next_of_kin) are captured and stored when creating a patient record",
+          "steps": [
+            "Create a new patient record with test data for all 4 fields: name='John Doe', address='123 Main St', age=45, next_of_kin='Jane Doe'",
+            "Submit the patient record creation form",
+            "Retrieve the stored patient record from the database",
+            "Verify each field matches the input data exactly"
+          ],
+          "expected_result": "All 4 fields (name, address, age, next_of_kin) populated with exact input values and retrievable from database"
+        }},
+        {{
+          "id": "TC2",
+          "description": "Test validation when required demographic field (name) is missing",
+          "steps": [
+            "Attempt to create patient record with address='123 Main St', age=45, next_of_kin='Jane Doe' but omit name field",
+            "Submit the form",
+            "Observe system response"
+          ],
+          "expected_result": "Validation error displayed indicating 'name field is required' and record creation blocked"
+        }}
+      ]
     }},
     {{
-      "id": "TC2",
-      "description": "Check the accuracy of blood sugar level readings against a medically approved glucose meter at various glucose concentrations",
-      "steps": [
-        "Collect simultaneous blood sugar readings from both the microsensor and a calibrated medical glucose meter",
-        "Test at five different glucose levels: 70, 100, 150, 200, and 250 mg/dL",
-        "Compare the microsensor readings against the glucose meter readings for each test point",
-        "Calculate the percentage difference between sensor and meter readings"
-      ],
-      "expected_result": "Microsensor readings match the glucose meter readings within ±5% margin of error across all tested glucose concentrations"
+      "requirement": "The system must generate monthly management reports showing clinic activity and patient statistics.",
+      "test_cases": [
+        {{
+          "id": "TC3",
+          "description": "Verify that monthly report includes clinic activity metrics (patient count, appointment count, treatment count)",
+          "steps": [
+            "Configure report date range for January 2024 (full month)",
+            "Generate the monthly management report",
+            "Review report contents for required metrics",
+            "Verify metrics match database query results for same period"
+          ],
+          "expected_result": "Report displays 3 metrics (patient_count, appointment_count, treatment_count) matching database totals for January 2024"
+        }},
+        {{
+          "id": "TC4",
+          "description": "Test report generation when no data exists for selected month",
+          "steps": [
+            "Select a future month with no patient data (e.g., December 2025)",
+            "Generate the report",
+            "Review report output"
+          ],
+          "expected_result": "Report displays with all metric counts = 0 and message 'No data available for selected period'"
+        }}
+      ]
     }}
   ]
 }}
 
-BAD EXAMPLE (too generic - DO NOT DO THIS):
+BAD EXAMPLES (what NOT to do):
+❌ Restarting TC numbering per requirement:
 {{
-  "requirement": "System monitors data",
-  "test_cases": [
-    {{
-      "id": "1",
-      "description": "Test monitoring",
-      "steps": [
-        "Start system",
-        "Check if it works"
-      ],
-      "expected_result": "System works correctly"
-    }}
-  ]
+  "requirement": "Record patient data",
+  "test_cases": [{{ "id": "TC1", ... }}]
+}},
+{{
+  "requirement": "Generate reports",
+  "test_cases": [{{ "id": "TC1", ... }}]  ← WRONG! Should be TC3
 }}
 
-Remember: Test cases must be SPECIFIC enough that a QA tester can execute them without asking clarifying questions. Include actual values, thresholds, durations, and success criteria.
+❌ Vague expected results:
+"expected_result": "System works correctly"  ← No! What specific behavior?
+"expected_result": "Data is accurate"  ← No! Which fields? What values?
+
+❌ Invented metrics not in requirement:
+"expected_result": "Response time under 2 seconds"  ← Only if requirement specifies 2s!
+"expected_result": "95% accuracy"  ← Only if requirement specifies 95%!
+
+❌ Duplicate test cases across requirements:
+Requirement 1: "Verify patient record creation" ← OK
+Requirement 2: "Verify patient record creation" ← WRONG! Different requirement needs different test!
+
+Remember:
+- TC numbers are GLOBAL and CONTINUOUS (TC1, TC2, TC3... never restart)
+- Use ACTUAL field names, values, states from the requirement
+- NO invented percentages, times, or thresholds
+- Each requirement gets UNIQUE tests for ITS specific functionality
 """
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),
@@ -527,3 +662,66 @@ def get_epics_v2(deliverables: str, chat)->str:
         refine_tasks[new_key].append(epic)
     epics = json.dumps(refine_tasks, indent=4)
     return epics
+
+def filter_meta_stories(stories_json: str) -> str:
+    """
+    Removes meta-level stories that describe testing/documentation methodology rather than features.
+
+    Meta-stories are about HOW the system is validated/documented, not WHAT the system does.
+    Examples: "Integration Testing", "Documentation", "Testing Coverage", "Quality Assurance"
+
+    Args:
+        stories_json: JSON string with User Stories
+
+    Returns:
+        JSON string with meta-stories removed
+    """
+    try:
+        stories = json.loads(stories_json)
+    except json.JSONDecodeError:
+        return stories_json
+
+    # Meta-story patterns to filter out
+    meta_patterns = [
+        "integration testing",
+        "integration test",
+        "documentation",
+        "testing coverage",
+        "test coverage",
+        "quality assurance",
+        "qa process",
+        "testing strategy",
+        "testing methodology",
+        "test automation",
+        "continuous integration",
+        "ci/cd pipeline"
+    ]
+
+    # Get the user stories list (could be under "User Stories" or "Epics" key)
+    user_stories_key = "User Stories" if "User Stories" in stories else "Epics"
+    user_stories = stories.get(user_stories_key, [])
+
+    filtered_stories = []
+    removed_count = 0
+
+    for story in user_stories:
+        # Get the user story text (could be "User Story" field)
+        story_text = story.get("User Story", "").lower()
+
+        # Check if story matches any meta-pattern
+        is_meta = False
+        for pattern in meta_patterns:
+            if pattern in story_text:
+                print(f"[FILTER] Removing meta-story: {story.get('User Story', 'Unknown')[:100]}")
+                is_meta = True
+                removed_count += 1
+                break
+
+        if not is_meta:
+            filtered_stories.append(story)
+
+    if removed_count > 0:
+        print(f"[FILTER] Removed {removed_count} meta-level stories (testing/documentation methodology)")
+
+    stories[user_stories_key] = filtered_stories
+    return json.dumps(stories, indent=4)

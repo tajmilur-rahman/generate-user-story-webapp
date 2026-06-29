@@ -16,7 +16,8 @@ from backend.models import User, db
 from autoAgile.utils.prompts import (
     extract_text_from_docx, refine_doc, extract_functionarity,
     extract_epics, get_epics, generate_test_cases, refine_requirements, rat,
-    extract_epics_v2, get_epics_v2, generate_test_cases_v2
+    extract_epics_v2, get_epics_v2, generate_test_cases_v2,
+    filter_meta_stories
 )
 from autoAgile.utils.llm_factory import get_chat_model
 from autoAgile.save_output import save_json_output
@@ -180,6 +181,10 @@ def generate_stories():
                     epics = deliverables  # Skip get_epics to avoid JSON errors
 
                 logger.info("Step 4: Epics extracted successfully")
+
+                # Filter out meta-stories (Integration Testing, Documentation, etc.)
+                logger.info("Step 4.5: Filtering meta-stories...")
+                epics = filter_meta_stories(epics)
 
                 logger.info(f"Step 5: Generating test cases... (using {'v2' if USE_V2_PROMPTS else 'v1'} prompts)")
                 # Call generate_test_cases
