@@ -17,7 +17,6 @@ from autoAgile.utils.prompts import (
     extract_text_from_docx, refine_doc, extract_functionarity,
     extract_epics, get_epics, generate_test_cases, refine_requirements, rat,
     extract_epics_v2, get_epics_v2, generate_test_cases_v2,
-    filter_meta_stories
 )
 from autoAgile.utils.llm_factory import get_chat_model
 from autoAgile.save_output import save_json_output
@@ -154,16 +153,28 @@ def generate_stories():
                 get_epics_func = get_epics_v2 if USE_V2_PROMPTS else get_epics
                 generate_test_cases_func = generate_test_cases_v2 if USE_V2_PROMPTS else generate_test_cases
 
-                logger.info(f"Step 2: Extracting deliverables/epics... (using {'v2' if USE_V2_PROMPTS else 'v1'} prompts)")
-                # Use two-step process: extract deliverables, then refine with DoD
-                deliverables = extract_epics_func(requirements, chat, mode)
+                # Split requirements into individual lines for batched processing
+                BATCH_SIZE = 4
+                req_lines = [r.strip() for r in requirements.split('\n')
+                             if r.strip() and len(r.strip()) > 15]
+                batches = [req_lines[i:i+BATCH_SIZE] for i in range(0, len(req_lines), BATCH_SIZE)] if req_lines else [[requirements]]
+                logger.info(f"Step 2: Extracting epics in {len(batches)} batch(es) of up to {BATCH_SIZE} requirements (using {'v2' if USE_V2_PROMPTS else 'v1'} prompts)")
 
-                if deliverables is None:
-                    raise Exception("Deliverables extraction returned None")
-                if not isinstance(deliverables, str):
-                    deliverables = str(deliverables)
+                all_epics = []
+                for batch_idx, batch in enumerate(batches):
+                    batch_text = '\n'.join(batch)
+                    logger.info(f"Step 2 batch {batch_idx + 1}/{len(batches)}: {len(batch)} requirements")
+                    batch_result = extract_epics_func(batch_text, chat, mode)
+                    if batch_result:
+                        try:
+                            parsed = json.loads(batch_result)
+                            all_epics.extend(parsed.get('Epics', []))
+                        except (json.JSONDecodeError, ValueError) as e:
+                            logger.warning(f"Batch {batch_idx + 1} epic parse failed: {e}")
 
-                # Use get_epics to refine with Definition of Done (v2 has better DoD generation)
+                deliverables = json.dumps({'Epics': all_epics}, indent=2)
+                logger.info(f"Step 2 complete: {len(all_epics)} stories across all batches")
+
                 if USE_V2_PROMPTS:
                     logger.info("Step 3: Refining epics with detailed definition of done (v2)...")
                     try:
@@ -176,23 +187,33 @@ def generate_stories():
                         logger.warning(f"Refinement failed, using deliverables directly: {e}")
                         epics = deliverables
                 else:
-                    # SKIP REFINEMENT for v1 - Use deliverables directly as epics
                     logger.info("Step 3: Using deliverables as epics (v1 - refinement skipped)...")
-                    epics = deliverables  # Skip get_epics to avoid JSON errors
+                    epics = deliverables
 
                 logger.info("Step 4: Epics extracted successfully")
 
-                # Filter out meta-stories (Integration Testing, Documentation, etc.)
-                logger.info("Step 4.5: Filtering meta-stories...")
-                epics = filter_meta_stories(epics)
+                logger.info(f"Step 5: Generating test cases in {len(batches)} batch(es)... (using {'v2' if USE_V2_PROMPTS else 'v1'} prompts)")
+                all_tc_groups = []
+                tc_counter = 0
+                for batch_idx, batch in enumerate(batches):
+                    batch_text = '\n'.join(batch)
+                    logger.info(f"Step 5 batch {batch_idx + 1}/{len(batches)}: {len(batch)} requirements")
+                    batch_tc = generate_test_cases_func(batch_text, chat, mode)
+                    if batch_tc:
+                        try:
+                            parsed = json.loads(batch_tc)
+                            groups = parsed.get('test_cases', [])
+                            # Renumber TCs globally across batches
+                            for group in groups:
+                                for tc in group.get('test_cases', []):
+                                    tc_counter += 1
+                                    tc['id'] = f"TC{tc_counter}"
+                            all_tc_groups.extend(groups)
+                        except (json.JSONDecodeError, ValueError) as e:
+                            logger.warning(f"Batch {batch_idx + 1} TC parse failed: {e}")
 
-                logger.info(f"Step 5: Generating test cases... (using {'v2' if USE_V2_PROMPTS else 'v1'} prompts)")
-                # Call generate_test_cases
-                test_cases = generate_test_cases_func(requirements, chat, mode)
-                if test_cases is None:
-                    raise Exception("Test cases generation returned None")
-                if not isinstance(test_cases, str):
-                    test_cases = str(test_cases)
+                test_cases = json.dumps({'test_cases': all_tc_groups}, indent=2)
+                logger.info(f"Step 5 complete: {tc_counter} test cases across all batches")
                     
             
             except Exception as processing_error:
