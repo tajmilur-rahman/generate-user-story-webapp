@@ -595,6 +595,8 @@ def is_template_test_case(test_case_text):
         r'test cases will be defined',
         r'test: verify that',
         r'expected:.*works as specified',
+        r'system performs.*successfully with valid output data',
+        r'test:.*\[specific elements',
     ]
     
     for pattern in template_patterns:
@@ -1169,17 +1171,9 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
                             test_cases = value
                             break
             
-            # Strategy 3: If still no match, create a basic test case from story
+            # Strategy 3: No match found — leave empty rather than generating fake content
             if not test_cases or test_cases == '-':
-                # Generate a basic test case from the story text (but avoid templates)
-                if story_text:
-                    action_part = story_text.split(' so that ')[0] if ' so that ' in story_text.lower() else story_text
-                    # Remove common prefixes
-                    action_part = action_part.replace('The system must ', '').replace('The system shall ', '').replace('The ', '').strip()
-                    # Create a more specific test case (not a template)
-                    test_cases = f"Test: {action_part}\nExpected: System performs {action_part.lower()} successfully with valid output data"
-                else:
-                    test_cases = 'Test cases will be defined during test planning'
+                test_cases = '-'
             
             # Post-process: Remove template test cases
             if test_cases and isinstance(test_cases, str):
@@ -1193,12 +1187,10 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
             elif not isinstance(test_cases, str):
                 test_cases = str(test_cases)
             
-            # Generate real test cases if we have template or empty test cases
-            if not test_cases or test_cases == '-' or is_template_test_case(test_cases):
-                logger.info(f"[TEST CASE GENERATION] Generating concrete test cases for story {idx + 1}")
-                real_test_cases = generate_real_test_case(story_text)
-                if real_test_cases:
-                    test_cases = json.dumps(real_test_cases, indent=2)
+            # If still template or empty after all strategies, keep as '-' (no test cases)
+            if not test_cases or is_template_test_case(test_cases):
+                logger.info(f"[TEST CASES] No matching test cases found for story {idx + 1}")
+                test_cases = '-'
             
             
             # Extract source quote (evidence from document)
