@@ -1,4 +1,5 @@
 import os
+import re as _re
 import unicodedata
 import json
 from docx import Document
@@ -15,6 +16,10 @@ except ImportError:
 #set env variable auth_key to be the key
 output_parser = StrOutputParser()
 threshold = 5
+
+def _strip_fences(text: str) -> str:
+    """Remove markdown code fences (```json ... ```) without touching content."""
+    return _re.sub(r'^```(?:json)?\s*$', '', text, flags=_re.MULTILINE).strip()
 
 def extract_text_from_docx(docx_path):
     doc = Document(docx_path)
@@ -133,9 +138,17 @@ def extract_functionarity(doc_text:str,chat, mode="debug")->str:
 
 def refine_requirements(requirements:str,chat,mode)->str:
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are the project manager who will refine the given functional requirements to combine redundant
-         requirements and add missing requirements according to the existed one.
-         Your response should only have the list of the refined functional requirements."""),
+        ("system", """You are a senior software project manager refining a list of functional requirements before user story generation.
+
+Apply these rules in order:
+1. MERGE: Combine requirements that describe the same feature from different angles into one precise statement.
+2. SPLIT: Separate any requirement that bundles two or more distinct capabilities into individual requirements.
+3. ADD: Insert any clearly implied requirement that is missing (e.g., if data is transmitted it must first be stored; if a user logs in there must be a logout).
+4. REMOVE: Delete duplicate requirements and meta-requirements about testing or documentation methodology.
+5. CLARIFY: Rewrite vague verbs ("handle", "support", "manage") to precise ones ("store", "validate", "transmit", "calculate", "alert").
+
+Output ONLY the refined list of requirements, one per line, each starting with "The system must ...".
+Do NOT include explanations, headings, or numbering."""),
         ("user", "{input}")
     ])
     chain = prompt | chat | output_parser
@@ -171,9 +184,12 @@ def extract_epics_v2(requirements:str,chat, mode)->str:
     pp = """You are an automated requirements-to-user-story engine. Generate detailed, engineering-ready user stories.
 
 USER STORY FORMAT (MANDATORY):
-The <system/actor> must <capability> using [specific elements: <concrete items, fields, instruments, parameters, or thresholds taken verbatim from the requirements>], so that <business/engineering value>.
+The <system/actor> must <specific capability> using [specific elements: <concrete items, fields, instruments, parameters, or thresholds taken verbatim from the requirements>], so that <concrete business or engineering outcome>.
 
-The [specific elements: ...] clause is MANDATORY. It must list the actual components, fields, sensors, data items, or parameters mentioned in the requirement.
+RULES FOR EACH CLAUSE:
+- "must <specific capability>" — use a precise verb (collect, calculate, transmit, validate, store, monitor). Never use vague verbs like "handle", "manage", "support", "provide".
+- "[specific elements: ...]" — MANDATORY. List the ACTUAL named components, fields, sensors, or parameters from the requirement. "sensors" alone is NOT acceptable; name them (e.g., anemometer, thermometer).
+- "so that <outcome>" — state a concrete, testable outcome. NOT "data is available" — instead say who benefits and what they can do (e.g., "so that the Fleet Operations Center can detect instrument failures within 30 seconds").
 
 WHEN TO SPLIT A REQUIREMENT INTO MULTIPLE STORIES (SPLIT TRIGGERS):
 Split a requirement into separate user stories whenever it contains:
@@ -193,6 +209,11 @@ DO NOT CREATE META-STORIES:
 - These are HOW you validate, not WHAT you build
 - Create ONLY functional and non-functional requirement stories
 
+TITLE FIELD (MANDATORY):
+Each story must include a "Title" field: 3-5 words, Title Case, describing the core action.
+- ✅ GOOD: "Collect Sensor Readings Periodically", "Transmit Compressed Data Packets", "Validate Patient Demographics"
+- ❌ BAD: "Collect Data From A Set" (truncated), "System Must Handle Data" (vague), "User Story 1" (generic)
+
 DELIVERABLE OPTIONS (select 2-4 per user story):
 - architecture_design: Design of specific modules, components, algorithms, system architecture
 - database_schema_design: Database schema with specific tables, fields, relationships
@@ -209,7 +230,8 @@ OUTPUT FORMAT:
 {{
     "Epics": [
         {{
-            "User Story": "The <system> must <capability> using [specific elements: <field1, field2, sensor3, parameter4>], so that <value>.",
+            "Title": "3-5 Word Action Title",
+            "User Story": "The <system> must <specific capability> using [specific elements: <field1, field2, sensor3, parameter4>], so that <concrete, testable outcome>.",
             "Deliverables": {{
                 "architecture_design": "Design of the <specific module names> including <specific components: algorithms, interfaces, workflows> to enable <specific functionality>.",
                 "database_schema_design": "Schema with tables <table1, table2> containing fields [field1, field2, field3] to support <specific operations>.",
@@ -220,16 +242,24 @@ OUTPUT FORMAT:
 }}
 
 CRITICAL RULES:
-1. User Story MUST include [specific elements: ...] clause with actual components from requirements
-2. Each story should be 40-100 words
-3. Deliverable descriptions should be 20-50 words with technical specifics
-4. DO NOT create "Integration Testing" or other meta-stories
-5. Split requirements using the split triggers above for proper granularity
-6. Reference ACTUAL field names, sensors, components from requirements (no generic placeholders)
+1. "Title" field is MANDATORY — 3-5 words, Title Case, action-oriented
+2. User Story MUST include [specific elements: ...] clause with actual named components from requirements
+3. Each story should be 40-100 words
+4. Deliverable descriptions should be 20-50 words with technical specifics
+5. DO NOT create "Integration Testing" or other meta-stories
+6. Split requirements using the split triggers above for proper granularity
+7. Reference ACTUAL field names, sensors, components from requirements (no generic placeholders)
 
 BAD EXAMPLES (what NOT to do):
+❌ Missing Title or vague Title:
+"Title": "Collect Data From A Set" ← truncated, meaningless
+"Title": "System Feature" ← too generic
+
 ❌ Missing [specific elements] clause:
 "User Story": "The system must process data." ← No specific elements listed!
+
+❌ Vague "so that" clause:
+"User Story": "..., so that data is available." ← Available to whom? For what purpose?
 
 ❌ Generic placeholders instead of actual components:
 "User Story": "The system must collect sensor data using [sensors], so that data is available." ← "sensors" is generic!
@@ -241,7 +271,8 @@ GOOD EXAMPLES (correct format):
 
 Example 1 - Patient Demographics:
 {{
-    "User Story": "The patient information system must record patient demographics using [specific elements: name, address, age, next_of_kin], so that complete patient profiles can be maintained for medical staff access.",
+    "Title": "Record Patient Demographics",
+    "User Story": "The patient information system must record patient demographics using [specific elements: name, address, age, next_of_kin], so that medical staff can retrieve complete patient profiles during consultations.",
     "Deliverables": {{
         "architecture_design": "Design of the patient demographics module with data entry forms, validation rules for the 4 required fields (name, address, age, next_of_kin), and storage interface.",
         "database_schema_design": "Schema with patients table containing fields [patient_id, name, address, age, next_of_kin, created_at, updated_at] with appropriate indexes and constraints.",
@@ -255,7 +286,8 @@ Requirement: "The weather station must collect wind speed, temperature, and pres
 
 Story 1 - Data Collection:
 {{
-    "User Story": "The weather station must collect periodic readings using [specific elements: anemometer for wind_speed, thermometer for air_temperature, barometer for barometric_pressure] sampled every 5 minutes, so that accurate weather observations are available for aggregation.",
+    "Title": "Collect Periodic Sensor Readings",
+    "User Story": "The weather station must collect periodic readings using [specific elements: anemometer for wind_speed, thermometer for air_temperature, barometer for barometric_pressure] sampled every 5 minutes, so that accurate weather observations are available for downstream aggregation.",
     "Deliverables": {{
         "architecture_design": "Design of the data collection module with per-sensor driver interfaces (anemometer, thermometer, barometer), 5-minute scheduler, and local buffer for readings.",
         "database_schema_design": "Schema with readings table containing fields [reading_id, sensor_type, timestamp, value, unit, quality_flag] indexed by timestamp and sensor_type."
@@ -264,7 +296,8 @@ Story 1 - Data Collection:
 
 Story 2 - Data Transmission:
 {{
-    "User Story": "The weather station must transmit aggregated sensor readings using [specific elements: compressed data packets containing wind_speed, air_temperature, barometric_pressure readings] when satellite uplink is confirmed, so that data reaches the operations center reliably.",
+    "Title": "Transmit Compressed Sensor Packets",
+    "User Story": "The weather station must transmit aggregated sensor readings using [specific elements: compressed data packets containing wind_speed, air_temperature, barometric_pressure readings] when satellite uplink is confirmed, so that the operations center receives complete observation sets with no data loss.",
     "Deliverables": {{
         "architecture_design": "Design of the transmission module with data aggregation, compression algorithm, uplink confirmation protocol, and retry mechanism for failed transmissions.",
         "error_handling": "Fault detection for transmission failures, local storage of unsent packets, automatic retry with exponential backoff, and alert generation for prolonged outages."
@@ -277,7 +310,7 @@ Story 2 - Data Transmission:
     ])
     chain = prompt | chat | output_parser
     re = chain.invoke({"input": requirements})
-    return re.replace("json","").replace("```","")
+    return _strip_fences(re)
 
 def refine_epics(epic:str,chat)->str:
     pp = """given the input epic and its deliverables, please generate definition of done for each deliverable.
@@ -288,140 +321,119 @@ def refine_epics(epic:str,chat)->str:
     ])
     chain = prompt | chat | output_parser
     re = chain.invoke({"input": epic})
-    return re.replace("json","").replace("```","")
+    return _strip_fences(re)
 
 def refine_epics_v2(epic:str,chat)->str:
     """Enhanced v2: Generates comprehensive Definition of Done arrays with specific deliverable-type guidance"""
-    pp = """You are a Definition of Done generator. For each deliverable, create 4-6 specific, actionable, measurable DoD criteria.
+    pp = """You are a Definition of Done generator. Your job: take a user story with deliverables and return the SAME structure with each deliverable enriched by a "definition_of_done" array of 4-6 specific, actionable, measurable criteria.
 
-Each deliverable type has specific requirements:
+IMPORTANT — OUTPUT SHAPE:
+Return the full enriched story object. The top-level keys are "User Story" and "Deliverables".
+Each deliverable becomes an object with "description" (preserved from input) and "definition_of_done" (array of strings you generate).
 
-ARCHITECTURE DESIGN DoD must include:
-- Complete system/component diagram showing all modules and interactions
-- Detailed design document describing algorithms, data flow, interfaces
-- API/interface specifications with data formats and error codes
-- Error handling and fault recovery mechanisms
-- Design review and approval sign-off
+DELIVERABLE-TYPE GUIDANCE:
 
-DATABASE/DATA SCHEMA DESIGN DoD must include:
-- Schema design with specific tables/collections listed
-- All key fields enumerated [field1, field2, field3...]
+ARCHITECTURE_DESIGN DoD must include:
+- Complete diagram of all named modules and their interactions
+- Detailed design doc covering algorithms, data flow, and interfaces
+- API/interface specs with data formats and error codes
+- Error handling and fault-recovery mechanisms documented
+- Design reviewed and signed off by technical lead
+
+DATABASE_SCHEMA_DESIGN DoD must include:
+- Schema listing specific tables/collections with all key fields enumerated [field1, field2, ...]
 - Indexes, relationships, and constraints defined
 - Migration scripts created and tested
-- Schema review and approval
-- Special case: If story has NO persistence needs, write "N/A — no persistence in scope for this story"
+- Schema review completed
+- Special case: if the story has no persistence needs, write "N/A — no persistence in scope for this story"
 
-API/INTERFACE CONTRACT DoD must include:
-- API endpoints documented (request/response formats)
+API_ENDPOINTS DoD must include:
+- All endpoints documented with request/response formats
 - Authentication and authorization mechanisms defined
-- Error codes and validation rules specified
-- Rate limiting and security controls implemented
-- API documentation generated (OpenAPI/Swagger)
+- Error codes and input validation rules specified
+- API documentation generated (e.g., OpenAPI/Swagger)
+- Contract tests passing for all endpoints
 
-ERROR HANDLING & FAULT REPORTING DoD must include:
-- Fault detection mechanisms implemented
-- Error logging with severity levels and context
-- Recovery procedures defined and tested
-- Alert generation for critical failures
-- Graceful degradation behavior verified
+ERROR_HANDLING DoD must include:
+- Fault detection implemented for all named failure modes
+- Error logging with severity levels and context fields
+- Recovery procedures defined, implemented, and tested
+- Alert generated for critical failures with defined escalation path
+- Graceful degradation behaviour verified under each failure scenario
 
-SECURITY CONTROLS DoD must include:
-- Authentication and authorization implemented
-- Input validation and sanitization added
-- Encryption for data at rest and in transit
-- Security testing completed (no critical vulnerabilities)
-- Compliance with relevant standards verified
+UNIT_TESTS / INTEGRATION_TESTS DoD must include:
+- Tests written for all named functions/workflows in the story
+- All passing in the CI/CD pipeline with zero failures
+- Edge cases and error conditions covered
+- Test documentation completed with inputs and expected results
 
-UNIT TESTS / INTEGRATION TESTS DoD must include:
-- Tests written for all core functions/workflows
-- Code coverage meets minimum threshold (specify %, e.g., 80%)
-- All tests passing in CI/CD pipeline
-- Edge cases and error conditions tested
-- Test documentation completed
+SECURITY_CONTROLS DoD must include:
+- Authentication and authorisation implemented
+- Input validation and sanitisation applied at all entry points
+- Encryption confirmed for data at rest and in transit
+- Security testing completed with no critical or high vulnerabilities
+
+MONITORING_LOGGING DoD must include:
+- Metrics and log events defined for all named components
+- Alerts configured with thresholds and notification channels
+- Dashboards created showing key health indicators
+- Runbook written for common alert scenarios
 
 CRITICAL RULES:
-1. PRESERVE the User Story text exactly as provided
-2. Each deliverable gets 4-6 DoD items (not more, not less)
-3. DoD items must be 15-30 words (detailed enough to be actionable)
-4. Reference SPECIFIC technical details from the user story (actual component names, field names, modules)
-5. Be CONCRETE (avoid "ensure quality", "test thoroughly")
-6. Include measurable criteria where possible (percentages, counts, standards)
-7. Output format: "definition_of_done" as an ARRAY, not a string
+1. PRESERVE the "User Story" and "Title" fields exactly as provided — do not paraphrase or shorten
+2. Each deliverable gets exactly 4-6 DoD items
+3. Each DoD item: 15-35 words, specific and actionable
+4. Reference the ACTUAL named components, fields, modules, or sensors from the user story
+5. Do NOT invent numeric thresholds (%, ms, MB) unless they appear in the user story
+6. "definition_of_done" MUST be a JSON array of strings, NOT a single string
 
 EXAMPLE INPUT:
 {{
-    "User Story": "The insulin pump system must continuously monitor the user's blood sugar levels using an implanted microsensor and accurately calculate the blood sugar level from the data provided.",
+    "User Story": "The insulin pump system must continuously monitor the user's blood sugar levels using [specific elements: implanted microsensor, glucose_level_calculator], so that the pump can detect hypoglycaemia and adjust insulin delivery within one reading cycle.",
     "Deliverables": {{
-        "architecture_design": "Design of the continuous monitoring and data calculation modules within the insulin pump system.",
-        "unit_tests": "Tests to ensure the microsensor's data collection and blood sugar calculation accuracy."
+        "architecture_design": "Design of the continuous monitoring and glucose calculation modules.",
+        "unit_tests": "Tests to verify microsensor data collection and glucose calculation accuracy."
     }}
 }}
 
 EXAMPLE OUTPUT:
 {{
-    "User Story": "The insulin pump system must continuously monitor the user's blood sugar levels using an implanted microsensor and accurately calculate the blood sugar level from the data provided.",
+    "User Story": "The insulin pump system must continuously monitor the user's blood sugar levels using [specific elements: implanted microsensor, glucose_level_calculator], so that the pump can detect hypoglycaemia and adjust insulin delivery within one reading cycle.",
     "Deliverables": {{
         "architecture_design": {{
-            "description": "Design of the continuous monitoring and data calculation modules within the insulin pump system.",
+            "description": "Design of the continuous monitoring and glucose calculation modules.",
             "definition_of_done": [
-                "Complete system architecture diagram showing monitoring module, data calculation module, and sensor interface with all component interactions",
-                "Detailed design document for blood sugar monitoring module including sensor data acquisition specifications and sampling frequency",
-                "Detailed design document for blood sugar calculation module including algorithms for converting electrical conductivity to glucose levels",
-                "Data flow diagrams showing how sensor readings move through the system to calculation output",
-                "API specifications for all module interfaces including data formats and error codes",
-                "Error handling and failover mechanisms documented for sensor disconnection and data corruption scenarios",
+                "Architecture diagram showing monitoring_module, glucose_level_calculator, and microsensor_interface with all data-flow paths documented",
+                "Design doc for monitoring_module specifying sampling frequency, data acquisition protocol from implanted microsensor, and buffer management",
+                "Design doc for glucose_level_calculator specifying the algorithm that converts raw microsensor readings to mmol/L glucose values",
+                "API specification for the interface between monitoring_module and glucose_level_calculator including data format and error codes",
+                "Failure modes documented for microsensor disconnection, out-of-range readings, and calculation errors with defined recovery actions",
                 "Design reviewed and approved by technical lead and medical safety officer"
             ]
         }},
         "unit_tests": {{
-            "description": "Tests to ensure the microsensor's data collection and blood sugar calculation accuracy.",
+            "description": "Tests to verify microsensor data collection and glucose calculation accuracy.",
             "definition_of_done": [
-                "Unit tests written for all monitoring functions achieving minimum 90% code coverage",
-                "Tests verify sensor data reading occurs continuously without gaps or interruptions",
-                "Tests validate correct blood sugar calculation from sensor electrical conductivity readings",
-                "Tests confirm calculation accuracy within required medical standards (±5% margin)",
-                "Edge case tests for sensor malfunction, data corruption, and communication failures",
+                "Unit tests written for microsensor_read(), glucose_level_calculator.calculate(), and monitoring_module.poll() covering all normal execution paths",
+                "Tests verify continuous polling produces readings with no skipped cycles under normal operating conditions",
+                "Tests confirm glucose_level_calculator produces correct mmol/L output from known raw microsensor inputs",
+                "Edge-case tests covering microsensor disconnection, saturated readings, and calculator divide-by-zero scenarios",
                 "All tests passing in CI/CD pipeline with zero failures",
-                "Test documentation completed with test case descriptions, inputs, and expected results"
+                "Test documentation completed listing each test case, its inputs, and expected output"
             ]
         }}
     }}
 }}
 
-OUTPUT SCHEMA:
-{{
-    "User Story": "<preserve exactly from input>",
-    "Deliverables": {{
-        "<deliverable_name>": {{
-            "description": "<preserve from input>",
-            "definition_of_done": [
-                "<DoD item 1: 15-30 words, specific and actionable>",
-                "<DoD item 2: 15-30 words, specific and actionable>",
-                "<DoD item 3: 15-30 words, specific and actionable>",
-                "<DoD item 4: 15-30 words, specific and actionable>",
-                "<DoD item 5 (optional): 15-30 words, specific and actionable>",
-                "<DoD item 6 (optional): 15-30 words, specific and actionable>"
-            ]
-        }}
-    }}
-}}
+BAD EXAMPLES (too generic — never produce these):
+❌ "Design is complete"
+❌ "Tests pass"
+❌ "90% code coverage" — only if the requirement explicitly states 90%
 
-BAD EXAMPLES (too generic):
-❌ "Design is complete" ← No specifics! What design? Complete how?
-❌ "Tests pass" ← Which tests? What criteria?
-❌ "90% code coverage" ← Only if the requirement specifies 90%! Otherwise it's invented.
-
-GOOD EXAMPLES (specific with actual components):
-✅ "Complete architecture diagram showing monitoring_module, calculation_module, and sensor_interface with all component interactions documented"
-✅ "Database schema designed with patients table containing fields [patient_id, name, address, age, next_of_kin, created_at] with indexes on patient_id and created_at"
-✅ "Unit tests written for patient_create(), patient_update(), patient_retrieve() functions covering happy path and 5 edge cases (missing name, invalid age, duplicate patient_id, null next_of_kin, SQL injection attempt)"
-✅ "All tests passing in CI/CD pipeline with zero failures and no deprecated warnings"
-
-Remember:
-- Output "definition_of_done" as an ARRAY of strings, not a single string
-- 4-6 items per deliverable
-- Reference ACTUAL component/field names from the user story
-- Be SPECIFIC and MEASURABLE
+GOOD EXAMPLES (specific, using actual names from the story):
+✅ "Architecture diagram showing monitoring_module, glucose_level_calculator, and microsensor_interface with all data-flow paths"
+✅ "Unit tests for microsensor_read(), glucose_level_calculator.calculate() covering happy path and 4 error scenarios (disconnected, saturated, null, negative)"
+✅ "All tests passing in CI/CD pipeline with zero failures and no deprecation warnings"
 """
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),
@@ -429,7 +441,7 @@ Remember:
     ])
     chain = prompt | chat | output_parser
     re = chain.invoke({"input": epic})
-    return re.replace("json","").replace("```","")
+    return _strip_fences(re)
 
 def generate_test_cases(requirements:str,chat, mode)->str:
     pp = """given the input software requirements,please generate test cases for each requirement that we can use to
@@ -447,44 +459,36 @@ def generate_test_cases_v2(requirements:str,chat, mode)->str:
     """Enhanced v2: Generates detailed, globally-numbered test cases with concrete expected results"""
     pp = """You are an automated test case generator. Generate comprehensive, executable test cases for each requirement.
 
+MATCHING RULE — CRITICAL:
+The "requirement" field in each output object MUST be copied WORD-FOR-WORD from the input.
+Do NOT paraphrase, summarise, or reword. The exact text is used to link test cases back to their user story.
+
 GLOBAL TEST CASE NUMBERING (CRITICAL):
-- Test case numbering (TC1, TC2, TC3...) is GLOBAL and CONTINUOUS across ALL requirements in the input
-- NEVER restart numbering per requirement
-- NEVER reuse a TC number
-- NEVER duplicate test case content across requirements
-- Each requirement gets its own UNIQUE test cases that test ONLY that requirement's functionality
+- TC numbering is GLOBAL and CONTINUOUS across ALL requirements: TC1, TC2, TC3 ... never restart
+- If requirement 1 uses TC1–TC3, requirement 2 MUST start at TC4
+- NEVER reuse a TC number; NEVER duplicate test case content
 
 OUTPUT FORMAT:
 {{
   "test_cases": [
     {{
-      "requirement": "Copy the exact requirement text being tested here (word-for-word from input)",
+      "requirement": "<EXACT word-for-word copy of the user story text from the input>",
       "test_cases": [
         {{
           "id": "TC1",
-          "description": "Verify that [specific component from requirement] [specific action from requirement] under [specific conditions from requirement]",
+          "description": "Verify that [specific named component] [specific action] under [specific conditions] as described in the requirement",
           "steps": [
-            "Step 1: Specific action with actual field names, values, or components from the requirement",
-            "Step 2: Another actionable step referencing specific elements from the requirement",
-            "Step 3: Measurement step using actual metrics, thresholds, or criteria from the requirement"
+            "Step 1: [concrete action using actual field names / values / component names from the requirement]",
+            "Step 2: [concrete action]",
+            "Step 3: [measurement or observation step]"
           ],
-          "expected_result": "Concrete, measurable outcome using actual values, field names, or states from the requirement. NO invented metrics."
+          "expected_result": "Concrete, verifiable outcome using actual field names, states, or values from the requirement. NO invented metrics."
         }},
         {{
           "id": "TC2",
-          "description": "Test negative/edge case for [specific element from requirement]",
-          "steps": [...],
-          "expected_result": "Specific error message, state, or recovery behavior described in or implied by the requirement"
-        }}
-      ]
-    }},
-    {{
-      "requirement": "Next requirement text...",
-      "test_cases": [
-        {{
-          "id": "TC3",
-          "description": "...",
-          ...
+          "description": "Test negative / edge case: [specific element from requirement] when [specific failure condition]",
+          "steps": ["..."],
+          "expected_result": "Specific error message, state change, or recovery behaviour implied by the requirement"
         }}
       ]
     }}
@@ -492,49 +496,47 @@ OUTPUT FORMAT:
 }}
 
 CRITICAL RULES:
-1. GLOBAL TC NUMBERING: TC1, TC2, TC3... across ALL requirements. If requirement 1 ends at TC3, requirement 2 starts at TC4.
-2. CONCRETE EXPECTED RESULTS: Use actual field names, values, states, error codes from the requirements document.
-   - ✅ GOOD: "All 6 fields (name, address, age, next_of_kin, medical_history, allergies) populated from source"
-   - ✅ GOOD: "Error code 404 returned with message 'Patient not found'"
-   - ❌ BAD: "Data is correct" (vague)
-   - ❌ BAD: "System works as expected" (generic)
-   - ❌ BAD: "Response within 5% margin" (invented metric not in requirement)
-3. NO INVENTED METRICS: Do NOT add percentages, time intervals, accuracy thresholds unless explicitly stated in the requirement.
-   - If you must infer a metric, tag it: "[Assumption: response time <2s]"
-4. UNIQUE TEST CASES: Each requirement gets DIFFERENT test cases testing DIFFERENT functionality.
-   - ❌ BAD: Copy-pasting "verify patient record creation" test case to 5 different requirements
-   - ✅ GOOD: "Verify management report generation" for reporting requirement, "Verify patient confidentiality" for security requirement
-5. REQUIREMENT-SPECIFIC: Test cases must reference the SPECIFIC components, fields, instruments, or parameters mentioned in that requirement.
-   - If requirement mentions "anemometer, wind speed, barometric pressure", test case must test THOSE specific sensors
-   - If requirement mentions "name, address, age, next of kin", test case must verify THOSE specific fields
-6. Each requirement should have 2-3 test cases: at least 1 positive (happy path) and 1 negative/edge case
+1. "requirement" field = EXACT COPY of the input user story text, word-for-word.
+2. GLOBAL TC NUMBERING: TC1, TC2, TC3 ... across ALL requirements. Never restart per requirement.
+3. CONCRETE EXPECTED RESULTS — use actual field names, values, states from the requirement:
+   ✅ "All 4 fields (name, address, age, next_of_kin) stored and retrievable from the patients table"
+   ✅ "System emits fault alert to Fleet Operations Center within one polling cycle"
+   ❌ "Data is correct" — too vague
+   ❌ "System works as expected" — too vague
+   ❌ "Response within 2 seconds" — invented metric; only include if the requirement states it
+4. NO INVENTED METRICS: omit percentages, time limits, accuracy thresholds unless the requirement explicitly states them.
+   If you must infer, tag it: "[Assumed: …]"
+5. UNIQUE TEST CASES: each requirement tests its OWN specific functionality.
+   Do NOT copy the same test description to multiple requirements.
+6. REQUIREMENT-SPECIFIC: test steps must name the ACTUAL sensors, fields, components, or actors from that requirement.
+   "anemometer, wind_speed, barometric_pressure" not "sensor", "data", "values".
+7. Each requirement: 2–3 test cases — at minimum 1 happy path + 1 negative/edge case.
 
-GOOD EXAMPLE (demonstrates global numbering and concrete results):
+GOOD EXAMPLE (global numbering + concrete results + exact requirement copy):
 {{
   "test_cases": [
     {{
-      "requirement": "The patient information system must record patient demographics including name, address, age, and next of kin.",
+      "requirement": "The patient information system must record patient demographics using [specific elements: name, address, age, next_of_kin], so that medical staff can retrieve complete patient profiles during consultations.",
       "test_cases": [
         {{
           "id": "TC1",
-          "description": "Verify that all 4 demographic fields (name, address, age, next_of_kin) are captured and stored when creating a patient record",
+          "description": "Verify all 4 demographic fields (name, address, age, next_of_kin) are captured and persisted when a patient record is created",
           "steps": [
-            "Create a new patient record with test data for all 4 fields: name='John Doe', address='123 Main St', age=45, next_of_kin='Jane Doe'",
-            "Submit the patient record creation form",
-            "Retrieve the stored patient record from the database",
-            "Verify each field matches the input data exactly"
+            "Create a new patient record supplying name='John Doe', address='123 Main St', age=45, next_of_kin='Jane Doe'",
+            "Submit the patient record creation request",
+            "Retrieve the stored record from the patients table",
+            "Verify all 4 fields match the submitted values exactly"
           ],
-          "expected_result": "All 4 fields (name, address, age, next_of_kin) populated with exact input values and retrievable from database"
+          "expected_result": "All 4 fields (name, address, age, next_of_kin) stored in the patients table and returned unchanged on retrieval"
         }},
         {{
           "id": "TC2",
-          "description": "Test validation when required demographic field (name) is missing",
+          "description": "Test validation when required field (name) is absent from a patient record creation request",
           "steps": [
-            "Attempt to create patient record with address='123 Main St', age=45, next_of_kin='Jane Doe' but omit name field",
-            "Submit the form",
+            "Submit a patient record creation request with address, age, and next_of_kin but no name field",
             "Observe system response"
           ],
-          "expected_result": "Validation error displayed indicating 'name field is required' and record creation blocked"
+          "expected_result": "Validation error returned indicating 'name field is required'; record not persisted in the patients table"
         }}
       ]
     }},
@@ -543,58 +545,46 @@ GOOD EXAMPLE (demonstrates global numbering and concrete results):
       "test_cases": [
         {{
           "id": "TC3",
-          "description": "Verify that monthly report includes clinic activity metrics (patient count, appointment count, treatment count)",
+          "description": "Verify the monthly management report includes clinic activity data for a month with existing records",
           "steps": [
-            "Configure report date range for January 2024 (full month)",
-            "Generate the monthly management report",
-            "Review report contents for required metrics",
-            "Verify metrics match database query results for same period"
+            "Ensure the database contains patient and appointment records for January 2024",
+            "Request a monthly management report for January 2024",
+            "Inspect the report output"
           ],
-          "expected_result": "Report displays 3 metrics (patient_count, appointment_count, treatment_count) matching database totals for January 2024"
+          "expected_result": "Report contains clinic activity and patient statistics sections populated with data matching the database records for January 2024"
         }},
         {{
           "id": "TC4",
-          "description": "Test report generation when no data exists for selected month",
+          "description": "Test report generation for a month with no existing data",
           "steps": [
-            "Select a future month with no patient data (e.g., December 2025)",
-            "Generate the report",
-            "Review report output"
+            "Select a month with no patient or appointment records",
+            "Request the monthly management report for that month",
+            "Inspect the report output"
           ],
-          "expected_result": "Report displays with all metric counts = 0 and message 'No data available for selected period'"
+          "expected_result": "Report is generated successfully with all metric sections showing zero counts; no error or crash"
         }}
       ]
     }}
   ]
 }}
 
-BAD EXAMPLES (what NOT to do):
-❌ Restarting TC numbering per requirement:
-{{
-  "requirement": "Record patient data",
-  "test_cases": [{{ "id": "TC1", ... }}]
-}},
-{{
-  "requirement": "Generate reports",
-  "test_cases": [{{ "id": "TC1", ... }}]  ← WRONG! Should be TC3
-}}
+BAD EXAMPLES (never do these):
+❌ Paraphrased requirement field:
+"requirement": "Record patient data"  ← should be the full word-for-word user story text
 
-❌ Vague expected results:
-"expected_result": "System works correctly"  ← No! What specific behavior?
-"expected_result": "Data is accurate"  ← No! Which fields? What values?
+❌ Restarted TC numbering:
+Requirement 1 test_cases: TC1, TC2
+Requirement 2 test_cases: TC1, TC2  ← WRONG, must be TC3, TC4
 
-❌ Invented metrics not in requirement:
-"expected_result": "Response time under 2 seconds"  ← Only if requirement specifies 2s!
-"expected_result": "95% accuracy"  ← Only if requirement specifies 95%!
+❌ Vague expected result:
+"expected_result": "System works correctly"
 
-❌ Duplicate test cases across requirements:
-Requirement 1: "Verify patient record creation" ← OK
-Requirement 2: "Verify patient record creation" ← WRONG! Different requirement needs different test!
+❌ Invented metric:
+"expected_result": "Response time under 500ms"  ← only if requirement states this
 
-Remember:
-- TC numbers are GLOBAL and CONTINUOUS (TC1, TC2, TC3... never restart)
-- Use ACTUAL field names, values, states from the requirement
-- NO invented percentages, times, or thresholds
-- Each requirement gets UNIQUE tests for ITS specific functionality
+❌ Duplicate description across requirements:
+Req 1: "Verify patient record creation"
+Req 2: "Verify patient record creation"  ← WRONG, test the specific functionality of req 2
 """
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),
@@ -602,7 +592,7 @@ Remember:
     ])
     chain = prompt | chat | output_parser
     re = chain.invoke({"input": requirements})
-    return re.replace("json","").replace("```","")
+    return _strip_fences(re)
 
 def rat(refine, thought, x,chat, mode="prod"):
     prompt = (PromptTemplate.from_template("""As a voter, you vote for the input that is more accurate, concise and easy
@@ -640,28 +630,34 @@ def get_epics(deliverables: str, chat)->str:
     just_tasks = json.loads(deliverables)
     _key = "Epics"
     new_key = "User Stories"
-    _key_2="Deliverables"
-    refine_tasks = {new_key:[]}
+    _key_2 = "Deliverables"
+    refine_tasks = {new_key: []}
     for epic in just_tasks[_key]:
-        new_devs = json.loads(refine_epics(epic, chat))
-        epic[_key_2] = new_devs
+        try:
+            enriched = json.loads(refine_epics(epic, chat))
+            epic[_key_2] = enriched.get(_key_2, enriched)
+        except (json.JSONDecodeError, KeyError):
+            pass  # keep original deliverables if LLM returns malformed JSON
         refine_tasks[new_key].append(epic)
-    epics = json.dumps(refine_tasks, indent=4)
-    return epics
+    return json.dumps(refine_tasks, indent=4)
 
 def get_epics_v2(deliverables: str, chat)->str:
     """Improved version using refine_epics_v2 for detailed Definition of Done"""
+    # Filter meta-stories before enriching with DoD
+    deliverables = filter_meta_stories(deliverables)
     just_tasks = json.loads(deliverables)
     _key = "Epics"
     new_key = "User Stories"
-    _key_2="Deliverables"
-    refine_tasks = {new_key:[]}
+    _key_2 = "Deliverables"
+    refine_tasks = {new_key: []}
     for epic in just_tasks[_key]:
-        new_devs = json.loads(refine_epics_v2(epic, chat))
-        epic[_key_2] = new_devs
+        try:
+            enriched = json.loads(refine_epics_v2(epic, chat))
+            epic[_key_2] = enriched.get(_key_2, enriched)
+        except (json.JSONDecodeError, KeyError):
+            pass  # keep original deliverables if LLM returns malformed JSON
         refine_tasks[new_key].append(epic)
-    epics = json.dumps(refine_tasks, indent=4)
-    return epics
+    return json.dumps(refine_tasks, indent=4)
 
 def filter_meta_stories(stories_json: str) -> str:
     """
