@@ -17,6 +17,12 @@ except ImportError:
 output_parser = StrOutputParser()
 threshold = 5
 
+def _json_chain(prompt, chat, op):
+    """Enforce JSON-only output for Ollama; other providers use the plain chain."""
+    if type(chat).__name__ == 'ChatOllama':
+        return prompt | chat.bind(format="json") | op
+    return prompt | chat | op
+
 def _strip_fences(text: str) -> str:
     """
     Remove markdown code fences and extract the outermost JSON block from prose.
@@ -235,13 +241,15 @@ def extract_epics(requirements:str,chat, mode)->str:
         ("system", pp),
         ("user", "{input}")
     ])
-    chain = prompt | chat | output_parser
+    chain = _json_chain(prompt, chat, output_parser)
     re = chain.invoke({"input": requirements})
-    return re.replace("json","").replace("```","")
+    return _strip_fences(re)
 
 def extract_epics_v2(requirements:str,chat, mode)->str:
     """Enhanced v2: Creates detailed user stories with specific elements clause and proper decomposition"""
-    pp = """You are an automated requirements-to-user-story engine. Generate detailed, engineering-ready user stories.
+    pp = """RESPOND WITH JSON ONLY. Do not include any prose, explanations, markdown headers, or text outside the JSON. Your entire response must be a single valid JSON object starting with { and ending with }.
+
+You are an automated requirements-to-user-story engine. Generate detailed, engineering-ready user stories.
 
 USER STORY FORMAT (MANDATORY):
 The <system/actor> must <specific capability> using [specific elements: <concrete items, fields, instruments, parameters, or thresholds taken verbatim from the requirements>], so that <concrete business or engineering outcome>.
@@ -370,24 +378,26 @@ Story 2 - Data Transmission:
         ("system", pp),
         ("user", "{input}")
     ])
-    chain = prompt | chat | output_parser
+    chain = _json_chain(prompt, chat, output_parser)
     re = chain.invoke({"input": requirements})
     return _strip_fences(re)
 
 def refine_epics(epic:str,chat)->str:
     pp = """given the input epic and its deliverables, please generate definition of done for each deliverable.
-         Your response should be in Json format."""
+         Your response should be in Json format. Respond with JSON only — no prose before or after."""
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),
         ("user", "{input}")
     ])
-    chain = prompt | chat | output_parser
+    chain = _json_chain(prompt, chat, output_parser)
     re = chain.invoke({"input": epic})
     return _strip_fences(re)
 
 def refine_epics_v2(epic:str,chat)->str:
     """Enhanced v2: Generates comprehensive Definition of Done arrays with specific deliverable-type guidance"""
-    pp = """You are a Definition of Done generator. Your job: take a user story with deliverables and return the SAME structure with each deliverable enriched by a "definition_of_done" array of 4-6 specific, actionable, measurable criteria.
+    pp = """RESPOND WITH JSON ONLY. Do not include any prose, explanations, or text outside the JSON. Your entire response must be a single valid JSON object starting with { and ending with }.
+
+You are a Definition of Done generator. Your job: take a user story with deliverables and return the SAME structure with each deliverable enriched by a "definition_of_done" array of 4-6 specific, actionable, measurable criteria.
 
 IMPORTANT — OUTPUT SHAPE:
 Return the full enriched story object. The top-level keys are "User Story" and "Deliverables".
@@ -501,25 +511,27 @@ GOOD EXAMPLES (specific, using actual names from the story):
         ("system", pp),
         ("user", "{input}")
     ])
-    chain = prompt | chat | output_parser
+    chain = _json_chain(prompt, chat, output_parser)
     re = chain.invoke({"input": epic})
     return _strip_fences(re)
 
 def generate_test_cases(requirements:str,chat, mode)->str:
     pp = """given the input software requirements,please generate test cases for each requirement that we can use to
     verify the completeness of those requirements.
-         Your response should be in Json format."""
+         Your response should be in Json format. Respond with JSON only — no prose before or after."""
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),
         ("user", "{input}")
     ])
-    chain = prompt | chat | output_parser
+    chain = _json_chain(prompt, chat, output_parser)
     re = chain.invoke({"input": requirements})
-    return re.replace("json","").replace("```","")
+    return _strip_fences(re)
 
 def generate_test_cases_v2(requirements:str,chat, mode)->str:
     """Enhanced v2: Generates detailed, globally-numbered test cases with concrete expected results"""
-    pp = """You are an automated test case generator. Generate comprehensive, executable test cases for each requirement.
+    pp = """RESPOND WITH JSON ONLY. Do not include any prose, explanations, or text outside the JSON. Your entire response must be a single valid JSON object starting with { and ending with }.
+
+You are an automated test case generator. Generate comprehensive, executable test cases for each requirement.
 
 MATCHING RULE — CRITICAL:
 The "requirement" field in each output object MUST be copied WORD-FOR-WORD from the input.
@@ -652,7 +664,7 @@ Req 2: "Verify patient record creation"  ← WRONG, test the specific functional
         ("system", pp),
         ("user", "{input}")
     ])
-    chain = prompt | chat | output_parser
+    chain = _json_chain(prompt, chat, output_parser)
     re = chain.invoke({"input": requirements})
     return _strip_fences(re)
 
