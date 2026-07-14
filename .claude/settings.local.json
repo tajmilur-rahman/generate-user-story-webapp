@@ -1,9 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)",
-      "Bash(sqlite3:*)",
-      "Bash(python -c:*)"
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
