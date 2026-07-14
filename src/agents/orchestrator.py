@@ -98,21 +98,28 @@ class StoryOrchestrator:
 
         logger.info(f"✓ Generated {len(all_stories)} stories")
 
-        # PHASE 4: Test Case Generation (LOOP 3 - Batched)
+        # PHASE 4: Test Case Generation (LOOP 3 - Batched with Global TC Numbering)
         logger.info("\n[PHASE 4] Generating Test Cases (Batched)...")
         all_test_cases = []
         batch_size = 4
+        current_tc_number = 1  # Global TC numbering starts at 1
 
         for i in range(0, len(requirements), batch_size):
             batch = requirements[i:i+batch_size]
 
             tc_result = self.test_agent.run(
                 f"Generate test cases for batch {i//batch_size + 1}",
-                {"requirements_batch": batch}
+                {
+                    "requirements_batch": batch,
+                    "starting_tc_number": current_tc_number  # Pass current TC number
+                }
             )
 
             if tc_result["success"]:
-                all_test_cases.extend(tc_result["output"]["test_cases"])
+                batch_test_cases = tc_result["output"]["test_cases"]
+                all_test_cases.extend(batch_test_cases)
+                # Update TC number for next batch (assuming 2-3 TCs per requirement)
+                current_tc_number += len(batch_test_cases)
 
         logger.info(f"✓ Generated {len(all_test_cases)} test cases")
 

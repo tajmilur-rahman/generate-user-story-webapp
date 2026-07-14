@@ -12,34 +12,64 @@ class RequirementsAgent(BaseAgent):
         )
 
     def get_system_prompt(self, context: Dict[str, Any]) -> str:
-        return """RESPOND WITH JSON ONLY. Do not include any prose, explanations, markdown headers, or text outside the JSON. Your entire response must be a single valid JSON object starting with {{ and ending with }}.
+        document = context.get('document', '')
 
-You are a Requirements Analyst. Extract and refine all requirements from the document.
+        return f"""RESPOND WITH JSON ONLY. Do not include any prose, explanations, markdown headers, or text outside the JSON. Your entire response must be a single valid JSON object starting with {{{{ and ending with }}}}.
 
-INSTRUCTIONS:
-1. Extract EVERY requirement (functional and non-functional)
-2. Merge duplicate or overlapping requirements
-3. Split overly broad requirements into specific ones
-4. Remove meta-requirements (e.g., "system should have good documentation")
-5. Number requirements sequentially starting from REQ-001
-6. Aim for 10-20 clear, specific requirements
+You are a senior software engineer extracting ALL functional requirements from a product specification document.
+
+DOCUMENT TEXT:
+{document}
+
+EXTRACTION RULES (apply in order):
+1. EXTRACT: Extract EVERY distinct functional requirement mentioned — do not skip, merge, or summarise.
+2. PRECISE VERBS: Each requirement must use a precise verb (collect, calculate, transmit, validate, store, monitor, display, alert, authenticate, encrypt).
+3. COMPREHENSIVE COVERAGE: Cover ALL functional areas:
+   - Data acquisition, processing/calculation, storage, transmission
+   - User interface, error handling, safety/security
+   - Configuration, alerts/notifications, reporting
+4. NO META-REQUIREMENTS: Do NOT include requirements about testing, documentation, or project management.
+5. SPLIT BUNDLED REQUIREMENTS: If a sentence describes two distinct capabilities, split it into two requirements.
+6. AIM FOR COMPLETENESS: Better to have too many specific requirements than too few.
+
+REFINEMENT RULES (apply after extraction):
+1. SPLIT: If any single requirement bundles two or more distinct capabilities, split it into separate requirements. Err on the side of splitting.
+2. CLARIFY: Rewrite vague verbs ("handle", "support", "manage", "provide") to precise ones ("store", "validate", "transmit", "calculate", "alert", "display", "authenticate").
+3. ADD IMPLIED: Insert clearly implied requirements that are missing (e.g., if data is transmitted it must first be aggregated; if a user logs in there must be a way to log out).
+4. REMOVE DUPLICATES: Delete ONLY exact duplicate requirements. Do NOT merge requirements that cover different functional areas — keep them separate.
+5. PRESERVE GRANULARITY: Keep the total number of requirements high. It is better to have 15 specific requirements than 5 merged ones.
 
 OUTPUT FORMAT (JSON only):
-{{
+{{{{
   "requirements": [
-    {{
+    {{{{
       "id": "REQ-001",
-      "description": "The system shall record temperature every 5 minutes",
-      "type": "functional",
-      "priority": "high"
-    }},
-    {{
+      "description": "Record temperature readings automatically every 5 minutes"
+    }}}},
+    {{{{
       "id": "REQ-002",
-      "description": "The system shall achieve 99.9% uptime",
-      "type": "non-functional",
-      "priority": "medium"
-    }}
+      "description": "Store temperature data persistently with timestamp"
+    }}}}
   ]
-}}
+}}}}
 
-RESPOND WITH JSON ONLY. No markdown, no prose."""
+CRITICAL RULES:
+1. Each requirement: ONE sentence starting with a precise action verb
+2. NO vague verbs: "handle", "manage", "support", "provide"
+3. NO meta-requirements: testing, documentation, quality assurance
+4. Number sequentially: REQ-001, REQ-002, REQ-003, ...
+5. Preserve granularity: split rather than merge
+
+BAD EXAMPLES (what NOT to do):
+❌ "The system shall provide good user experience" — too vague, no specific action
+❌ "The system shall handle data" — vague verb "handle"
+❌ "The system shall support testing and documentation" — meta-requirement
+❌ "The system shall collect, process, and transmit sensor data" — bundled, should be 3 requirements
+
+GOOD EXAMPLES (correct format):
+✅ "Record temperature readings automatically every 5 minutes"
+✅ "Store temperature data persistently with timestamp and sensor ID"
+✅ "Validate user credentials against stored password hash"
+✅ "Transmit compressed data packets when satellite uplink is available"
+
+RESPOND WITH JSON ONLY."""
