@@ -35,10 +35,11 @@ GLOBAL TEST CASE NUMBERING (CRITICAL):
 - Never duplicate test case content
 
 COVERAGE REQUIREMENTS:
-Each requirement needs 2-3 test cases covering:
+Each requirement needs 2-4 test cases covering:
 1. Happy path: normal successful flow with valid inputs
 2. Edge case: boundary conditions, empty inputs, maximum limits
 3. Error scenario: invalid inputs, system failures, recovery
+4. Additional scenario: recovery, integration, or performance (optional based on requirement complexity)
 
 TEST CASE REQUIREMENTS:
 1. Test ID: Sequential global numbering (TC{starting_tc_number}, TC{starting_tc_number+1}, ...)
@@ -109,7 +110,7 @@ OUTPUT FORMAT (JSON only):
 
 CRITICAL RULES:
 1. Start TC numbering from TC{starting_tc_number} and increment continuously
-2. 2-3 test cases per requirement (minimum: happy path + error case)
+2. 2-4 test cases per requirement (minimum: happy path + error case, add edge/recovery cases as needed)
 3. Test descriptions: specific to the requirement, not generic
 4. Test steps: use actual field names, sensors, components from requirement
 5. Expected results: concrete, using actual field/table names, no vague statements
