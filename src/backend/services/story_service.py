@@ -1126,8 +1126,7 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
                         best_nested = nested_test_cases
 
                 # Claim the best group if it clears the minimum threshold
-                # Lowered from 0.25 to 0.15 to catch more matches (v2 prompts produce high-quality matches)
-                if best_group_idx != -1 and best_score >= 0.15:
+                if best_group_idx != -1 and best_score >= 0.25:
                     claimed_tc_groups.add(best_group_idx)
                     matching_test_cases = best_nested
                     logger.info(f"Claimed TC group {best_group_idx} for story {idx+1} (score={best_score:.2f})")

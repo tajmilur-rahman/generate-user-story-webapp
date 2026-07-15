@@ -403,21 +403,53 @@ IMPORTANT — OUTPUT SHAPE:
 Return the full enriched story object. The top-level keys are "User Story" and "Deliverables".
 Each deliverable becomes an object with "description" (preserved from input) and "definition_of_done" (array of strings you generate).
 
-DELIVERABLE-TYPE GUIDANCE (use these as templates, output clean JSON arrays with NO bullet points or special characters):
+DELIVERABLE-TYPE GUIDANCE:
 
-For ARCHITECTURE_DESIGN, generate 4-6 DoD items covering: Complete diagram of all named modules and their interactions, detailed design doc covering algorithms/data flow/interfaces, API/interface specs with data formats and error codes, error handling and fault-recovery mechanisms documented, design reviewed and signed off by technical lead.
+ARCHITECTURE_DESIGN DoD must include:
+- Complete diagram of all named modules and their interactions
+- Detailed design doc covering algorithms, data flow, and interfaces
+- API/interface specs with data formats and error codes
+- Error handling and fault-recovery mechanisms documented
+- Design reviewed and signed off by technical lead
 
-For DATABASE_SCHEMA_DESIGN, generate 4-6 DoD items covering: Schema listing specific tables/collections with all key fields enumerated, indexes/relationships/constraints defined, migration scripts created and tested, schema review completed. IMPORTANT: If the story has no persistence needs, output a single item: "N/A - no persistence in scope for this story"
+DATABASE_SCHEMA_DESIGN DoD must include:
+- Schema listing specific tables/collections with all key fields enumerated [field1, field2, ...]
+- Indexes, relationships, and constraints defined
+- Migration scripts created and tested
+- Schema review completed
+- Special case: if the story has no persistence needs, write "N/A — no persistence in scope for this story"
 
-For API_ENDPOINTS, generate 4-6 DoD items covering: All endpoints documented with request/response formats, authentication and authorization mechanisms defined, error codes and input validation rules specified, API documentation generated, contract tests passing for all endpoints.
+API_ENDPOINTS DoD must include:
+- All endpoints documented with request/response formats
+- Authentication and authorization mechanisms defined
+- Error codes and input validation rules specified
+- API documentation generated (e.g., OpenAPI/Swagger)
+- Contract tests passing for all endpoints
 
-For ERROR_HANDLING, generate 4-6 DoD items covering: Fault detection implemented for all named failure modes, error logging with severity levels and context fields, recovery procedures defined/implemented/tested, alert generated for critical failures with defined escalation path, graceful degradation behaviour verified under each failure scenario.
+ERROR_HANDLING DoD must include:
+- Fault detection implemented for all named failure modes
+- Error logging with severity levels and context fields
+- Recovery procedures defined, implemented, and tested
+- Alert generated for critical failures with defined escalation path
+- Graceful degradation behaviour verified under each failure scenario
 
-For UNIT_TESTS / INTEGRATION_TESTS, generate 4-6 DoD items covering: Tests written for all named functions/workflows in the story, all passing in CI/CD pipeline with zero failures, edge cases and error conditions covered, test documentation completed with inputs and expected results.
+UNIT_TESTS / INTEGRATION_TESTS DoD must include:
+- Tests written for all named functions/workflows in the story
+- All passing in the CI/CD pipeline with zero failures
+- Edge cases and error conditions covered
+- Test documentation completed with inputs and expected results
 
-For SECURITY_CONTROLS, generate 4-6 DoD items covering: Authentication and authorisation implemented, input validation and sanitisation applied at all entry points, encryption confirmed for data at rest and in transit, security testing completed with no critical or high vulnerabilities.
+SECURITY_CONTROLS DoD must include:
+- Authentication and authorisation implemented
+- Input validation and sanitisation applied at all entry points
+- Encryption confirmed for data at rest and in transit
+- Security testing completed with no critical or high vulnerabilities
 
-For MONITORING_LOGGING, generate 4-6 DoD items covering: Metrics and log events defined for all named components, alerts configured with thresholds and notification channels, dashboards created showing key health indicators, runbook written for common alert scenarios.
+MONITORING_LOGGING DoD must include:
+- Metrics and log events defined for all named components
+- Alerts configured with thresholds and notification channels
+- Dashboards created showing key health indicators
+- Runbook written for common alert scenarios
 
 CRITICAL RULES:
 1. PRESERVE the "User Story" and "Title" fields exactly as provided — do not paraphrase or shorten
