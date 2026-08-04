@@ -115,15 +115,70 @@ def extract_list(doc_text:str,chat)->str:
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a senior software engineer extracting ALL functional requirements from a product specification document.
 
-Rules:
-1. Extract EVERY distinct functional requirement mentioned — do not skip, merge, or summarise.
-2. Each requirement must be one sentence starting with "The system must ..." using a precise verb (collect, calculate, transmit, validate, store, monitor, display, alert, authenticate, encrypt).
-3. Cover ALL functional areas: data acquisition, processing/calculation, storage, transmission, user interface, error handling, safety/security, configuration, alerts/notifications, reporting.
-4. Do NOT include meta-requirements about testing, documentation, or project management.
-5. If a sentence describes two distinct capabilities, split it into two requirements.
-6. Aim for completeness — it is better to have too many specific requirements than too few.
+CRITICAL: Extract requirements from ALL systems/components mentioned in the document. If the document describes multiple systems (e.g., frontend, backend, database, admin panel, payment system), extract requirements for EVERY system.
 
-Output format: one requirement per line, no numbering, no headings."""),
+EXTRACTION RULES:
+1. EXTRACT EVERYTHING: Extract EVERY distinct functional requirement mentioned — do not skip, merge, or summarise. There is NO LIMIT on the number of requirements.
+
+2. PRESERVE SYSTEM NAMES: If document mentions specific systems/components (e.g., "The Data Management System", "The Mobile App", "The Admin Dashboard"), preserve those names in requirements. Format: "The [System Name] must [action]..."
+   - If only one system: "The system must..."
+   - If multiple systems: "The [specific system name] must..."
+
+3. USE PRECISE ACTION VERBS: Each requirement must use a precise verb indicating what the system DOES:
+   - Data operations: collect, calculate, process, aggregate, transform, validate, store, retrieve, archive, transmit, synchronize
+   - User interactions: display, render, allow, enable, provide, present, notify, alert, prompt
+   - System operations: monitor, control, manage, authenticate, authorize, encrypt, decrypt, backup, restore
+   - Business logic: verify, approve, reject, generate, create, update, delete, cancel, confirm
+   - Integration: integrate, communicate, connect, interface, invoke, consume, publish, subscribe
+
+4. COVER ALL FUNCTIONAL CAPABILITIES: Extract requirements for ALL functional capabilities mentioned, including but not limited to:
+   - Core business logic and workflows
+   - Data operations (CRUD, processing, storage, retrieval)
+   - User interface and user experience
+   - Integration with other systems (APIs, services, databases)
+   - Security (authentication, authorization, encryption, access control)
+   - Communication (notifications, alerts, messaging, reporting)
+   - Monitoring and observability (logging, metrics, health checks)
+   - Configuration and administration
+   - Error handling and fault recovery
+   - Performance and scalability requirements
+   - Compliance and audit requirements
+   - ANY OTHER capability explicitly stated in the document
+
+5. NO META-REQUIREMENTS: Do NOT extract requirements about:
+   - Testing methodology or test plans
+   - Documentation requirements
+   - Project management or timelines
+   - Development processes
+
+6. SPLIT BUNDLED REQUIREMENTS: If a sentence describes multiple distinct capabilities, split into separate requirements.
+   Example: "The system must validate input and store it in the database" → 2 requirements
+
+7. MAXIMIZE GRANULARITY: When in doubt, split rather than combine. Better to have 100 specific requirements than 20 vague ones.
+
+8. NO ARBITRARY LIMITS: Extract ALL requirements regardless of quantity. Documents may have 10 requirements or 500 requirements — extract them all.
+
+OUTPUT FORMAT:
+- One requirement per line
+- No numbering, bullets, or headings
+- Each requirement is one complete sentence
+- Start with system name and action verb
+
+EXAMPLES OF GOOD EXTRACTIONS:
+
+Single-system document:
+"The system must validate user email addresses against RFC 5322 format"
+"The system must store user passwords using bcrypt with cost factor 12"
+"The system must generate PDF invoices within 5 seconds"
+
+Multi-system document:
+"The mobile app must display real-time notifications to users"
+"The backend API must authenticate requests using JWT tokens"
+"The data warehouse must archive transaction records older than 7 years"
+"The admin dashboard must allow filtering users by registration date"
+"The payment gateway must process credit card transactions using PCI-compliant encryption"
+
+DO NOT STOP until you have extracted EVERY requirement from the document."""),
         ("user", "{input}")
     ])
     chain = prompt | chat | output_parser
@@ -210,15 +265,59 @@ def refine_requirements(requirements:str,chat,mode)->str:
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a senior software project manager refining a list of functional requirements before user story generation.
 
-Apply these rules in order:
-1. SPLIT: If any single requirement bundles two or more distinct capabilities, split it into separate requirements. Err on the side of splitting.
-2. CLARIFY: Rewrite vague verbs ("handle", "support", "manage", "provide") to precise ones ("store", "validate", "transmit", "calculate", "alert", "display", "authenticate").
-3. ADD: Insert clearly implied requirements that are missing (e.g., if data is transmitted it must first be aggregated; if a user logs in there must be a way to log out).
-4. REMOVE: Delete ONLY exact duplicate requirements. Do NOT merge requirements that cover different functional areas — keep them separate.
-5. PRESERVE: Keep the total number of requirements high. It is better to have 15 specific requirements than 5 merged ones.
+CRITICAL: Preserve ALL system names from the input. If requirements reference specific systems (e.g., "The mobile app", "The backend API", "The admin dashboard"), keep those exact names in the output.
 
-Output ONLY the refined list, one requirement per line, each starting with "The system must ...".
-Do NOT include explanations, headings, or numbering."""),
+REFINEMENT RULES (apply in order):
+
+1. SPLIT BUNDLED REQUIREMENTS: If any single requirement contains multiple distinct capabilities, split it into separate requirements. Err on the side of splitting.
+   - Example: "The system must validate input and store it in database" → 2 requirements
+   - Indicators to split: "and", "also", "as well as", multiple action verbs
+
+2. CLARIFY VAGUE VERBS: Replace vague action verbs with precise, specific ones:
+   - "handle" → store, process, validate, transform, manage (choose based on context)
+   - "support" → enable, allow, provide, implement
+   - "manage" → create, update, delete, monitor, control (choose based on context)
+   - "provide" → display, generate, deliver, supply, offer
+   - "deal with" → process, handle specific action
+   - "work with" → integrate, interface, communicate, interact
+
+3. ADD IMPLIED REQUIREMENTS: Insert clearly implied requirements that are necessary but not explicitly stated:
+   - If "transmit data" → also need "aggregate/format data for transmission"
+   - If "user login" → also need "user logout"
+   - If "create record" → also need "retrieve, update, delete record" (CRUD completion)
+   - If "store data" → also need "retrieve data"
+   - If "send notification" → also need "notification preferences/settings"
+   - If "process payment" → also need "payment confirmation/receipt"
+   DO NOT invent features — only add requirements that are logically necessary for the stated features to work.
+
+4. REMOVE EXACT DUPLICATES ONLY: Delete requirements that are word-for-word identical.
+   DO NOT merge similar requirements that differ in:
+   - System/component name
+   - Specific data fields or parameters
+   - Context or conditions
+   Keep them separate even if they sound similar.
+
+5. PRESERVE GRANULARITY AND QUANTITY: Maintain high requirement count. It is better to have 50 specific requirements than 10 combined ones.
+   - Do NOT consolidate multiple requirements into one
+   - Do NOT summarize or compress
+   - Keep detailed requirements detailed
+
+6. MAINTAIN SYSTEM IDENTITY: Do NOT convert multi-system requirements to generic "The system must..."
+   - KEEP: "The mobile app must...", "The backend API must...", "The admin dashboard must..."
+   - DON'T CHANGE TO: "The system must..."
+
+7. PRESERVE TECHNICAL DETAILS: Keep specific technical details, constraints, formats, protocols, algorithms, thresholds mentioned in requirements.
+   - KEEP: "using bcrypt with cost factor 12", "within 5 seconds", "using JWT tokens"
+   - DON'T SIMPLIFY to: "securely", "quickly", "with authentication"
+
+OUTPUT FORMAT:
+- One requirement per line
+- No numbering, bullets, or headings
+- Each requirement is one complete sentence
+- Preserve system names from input
+- Start with "[System Name] must [precise action verb]..."
+
+DO NOT EXPLAIN your changes. Output ONLY the refined requirement list."""),
         ("user", "{input}")
     ])
     chain = prompt | chat | output_parser
