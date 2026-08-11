@@ -654,16 +654,18 @@ OUTPUT FORMAT:
         {{
           "id": "TC1",
           "description": "Verify that [specific named component] [specific action] under [specific conditions] as described in the requirement",
+          "precondition": "System state before test starts (e.g., 'Anemometer active returning 5.2 m/s, system polling every 60s')",
           "steps": [
             "Step 1: [concrete action using actual field names / values / component names from the requirement]",
             "Step 2: [concrete action]",
             "Step 3: [measurement or observation step]"
           ],
-          "expected_result": "Concrete, verifiable outcome using actual field names, states, or values from the requirement. NO invented metrics."
+          "expected_result": "Developer-automatable assertion using actual field names, states, or values from the requirement. NO invented metrics."
         }},
         {{
           "id": "TC2",
           "description": "Test negative / edge case: [specific element from requirement] when [specific failure condition]",
+          "precondition": "System state that triggers the edge case",
           "steps": ["..."],
           "expected_result": "Specific error message, state change, or recovery behaviour implied by the requirement"
         }}
@@ -674,22 +676,63 @@ OUTPUT FORMAT:
 
 CRITICAL RULES:
 1. "requirement" field = EXACT COPY of the input user story text, word-for-word.
-2. GLOBAL TC NUMBERING: TC1, TC2, TC3 ... across ALL requirements. Never restart per requirement.
-3. CONCRETE EXPECTED RESULTS — use actual field names, values, states from the requirement:
-   ✅ "All 4 fields (name, address, age, next_of_kin) stored and retrievable from the patients table"
-   ✅ "System emits fault alert to Fleet Operations Center within one polling cycle"
-   ❌ "Data is correct" — too vague
-   ❌ "System works as expected" — too vague
-   ❌ "Response within 2 seconds" — invented metric; only include if the requirement states it
-4. NO INVENTED METRICS: omit percentages, time limits, accuracy thresholds unless the requirement explicitly states them.
-   If you must infer, tag it: "[Assumed: …]"
-5. UNIQUE TEST CASES: each requirement tests its OWN specific functionality.
-   Do NOT copy the same test description to multiple requirements.
-6. REQUIREMENT-SPECIFIC: test steps must name the ACTUAL sensors, fields, components, or actors from that requirement.
-   "anemometer, wind_speed, barometric_pressure" not "sensor", "data", "values".
-7. Each requirement: 2–3 test cases — at minimum 1 happy path + 1 negative/edge case.
 
-GOOD EXAMPLE (global numbering + concrete results + exact requirement copy):
+2. GLOBAL TC NUMBERING: TC1, TC2, TC3 ... across ALL requirements. Never restart per requirement.
+
+3. PRECONDITION (MANDATORY): Every test case MUST include a "precondition" field describing the system state before the test starts.
+   ✅ "Anemometer active returning 5.2 m/s, system polling every 60s"
+   ✅ "Database contains 3 patient records with ids: 101, 102, 103"
+   ✅ "User authenticated with role='admin', session token valid"
+   ❌ "System is ready" — too vague
+   ❌ "Normal operating conditions" — too vague
+
+4. ASSERT-STYLE EXPECTED RESULTS (MANDATORY): Write expected_result as developer-automatable assertions that can be directly converted to code.
+   Use actual field names, status codes, error messages, counts, and states from the requirement.
+
+   ✅ GOOD (developer can write: assert readings.count == 3):
+   "readings.count == 3 AND each reading.sensor_type == 'wind_speed'"
+
+   ✅ GOOD (developer can write: assert response.status_code == 201):
+   "response.status_code == 201 AND response.body.id is not null AND response.body.name == 'John Doe'"
+
+   ✅ GOOD (developer can write: assert 'ERROR' in error_log):
+   "error_log contains entry with level='ERROR', sensor='anemometer', message='SENSOR_DISCONNECTED'"
+
+   ✅ GOOD (developer can write: assert len(patients_table) == 1):
+   "patients table contains exactly 1 row with name='John Doe', address='123 Main St', age=45, next_of_kin='Jane Doe'"
+
+   ❌ BAD (not automatable):
+   "Data is collected correctly"
+   "System works as expected"
+   "Observe the system's response"
+   "Error or incomplete data returned"
+   "Data matches expected values"
+
+5. VAGUE LANGUAGE BLACKLIST — NEVER use these phrases in expected_result or precondition:
+   ❌ "data is correct" / "data is accurate" / "data is valid"
+   ❌ "system handles the error" / "system responds appropriately"
+   ❌ "observe the system's response" / "verify the output"
+   ❌ "error or incomplete data returned"
+   ❌ "matches expected values" / "works as expected"
+   ❌ "normal operating conditions" / "system is ready"
+
+   Instead, specify EXACTLY what field/value/state/code to assert:
+   ✅ "temperature field contains value between -40.0 and 85.0"
+   ✅ "HTTP 400 returned with error body {{code: 'INVALID_INPUT', field: 'age'}}"
+   ✅ "fault_alerts table contains 1 row with sensor_id='anemometer_01', alert_type='DISCONNECTED'"
+
+6. NO INVENTED METRICS: omit percentages, time limits, accuracy thresholds unless the requirement explicitly states them.
+   If you must infer, tag it: "[Assumed: …]"
+
+7. UNIQUE TEST CASES: each requirement tests its OWN specific functionality.
+   Do NOT copy the same test description to multiple requirements.
+
+8. REQUIREMENT-SPECIFIC: test steps must name the ACTUAL sensors, fields, components, or actors from that requirement.
+   "anemometer, wind_speed, barometric_pressure" not "sensor", "data", "values".
+
+9. Each requirement: 2–3 test cases — at minimum 1 happy path + 1 negative/edge case.
+
+GOOD EXAMPLE (global numbering + preconditions + assert-style results + exact requirement copy):
 {{
   "test_cases": [
     {{
@@ -698,22 +741,24 @@ GOOD EXAMPLE (global numbering + concrete results + exact requirement copy):
         {{
           "id": "TC1",
           "description": "Verify all 4 demographic fields (name, address, age, next_of_kin) are captured and persisted when a patient record is created",
+          "precondition": "patients table is empty, API endpoint POST /patients is available",
           "steps": [
             "Create a new patient record supplying name='John Doe', address='123 Main St', age=45, next_of_kin='Jane Doe'",
-            "Submit the patient record creation request",
-            "Retrieve the stored record from the patients table",
-            "Verify all 4 fields match the submitted values exactly"
+            "Submit the patient record creation request to POST /patients",
+            "Query the patients table using SELECT * FROM patients WHERE name='John Doe'",
+            "Compare retrieved record fields with submitted values"
           ],
-          "expected_result": "All 4 fields (name, address, age, next_of_kin) stored in the patients table and returned unchanged on retrieval"
+          "expected_result": "patients table contains exactly 1 row AND name=='John Doe' AND address=='123 Main St' AND age==45 AND next_of_kin=='Jane Doe'"
         }},
         {{
           "id": "TC2",
           "description": "Test validation when required field (name) is absent from a patient record creation request",
+          "precondition": "patients table is empty, API validation is enabled",
           "steps": [
-            "Submit a patient record creation request with address, age, and next_of_kin but no name field",
-            "Observe system response"
+            "Submit POST /patients request with body {{address: '123 Main St', age: 45, next_of_kin: 'Jane Doe'}} (name field omitted)",
+            "Capture the HTTP response status and body"
           ],
-          "expected_result": "Validation error returned indicating 'name field is required'; record not persisted in the patients table"
+          "expected_result": "response.status_code == 400 AND response.body.error == 'name field is required' AND patients table row count == 0"
         }}
       ]
     }},
@@ -723,22 +768,23 @@ GOOD EXAMPLE (global numbering + concrete results + exact requirement copy):
         {{
           "id": "TC3",
           "description": "Verify the monthly management report includes clinic activity data for a month with existing records",
+          "precondition": "Database contains 5 patient records and 12 appointment records for January 2024",
           "steps": [
-            "Ensure the database contains patient and appointment records for January 2024",
-            "Request a monthly management report for January 2024",
-            "Inspect the report output"
+            "Call GET /reports/monthly?month=2024-01 endpoint",
+            "Parse the returned report JSON",
+            "Verify clinic_activity and patient_statistics sections are present"
           ],
-          "expected_result": "Report contains clinic activity and patient statistics sections populated with data matching the database records for January 2024"
+          "expected_result": "report.clinic_activity.total_appointments == 12 AND report.patient_statistics.total_patients == 5 AND report.month == '2024-01'"
         }},
         {{
           "id": "TC4",
           "description": "Test report generation for a month with no existing data",
+          "precondition": "Database contains no patient or appointment records for February 2024",
           "steps": [
-            "Select a month with no patient or appointment records",
-            "Request the monthly management report for that month",
-            "Inspect the report output"
+            "Call GET /reports/monthly?month=2024-02 endpoint",
+            "Parse the returned report JSON"
           ],
-          "expected_result": "Report is generated successfully with all metric sections showing zero counts; no error or crash"
+          "expected_result": "response.status_code == 200 AND report.clinic_activity.total_appointments == 0 AND report.patient_statistics.total_patients == 0"
         }}
       ]
     }}
@@ -753,8 +799,25 @@ BAD EXAMPLES (never do these):
 Requirement 1 test_cases: TC1, TC2
 Requirement 2 test_cases: TC1, TC2  ← WRONG, must be TC3, TC4
 
-❌ Vague expected result:
-"expected_result": "System works correctly"
+❌ Missing precondition:
+{{
+  "id": "TC1",
+  "description": "...",
+  "steps": ["..."],
+  "expected_result": "..."
+}}  ← WRONG, must include "precondition" field
+
+❌ Vague precondition:
+"precondition": "System is ready"  ← WRONG, specify actual state like "Database empty, API endpoint available"
+
+❌ Vague expected result (not automatable):
+"expected_result": "System works correctly"  ← WRONG
+"expected_result": "Data is collected correctly"  ← WRONG
+"expected_result": "Error or incomplete data returned"  ← WRONG
+"expected_result": "Observe the system's response"  ← WRONG
+
+✅ CORRECT expected result (developer-automatable):
+"expected_result": "response.status_code == 201 AND readings table row count == 3"
 
 ❌ Invented metric:
 "expected_result": "Response time under 500ms"  ← only if requirement states this
