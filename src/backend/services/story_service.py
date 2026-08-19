@@ -1132,21 +1132,25 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
                     logger.info(f"Claimed TC group {best_group_idx} for story {idx+1} (score={best_score:.2f})")
 
                 if matching_test_cases:
-                    # Format test cases with detailed structure (ID, description, steps, expected result)
+                    # Format test cases with detailed structure (ID, description, precondition, steps, expected result)
                     formatted_tests = []
                     for test in matching_test_cases:
                         if isinstance(test, dict):
                             test_id = test.get('id', '')
                             test_desc = test.get('description', '')
+                            test_precondition = test.get('precondition', '')
                             test_steps = test.get('steps', [])
                             test_expected = test.get('expected_result', '')
 
-                            # Format nicely with ID, description, steps, and expected result
+                            # Format nicely with ID, description, precondition, steps, and expected result
                             test_formatted_parts = []
                             if test_id:
                                 test_formatted_parts.append(f"**{test_id}**: {test_desc}")
                             else:
                                 test_formatted_parts.append(f"**Test**: {test_desc}")
+
+                            if test_precondition:
+                                test_formatted_parts.append(f"**Precondition**: {test_precondition}")
 
                             if test_steps and isinstance(test_steps, list):
                                 test_formatted_parts.append("**Steps**:")
