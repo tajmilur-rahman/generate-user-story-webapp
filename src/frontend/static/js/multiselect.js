@@ -39,15 +39,19 @@ function toggleStorySelection(index) {
     updateSelectedCount();
 }
 
-// Apply visual selection classes to story items
+// Apply visual selection classes to story items and sync checkbox state
 function applySelectionClasses() {
     const storyItems = document.querySelectorAll('.story-item');
     storyItems.forEach((item) => {
         const index = parseInt(item.getAttribute('data-story-index'));
+        const checkbox = item.querySelector('.story-checkbox');
+
         if (selectedStories.has(index)) {
             item.classList.add('selected');
+            if (checkbox) checkbox.checked = true;
         } else {
             item.classList.remove('selected');
+            if (checkbox) checkbox.checked = false;
         }
     });
 }
