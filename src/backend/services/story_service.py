@@ -253,8 +253,8 @@ def sanitize_story_output(story):
     # Generic "at least X" patterns
     dod = re.sub(r'at\s+least\s+\d+', '', dod, flags=re.IGNORECASE)
     
-    # Clean up whitespace
-    dod = re.sub(r'\s+', ' ', dod)
+    # Clean up whitespace (preserve newlines for bullet formatting)
+    dod = re.sub(r'[ \t]+', ' ', dod)  # Only collapse spaces/tabs, NOT newlines
     dod = re.sub(r'[,\s]+\.', '.', dod)
     dod = re.sub(r'\.\s*\.', '.', dod)  # Remove double periods
     dod = dod.strip()
