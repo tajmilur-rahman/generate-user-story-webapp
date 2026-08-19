@@ -422,6 +422,7 @@ CRITICAL RULES:
 7. Reference ACTUAL field names, sensors, components from requirements (no generic placeholders)
 8. Generate ONE story per input requirement at minimum. Do NOT merge multiple requirements into one story.
 9. If the input has N requirements, output at least N stories (more if split triggers apply)
+10. PUNCTUATION: User Story field MUST end with a period (.). Each deliverable description MUST end with a period (.).
 
 BAD EXAMPLES (what NOT to do):
 ❌ Missing Title or vague Title:
@@ -561,6 +562,7 @@ CRITICAL RULES:
 4. Reference the ACTUAL named components, fields, modules, or sensors from the user story
 5. Do NOT invent numeric thresholds (%, ms, MB) unless they appear in the user story
 6. "definition_of_done" MUST be a JSON array of strings, NOT a single string
+7. PUNCTUATION: Each definition_of_done item MUST end with a period (.)
 
 EXAMPLE INPUT:
 {{
@@ -578,23 +580,23 @@ EXAMPLE OUTPUT:
         "architecture_design": {{
             "description": "Design of the continuous monitoring and glucose calculation modules.",
             "definition_of_done": [
-                "Architecture diagram showing monitoring_module, glucose_level_calculator, and microsensor_interface with all data-flow paths documented",
-                "Design doc for monitoring_module specifying sampling frequency, data acquisition protocol from implanted microsensor, and buffer management",
-                "Design doc for glucose_level_calculator specifying the algorithm that converts raw microsensor readings to mmol/L glucose values",
-                "API specification for the interface between monitoring_module and glucose_level_calculator including data format and error codes",
-                "Failure modes documented for microsensor disconnection, out-of-range readings, and calculation errors with defined recovery actions",
-                "Design reviewed and approved by technical lead and medical safety officer"
+                "Architecture diagram showing monitoring_module, glucose_level_calculator, and microsensor_interface with all data-flow paths documented.",
+                "Design doc for monitoring_module specifying sampling frequency, data acquisition protocol from implanted microsensor, and buffer management.",
+                "Design doc for glucose_level_calculator specifying the algorithm that converts raw microsensor readings to mmol/L glucose values.",
+                "API specification for the interface between monitoring_module and glucose_level_calculator including data format and error codes.",
+                "Failure modes documented for microsensor disconnection, out-of-range readings, and calculation errors with defined recovery actions.",
+                "Design reviewed and approved by technical lead and medical safety officer."
             ]
         }},
         "unit_tests": {{
             "description": "Tests to verify microsensor data collection and glucose calculation accuracy.",
             "definition_of_done": [
-                "Unit tests written for microsensor_read(), glucose_level_calculator.calculate(), and monitoring_module.poll() covering all normal execution paths",
-                "Tests verify continuous polling produces readings with no skipped cycles under normal operating conditions",
-                "Tests confirm glucose_level_calculator produces correct mmol/L output from known raw microsensor inputs",
-                "Edge-case tests covering microsensor disconnection, saturated readings, and calculator divide-by-zero scenarios",
-                "All tests passing in CI/CD pipeline with zero failures",
-                "Test documentation completed listing each test case, its inputs, and expected output"
+                "Unit tests written for microsensor_read(), glucose_level_calculator.calculate(), and monitoring_module.poll() covering all normal execution paths.",
+                "Tests verify continuous polling produces readings with no skipped cycles under normal operating conditions.",
+                "Tests confirm glucose_level_calculator produces correct mmol/L output from known raw microsensor inputs.",
+                "Edge-case tests covering microsensor disconnection, saturated readings, and calculator divide-by-zero scenarios.",
+                "All tests passing in CI/CD pipeline with zero failures.",
+                "Test documentation completed listing each test case, its inputs, and expected output."
             ]
         }}
     }}
@@ -606,9 +608,9 @@ BAD EXAMPLES (too generic — never produce these):
 ❌ "90% code coverage" — only if the requirement explicitly states 90%
 
 GOOD EXAMPLES (specific, using actual names from the story):
-✅ "Architecture diagram showing monitoring_module, glucose_level_calculator, and microsensor_interface with all data-flow paths"
-✅ "Unit tests for microsensor_read(), glucose_level_calculator.calculate() covering happy path and 4 error scenarios (disconnected, saturated, null, negative)"
-✅ "All tests passing in CI/CD pipeline with zero failures and no deprecation warnings"
+✅ "Architecture diagram showing monitoring_module, glucose_level_calculator, and microsensor_interface with all data-flow paths."
+✅ "Unit tests for microsensor_read(), glucose_level_calculator.calculate() covering happy path and 4 error scenarios (disconnected, saturated, null, negative)."
+✅ "All tests passing in CI/CD pipeline with zero failures and no deprecation warnings."
 """
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),
@@ -653,21 +655,21 @@ OUTPUT FORMAT:
       "test_cases": [
         {{
           "id": "TC1",
-          "description": "Verify that [specific named component] [specific action] under [specific conditions] as described in the requirement",
-          "precondition": "System state before test starts (e.g., 'Anemometer active returning 5.2 m/s, system polling every 60s')",
+          "description": "Verify that [specific named component] [specific action] under [specific conditions] as described in the requirement.",
+          "precondition": "System state before test starts (e.g., 'Anemometer active returning 5.2 m/s, system polling every 60s').",
           "steps": [
-            "Step 1: [concrete action using actual field names / values / component names from the requirement]",
-            "Step 2: [concrete action]",
-            "Step 3: [measurement or observation step]"
+            "Step 1: [concrete action using actual field names / values / component names from the requirement].",
+            "Step 2: [concrete action].",
+            "Step 3: [measurement or observation step]."
           ],
           "expected_result": "Developer-automatable assertion using actual field names, states, or values from the requirement. NO invented metrics."
         }},
         {{
           "id": "TC2",
-          "description": "Test negative / edge case: [specific element from requirement] when [specific failure condition]",
-          "precondition": "System state that triggers the edge case",
+          "description": "Test negative / edge case: [specific element from requirement] when [specific failure condition].",
+          "precondition": "System state that triggers the edge case.",
           "steps": ["..."],
-          "expected_result": "Specific error message, state change, or recovery behaviour implied by the requirement"
+          "expected_result": "Specific error message, state change, or recovery behaviour implied by the requirement."
         }}
       ]
     }}
@@ -732,6 +734,12 @@ CRITICAL RULES:
 
 9. Each requirement: 2–3 test cases — at minimum 1 happy path + 1 negative/edge case.
 
+10. PUNCTUATION: All fields must end with proper punctuation:
+    - "description" field MUST end with a period (.)
+    - "precondition" field MUST end with a period (.)
+    - Each "steps" item MUST end with a period (.)
+    - "expected_result" field MUST end with a period (.)
+
 GOOD EXAMPLE (global numbering + preconditions + assert-style results + exact requirement copy):
 {{
   "test_cases": [
@@ -740,25 +748,25 @@ GOOD EXAMPLE (global numbering + preconditions + assert-style results + exact re
       "test_cases": [
         {{
           "id": "TC1",
-          "description": "Verify all 4 demographic fields (name, address, age, next_of_kin) are captured and persisted when a patient record is created",
-          "precondition": "patients table is empty, API endpoint POST /patients is available",
+          "description": "Verify all 4 demographic fields (name, address, age, next_of_kin) are captured and persisted when a patient record is created.",
+          "precondition": "patients table is empty, API endpoint POST /patients is available.",
           "steps": [
-            "Create a new patient record supplying name='John Doe', address='123 Main St', age=45, next_of_kin='Jane Doe'",
-            "Submit the patient record creation request to POST /patients",
-            "Query the patients table using SELECT * FROM patients WHERE name='John Doe'",
-            "Compare retrieved record fields with submitted values"
+            "Create a new patient record supplying name='John Doe', address='123 Main St', age=45, next_of_kin='Jane Doe'.",
+            "Submit the patient record creation request to POST /patients.",
+            "Query the patients table using SELECT * FROM patients WHERE name='John Doe'.",
+            "Compare retrieved record fields with submitted values."
           ],
-          "expected_result": "patients table contains exactly 1 row AND name=='John Doe' AND address=='123 Main St' AND age==45 AND next_of_kin=='Jane Doe'"
+          "expected_result": "patients table contains exactly 1 row AND name=='John Doe' AND address=='123 Main St' AND age==45 AND next_of_kin=='Jane Doe'."
         }},
         {{
           "id": "TC2",
-          "description": "Test validation when required field (name) is absent from a patient record creation request",
-          "precondition": "patients table is empty, API validation is enabled",
+          "description": "Test validation when required field (name) is absent from a patient record creation request.",
+          "precondition": "patients table is empty, API validation is enabled.",
           "steps": [
-            "Submit POST /patients request with body {{address: '123 Main St', age: 45, next_of_kin: 'Jane Doe'}} (name field omitted)",
-            "Capture the HTTP response status and body"
+            "Submit POST /patients request with body {{address: '123 Main St', age: 45, next_of_kin: 'Jane Doe'}} (name field omitted).",
+            "Capture the HTTP response status and body."
           ],
-          "expected_result": "response.status_code == 400 AND response.body.error == 'name field is required' AND patients table row count == 0"
+          "expected_result": "response.status_code == 400 AND response.body.error == 'name field is required' AND patients table row count == 0."
         }}
       ]
     }},
@@ -767,24 +775,24 @@ GOOD EXAMPLE (global numbering + preconditions + assert-style results + exact re
       "test_cases": [
         {{
           "id": "TC3",
-          "description": "Verify the monthly management report includes clinic activity data for a month with existing records",
-          "precondition": "Database contains 5 patient records and 12 appointment records for January 2024",
+          "description": "Verify the monthly management report includes clinic activity data for a month with existing records.",
+          "precondition": "Database contains 5 patient records and 12 appointment records for January 2024.",
           "steps": [
-            "Call GET /reports/monthly?month=2024-01 endpoint",
-            "Parse the returned report JSON",
-            "Verify clinic_activity and patient_statistics sections are present"
+            "Call GET /reports/monthly?month=2024-01 endpoint.",
+            "Parse the returned report JSON.",
+            "Verify clinic_activity and patient_statistics sections are present."
           ],
-          "expected_result": "report.clinic_activity.total_appointments == 12 AND report.patient_statistics.total_patients == 5 AND report.month == '2024-01'"
+          "expected_result": "report.clinic_activity.total_appointments == 12 AND report.patient_statistics.total_patients == 5 AND report.month == '2024-01'."
         }},
         {{
           "id": "TC4",
-          "description": "Test report generation for a month with no existing data",
-          "precondition": "Database contains no patient or appointment records for February 2024",
+          "description": "Test report generation for a month with no existing data.",
+          "precondition": "Database contains no patient or appointment records for February 2024.",
           "steps": [
-            "Call GET /reports/monthly?month=2024-02 endpoint",
-            "Parse the returned report JSON"
+            "Call GET /reports/monthly?month=2024-02 endpoint.",
+            "Parse the returned report JSON."
           ],
-          "expected_result": "response.status_code == 200 AND report.clinic_activity.total_appointments == 0 AND report.patient_statistics.total_patients == 0"
+          "expected_result": "response.status_code == 200 AND report.clinic_activity.total_appointments == 0 AND report.patient_statistics.total_patients == 0."
         }}
       ]
     }}
@@ -808,23 +816,28 @@ Requirement 2 test_cases: TC1, TC2  ← WRONG, must be TC3, TC4
 }}  ← WRONG, must include "precondition" field
 
 ❌ Vague precondition:
-"precondition": "System is ready"  ← WRONG, specify actual state like "Database empty, API endpoint available"
+"precondition": "System is ready"  ← WRONG, specify actual state like "Database empty, API endpoint available."
+
+❌ Missing period at end:
+"description": "Verify patient record creation"  ← WRONG, must end with "."
+"precondition": "Database is empty"  ← WRONG, must end with "."
+"expected_result": "response.status_code == 201"  ← WRONG, must end with "."
 
 ❌ Vague expected result (not automatable):
-"expected_result": "System works correctly"  ← WRONG
-"expected_result": "Data is collected correctly"  ← WRONG
-"expected_result": "Error or incomplete data returned"  ← WRONG
-"expected_result": "Observe the system's response"  ← WRONG
+"expected_result": "System works correctly."  ← WRONG (vague)
+"expected_result": "Data is collected correctly."  ← WRONG (vague)
+"expected_result": "Error or incomplete data returned."  ← WRONG (vague)
+"expected_result": "Observe the system's response."  ← WRONG (vague)
 
-✅ CORRECT expected result (developer-automatable):
-"expected_result": "response.status_code == 201 AND readings table row count == 3"
+✅ CORRECT expected result (developer-automatable with period):
+"expected_result": "response.status_code == 201 AND readings table row count == 3."
 
 ❌ Invented metric:
-"expected_result": "Response time under 500ms"  ← only if requirement states this
+"expected_result": "Response time under 500ms."  ← only if requirement states this
 
 ❌ Duplicate description across requirements:
-Req 1: "Verify patient record creation"
-Req 2: "Verify patient record creation"  ← WRONG, test the specific functionality of req 2
+Req 1: "Verify patient record creation."
+Req 2: "Verify patient record creation."  ← WRONG, test the specific functionality of req 2
 """
     prompt = ChatPromptTemplate.from_messages([
         ("system", pp),
