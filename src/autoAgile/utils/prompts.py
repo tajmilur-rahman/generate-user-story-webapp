@@ -562,7 +562,10 @@ CRITICAL RULES:
 4. Reference the ACTUAL named components, fields, modules, or sensors from the user story
 5. Do NOT invent numeric thresholds (%, ms, MB) unless they appear in the user story
 6. "definition_of_done" MUST be a JSON array of strings, NOT a single string
-7. PUNCTUATION: Each definition_of_done item MUST end with a period (.)
+7. PUNCTUATION RULE FOR DEFINITION OF DONE:
+   - Each item ends with a comma (,)
+   - ONLY the last item in each section ends with a period (.)
+   - This creates a continuous list style
 
 EXAMPLE INPUT:
 {{
@@ -580,22 +583,22 @@ EXAMPLE OUTPUT:
         "architecture_design": {{
             "description": "Design of the continuous monitoring and glucose calculation modules.",
             "definition_of_done": [
-                "Architecture diagram showing monitoring_module, glucose_level_calculator, and microsensor_interface with all data-flow paths documented.",
-                "Design doc for monitoring_module specifying sampling frequency, data acquisition protocol from implanted microsensor, and buffer management.",
-                "Design doc for glucose_level_calculator specifying the algorithm that converts raw microsensor readings to mmol/L glucose values.",
-                "API specification for the interface between monitoring_module and glucose_level_calculator including data format and error codes.",
-                "Failure modes documented for microsensor disconnection, out-of-range readings, and calculation errors with defined recovery actions.",
+                "Architecture diagram showing monitoring_module, glucose_level_calculator, and microsensor_interface with all data-flow paths documented,",
+                "Design doc for monitoring_module specifying sampling frequency, data acquisition protocol from implanted microsensor, and buffer management,",
+                "Design doc for glucose_level_calculator specifying the algorithm that converts raw microsensor readings to mmol/L glucose values,",
+                "API specification for the interface between monitoring_module and glucose_level_calculator including data format and error codes,",
+                "Failure modes documented for microsensor disconnection, out-of-range readings, and calculation errors with defined recovery actions,",
                 "Design reviewed and approved by technical lead and medical safety officer."
             ]
         }},
         "unit_tests": {{
             "description": "Tests to verify microsensor data collection and glucose calculation accuracy.",
             "definition_of_done": [
-                "Unit tests written for microsensor_read(), glucose_level_calculator.calculate(), and monitoring_module.poll() covering all normal execution paths.",
-                "Tests verify continuous polling produces readings with no skipped cycles under normal operating conditions.",
-                "Tests confirm glucose_level_calculator produces correct mmol/L output from known raw microsensor inputs.",
-                "Edge-case tests covering microsensor disconnection, saturated readings, and calculator divide-by-zero scenarios.",
-                "All tests passing in CI/CD pipeline with zero failures.",
+                "Unit tests written for microsensor_read(), glucose_level_calculator.calculate(), and monitoring_module.poll() covering all normal execution paths,",
+                "Tests verify continuous polling produces readings with no skipped cycles under normal operating conditions,",
+                "Tests confirm glucose_level_calculator produces correct mmol/L output from known raw microsensor inputs,",
+                "Edge-case tests covering microsensor disconnection, saturated readings, and calculator divide-by-zero scenarios,",
+                "All tests passing in CI/CD pipeline with zero failures,",
                 "Test documentation completed listing each test case, its inputs, and expected output."
             ]
         }}
