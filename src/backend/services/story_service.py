@@ -1032,9 +1032,9 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
 
                         # Handle list format (v2 format uses arrays for DoD)
                         if isinstance(dod, list):
-                            dod_text = '\n    '.join([f"- {item}" for item in dod if isinstance(item, str) and item.strip()])
+                            dod_text = '\n'.join([f"  - {item}" for item in dod if isinstance(item, str) and item.strip()])
                             if dod_text:
-                                deliverable_items.append(f"• {formatted_key}:\n    {dod_text}")
+                                deliverable_items.append(f"• {formatted_key}:\n{dod_text}")
                         elif isinstance(dod, str) and dod.strip() and dod.strip().upper() != 'TBD':
                             # Remove invented metrics from DoD
                             dod_cleaned = remove_invented_metrics(dod)
