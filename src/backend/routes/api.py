@@ -670,13 +670,27 @@ def export_docx():
             if story.get('definitionOfDone'):
                 dod_para = doc.add_paragraph()
                 dod_para.add_run('Definition of Done: ').bold = True
-                dod_para.add_run(story['definitionOfDone'])
-            
+
+                # Split by newlines and add line breaks to preserve formatting
+                dod_text = story['definitionOfDone']
+                dod_lines = dod_text.split('\n')
+                for i, line in enumerate(dod_lines):
+                    if i > 0:
+                        dod_para.add_run().add_break()  # Add line break
+                    dod_para.add_run(line)
+
             # Test Cases
             if story.get('testCases'):
                 tc_para = doc.add_paragraph()
                 tc_para.add_run('Test Cases: ').bold = True
-                tc_para.add_run(str(story['testCases']))
+
+                # Split by newlines and add line breaks to preserve formatting
+                tc_text = str(story['testCases'])
+                tc_lines = tc_text.split('\n')
+                for i, line in enumerate(tc_lines):
+                    if i > 0:
+                        tc_para.add_run().add_break()  # Add line break
+                    tc_para.add_run(line)
             
             # Add separator between stories
             if idx < len(stories):
