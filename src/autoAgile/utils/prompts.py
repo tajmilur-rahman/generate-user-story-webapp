@@ -154,9 +154,45 @@ EXTRACTION RULES:
 6. SPLIT BUNDLED REQUIREMENTS: If a sentence describes multiple distinct capabilities, split into separate requirements.
    Example: "The system must validate input and store it in the database" → 2 requirements
 
-7. MAXIMIZE GRANULARITY: When in doubt, split rather than combine. Better to have 100 specific requirements than 20 vague ones.
+7. PRESERVE EXACT VALUES: If the document states a specific number, interval, duration, threshold, percentage, unit, measurement, or quantity, copy it WORD-FOR-WORD into the requirement. Do NOT round, approximate, generalize, or substitute.
+   ✅ Document says "every minute" → "every minute"
+   ❌ Document says "every minute" → "every 5 minutes"
+   ✅ Document says "within 30 seconds" → "within 30 seconds"
+   ❌ Document says "within 30 seconds" → "quickly"
+   ✅ Document says "99.9% uptime" → "99.9% uptime"
+   ❌ Document says "99.9% uptime" → "high availability"
+   ✅ Document says "24-hour period" → "24-hour period"
+   ❌ Document says "24-hour period" → "daily"
+   If the document does not state a specific value, do NOT invent one.
 
-8. NO ARBITRARY LIMITS: Extract ALL requirements regardless of quantity. Documents may have 10 requirements or 500 requirements — extract them all.
+8. EXTRACT ONLY WHAT IS STATED: Only include instruments, sensors, components, fields, modules, systems, roles, or entities that are EXPLICITLY mentioned in the document. Do NOT add items that seem logical, related, or industry-standard but are not stated.
+   ✅ Document says "temperature, pressure, rainfall" → extract these 3
+   ❌ Adding "humidity" because weather systems usually measure it
+   ✅ Document says "username and password" → extract these 2
+   ❌ Adding "email" because login systems usually have it
+   ✅ Document says "admin and user roles" → extract these 2
+   ❌ Adding "moderator role" because it seems useful
+   If a component is not in the document, it does not exist.
+
+9. SCAN EVERY SENTENCE FOR REQUIREMENTS: Requirements are often buried as brief clauses within longer sentences, parenthetical remarks, or listed alongside other concerns. Read every sentence completely and extract ALL requirements from it, even if a requirement is only a few words.
+   Example: "The system is deployed outdoors and may be damaged by animals."
+   Contains TWO requirements:
+     1. Operate in outdoor/exposed conditions
+     2. Resist damage by animals
+   Extract BOTH — do not skip the shorter one.
+
+   Example: "Users can upload documents (up to 10MB, PDF only) and share them with team members."
+   Contains THREE requirements:
+     1. Upload documents
+     2. Enforce 10MB file size limit and PDF-only format
+     3. Share documents with team members
+   Extract ALL THREE — do not merge into one.
+
+   Watch for: "and", "also", "as well as", "including", parentheses (), subordinate clauses, comma-separated lists, and semicolons.
+
+10. MAXIMIZE GRANULARITY: When in doubt, split rather than combine. Better to have 100 specific requirements than 20 vague ones.
+
+11. NO ARBITRARY LIMITS: Extract ALL requirements regardless of quantity. Documents may have 10 requirements or 500 requirements — extract them all.
 
 OUTPUT FORMAT:
 - One requirement per line
