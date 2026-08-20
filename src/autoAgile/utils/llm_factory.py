@@ -6,14 +6,14 @@ import os
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 
-def get_chat_model(temperature=0.3, model_name=None):
+def get_chat_model(temperature=0.0, model_name=None):
     """
     Get chat model based on LLM_PROVIDER environment variable.
-    
+
     Args:
-        temperature: Temperature for the model (default: 0.3)
+        temperature: Temperature for the model (default: 0.0)
         model_name: Optional model name override
-    
+
     Returns:
         Chat model instance (ChatOpenAI or ChatOllama)
     """

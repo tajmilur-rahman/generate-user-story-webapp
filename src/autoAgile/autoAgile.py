@@ -7,7 +7,7 @@ from utils.llm_factory import get_chat_model
 from save_output import *
 
 DOC = sys.argv[1]
-temp = float(os.environ.get('LLM_TEMPERATURE', '0.3'))
+temp = float(os.environ.get('LLM_TEMPERATURE', '0.0'))
 Model = ""
 prod = "prod"
 debug = "debug"
