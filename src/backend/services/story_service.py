@@ -684,8 +684,8 @@ def remove_invented_metrics(text):
             cleaned = cleaned[:match.start()] + cleaned[match.end():]
     
     # Clean up extra whitespace and punctuation artifacts
-    # Remove multiple spaces
-    cleaned = re.sub(r'\s+', ' ', cleaned)
+    # Remove multiple spaces/tabs (preserve newlines for bullet formatting)
+    cleaned = re.sub(r'[ \t]+', ' ', cleaned)
     # Remove orphaned commas/punctuation
     cleaned = re.sub(r',\s*,', ',', cleaned)
     cleaned = re.sub(r',\s*\.', '.', cleaned)
