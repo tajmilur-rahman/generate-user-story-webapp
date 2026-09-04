@@ -5,6 +5,7 @@ from .story_agent import StoryAgent
 from .test_agent import TestCaseAgent
 from .reviewer_agent import ReviewerAgent
 from .rewriter_agent import RewriterAgent
+from difflib import SequenceMatcher
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,108 @@ class StoryOrchestrator:
         self.rewriter_agent = RewriterAgent()
 
         logger.info("StoryOrchestrator initialized with 7 agents")
+
+    def deduplicate_requirements(self, requirements):
+        """
+        Deduplicate requirements by semantic similarity.
+
+        Args:
+            requirements: List of requirement dictionaries
+
+        Returns:
+            List of unique requirements (duplicates removed)
+        """
+        if not requirements or not isinstance(requirements, list):
+            return requirements
+
+        unique = []
+        duplicates_found = []
+
+        for req in requirements:
+            if not req or not isinstance(req, dict):
+                continue
+
+            description = req.get('description', '')
+            if not description:
+                unique.append(req)
+                continue
+
+            is_duplicate = False
+            for existing in unique:
+                existing_desc = existing.get('description', '')
+                similarity = SequenceMatcher(None, description.lower(), existing_desc.lower()).ratio()
+                if similarity > 0.6:  # 60% similar = duplicate
+                    is_duplicate = True
+                    duplicates_found.append((description, existing_desc, similarity))
+                    logger.info(f"🔍 Duplicate requirement detected ({similarity:.1%} similar)")
+                    logger.info(f"   Skipping: {description[:80]}...")
+                    logger.info(f"   Kept:     {existing_desc[:80]}...")
+                    break
+
+            if not is_duplicate:
+                unique.append(req)
+
+        if duplicates_found:
+            logger.info(f"✅ Removed {len(duplicates_found)} duplicate requirements ({len(requirements)} → {len(unique)})")
+
+        return unique
+
+    def deduplicate_stories(self, stories):
+        """
+        Deduplicate stories by title + description similarity.
+
+        Args:
+            stories: List of story dictionaries
+
+        Returns:
+            List of unique stories (duplicates removed)
+        """
+        if not stories or not isinstance(stories, list):
+            return stories
+
+        unique = []
+        duplicates_found = []
+
+        for story in stories:
+            if not isinstance(story, dict):
+                continue
+
+            title = story.get('user_story', '')
+            description = story.get('acceptance_criteria', [])
+            desc_text = ' '.join(description) if isinstance(description, list) else str(description)
+
+            if not title and not desc_text:
+                unique.append(story)
+                continue
+
+            is_duplicate = False
+            for existing in unique:
+                existing_title = existing.get('user_story', '')
+                existing_desc = existing.get('acceptance_criteria', [])
+                existing_desc_text = ' '.join(existing_desc) if isinstance(existing_desc, list) else str(existing_desc)
+
+                # Check title similarity
+                title_sim = SequenceMatcher(None, title.lower(), existing_title.lower()).ratio()
+
+                # Check description similarity
+                desc_sim = SequenceMatcher(None, desc_text.lower(), existing_desc_text.lower()).ratio()
+
+                # Duplicate if titles are 50% similar OR descriptions are 70% similar
+                if title_sim > 0.5 or desc_sim > 0.7:
+                    is_duplicate = True
+                    duplicates_found.append((title, existing_title, max(title_sim, desc_sim)))
+                    logger.info(f"🔍 Duplicate story detected (title: {title_sim:.1%}, desc: {desc_sim:.1%})")
+                    logger.info(f"   Skipping: {title[:60]}...")
+                    logger.info(f"   Kept:     {existing_title[:60]}...")
+                    break
+
+            if not is_duplicate:
+                unique.append(story)
+
+        if duplicates_found:
+            logger.info(f"✅ Removed {len(duplicates_found)} duplicate stories ({len(stories)} → {len(unique)})")
+
+        return unique
 
     def generate_stories(self, document_text: str) -> dict:
         """Main pipeline - preserves all existing loops + adds review loop"""
@@ -42,6 +145,11 @@ class StoryOrchestrator:
 
         requirements = req_result["output"]["requirements"]
         logger.info(f"✓ Extracted {len(requirements)} requirements")
+
+        # DEDUPLICATION: Remove duplicate requirements by semantic similarity
+        logger.info("\n[DEDUPLICATION] Checking for duplicate requirements...")
+        requirements = self.deduplicate_requirements(requirements)
+        logger.info(f"✓ Final requirement count: {len(requirements)}")
 
         # PHASE 2: Epic Generation (LOOP 2 - Extract → Refine)
         logger.info("\n[PHASE 2] Generating Epics (Two-Pass)...")
@@ -97,6 +205,11 @@ class StoryOrchestrator:
                     all_stories.extend(stories)
 
         logger.info(f"✓ Generated {len(all_stories)} stories")
+
+        # DEDUPLICATION: Remove duplicate stories by title/description similarity
+        logger.info("\n[DEDUPLICATION] Checking for duplicate stories...")
+        all_stories = self.deduplicate_stories(all_stories)
+        logger.info(f"✓ Final story count: {len(all_stories)}")
 
         # PHASE 4: Test Case Generation (LOOP 3 - Batched with Global TC Numbering)
         logger.info("\n[PHASE 4] Generating Test Cases (Batched)...")

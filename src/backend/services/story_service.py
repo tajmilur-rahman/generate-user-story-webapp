@@ -101,8 +101,9 @@ def detect_incomplete_templates(text):
     ]
     
     for pattern in patterns:
-        if re.search(pattern, text):
-            logger.warning(f"Incomplete template detected: {pattern}")
+        match = re.search(pattern, text)
+        if match:
+            logger.warning(f"Incomplete template detected: '{match.group()}' (pattern: {pattern})")
             return True
     return False
 
@@ -1199,9 +1200,9 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
                 # Try alternate field names for backwards compatibility
                 source_quote = story.get('source_basis', '').strip()
             
-            # Log warning if source quote is missing
+            # Log debug if source quote is missing (v2 prompts don't generate this field)
             if not source_quote:
-                logger.warning(f"Story {idx + 1} missing source_quote field - may lack source evidence")
+                logger.debug(f"Story {idx + 1} missing source_quote field - v2 prompts don't include source quotes")
             
             frontend_stories.append({
                 'id': idx + 1,

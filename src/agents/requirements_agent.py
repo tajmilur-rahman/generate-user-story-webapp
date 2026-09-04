@@ -38,6 +38,16 @@ REFINEMENT RULES (apply after extraction):
 3. ADD IMPLIED: Insert clearly implied requirements that are missing (e.g., if data is transmitted it must first be aggregated; if a user logs in there must be a way to log out).
 4. REMOVE DUPLICATES: Delete ONLY exact duplicate requirements. Do NOT merge requirements that cover different functional areas — keep them separate.
 5. PRESERVE GRANULARITY: Keep the total number of requirements high. It is better to have 15 specific requirements than 5 merged ones.
+6. NO DUPLICATE REQUIREMENTS WITH DIFFERENT SYSTEM NAMES: Do NOT extract the same requirement under different system names. If a feature is mentioned once in the document, extract it ONCE, even if different parts of the document refer to it using different names.
+   ✅ CORRECT: Extract "The system must send notifications" (mentioned once)
+   ❌ WRONG: Extract both "The mobile application must send notifications" AND "The system must send notifications" (these are the SAME requirement)
+   ✅ CORRECT: Extract "The payment gateway must process transactions" (mentioned once)
+   ❌ WRONG: Extract both "The wayfinding system must process payments" AND "The payment gateway must process transactions" (if they refer to the same feature)
+
+   When the same functionality is mentioned multiple times using different terminology:
+   - Use the MOST SPECIFIC system name if one is clearly primary
+   - If truly two DIFFERENT systems doing DIFFERENT things, extract both
+   - If same system with different names, extract ONCE using the most specific name
 
 OUTPUT FORMAT (JSON only):
 {{{{

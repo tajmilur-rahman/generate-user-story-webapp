@@ -116,6 +116,12 @@ CRITICAL RULES:
 5. Expected results: concrete, using actual field/table names, no vague statements
 6. NO invented metrics unless stated in requirement
 7. Each test case must be unique (no copy-paste across requirements)
+8. NEVER OUTPUT PLACEHOLDERS: NEVER output "-" or "N/A" or "TBD" for test cases.
+   Every requirement MUST have at least 2 test cases (1 happy path + 1 negative/edge case).
+   If you are unsure about test details, generate basic tests:
+   ✅ Happy path: "Verify the requirement's main functionality works correctly."
+   ✅ Edge case: "Verify the system handles invalid input or failure conditions."
+   ❌ NEVER output: "-", "N/A", "TBD", "No test cases", "See requirement"
 
 BAD EXAMPLES (what NOT to do):
 ❌ Generic description:
