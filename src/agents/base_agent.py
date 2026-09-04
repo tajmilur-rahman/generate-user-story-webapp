@@ -15,7 +15,7 @@ class BaseAgent(ABC):
         name: str,
         role: str,
         goal: str,
-        temperature: float = 0.3
+        temperature: float = 0.0
     ):
         self.name = name
         self.role = role

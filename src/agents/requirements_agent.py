@@ -31,6 +31,27 @@ EXTRACTION RULES (apply in order):
 4. NO META-REQUIREMENTS: Do NOT include requirements about testing, documentation, or project management.
 5. SPLIT BUNDLED REQUIREMENTS: If a sentence describes two distinct capabilities, split it into two requirements.
 6. AIM FOR COMPLETENESS: Better to have too many specific requirements than too few.
+7. PRESERVE EXACT VALUES: If the document states a specific number, interval, duration, threshold, percentage, unit, measurement, or quantity, copy it WORD-FOR-WORD into the requirement. Do NOT round, approximate, generalize, or substitute.
+   ✅ Document says "every minute" → "every minute"
+   ❌ Document says "every minute" → "every 5 minutes"
+   ✅ Document says "within 30 seconds" → "within 30 seconds"
+   ❌ Document says "within 30 seconds" → "quickly"
+   ✅ Document says "99.9% uptime" → "99.9% uptime"
+   ❌ Document says "99.9% uptime" → "high availability"
+   If the document does not state a specific value, do NOT invent one.
+8. EXTRACT ONLY WHAT IS STATED: Only include instruments, sensors, components, fields, modules, systems, roles, or entities that are EXPLICITLY mentioned in the document. Do NOT add items that seem logical, related, or industry-standard but are not stated.
+   ✅ Document says "temperature, pressure, rainfall" → extract these 3
+   ❌ Adding "humidity" because weather systems usually measure it
+   ✅ Document says "username and password" → extract these 2
+   ❌ Adding "email" because login systems usually have it
+   If a component is not in the document, it does not exist.
+9. SCAN EVERY SENTENCE FOR REQUIREMENTS: Requirements are often buried as brief clauses within longer sentences, parenthetical remarks, or listed alongside other concerns. Read every sentence completely and extract ALL requirements from it, even if a requirement is only a few words.
+   Example: "The system is deployed outdoors and may be damaged by animals."
+   Contains TWO requirements:
+     1. Operate in outdoor/exposed conditions
+     2. Resist damage by animals
+   Extract BOTH — do not skip the shorter one.
+   Watch for: "and", "also", "as well as", "including", parentheses (), subordinate clauses, comma-separated lists, and semicolons.
 
 REFINEMENT RULES (apply after extraction):
 1. SPLIT: If any single requirement bundles two or more distinct capabilities, split it into separate requirements. Err on the side of splitting.
