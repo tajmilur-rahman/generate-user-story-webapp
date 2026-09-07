@@ -24,6 +24,7 @@ from .test_agent import TestCaseAgent
 from .reviewer_agent import ReviewerAgent
 from .rewriter_agent import RewriterAgent
 from .orchestrator import StoryOrchestrator
+from .orchestrator_parallel import ParallelStoryOrchestrator
 
 __all__ = [
     'BaseAgent',
@@ -34,5 +35,6 @@ __all__ = [
     'TestCaseAgent',
     'ReviewerAgent',
     'RewriterAgent',
-    'StoryOrchestrator'
+    'StoryOrchestrator',
+    'ParallelStoryOrchestrator'
 ]
