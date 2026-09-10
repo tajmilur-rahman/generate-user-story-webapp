@@ -87,6 +87,8 @@ def create_app():
     # Session configuration
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SECURE'] = False  # Set to True if using HTTPS
+    app.config['SESSION_COOKIE_DOMAIN'] = None  # Allow localhost/127.0.0.1
     app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
     
     # Initialize database
