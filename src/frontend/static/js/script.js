@@ -112,8 +112,8 @@ async function generateUserStories() {
         const formData = new FormData();
         formData.append('file', file);
 
-        // Send file to backend API
-        const response = await fetch('/api/generate-stories', {
+        // Send file to backend API (using PARALLEL agentic endpoint for 8-10x speedup)
+        const response = await fetch('/api/agentic/generate-stories-agentic', {
             method: 'POST',
             body: formData
         });
