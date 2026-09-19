@@ -128,7 +128,7 @@ def generate_stories_agentic():
                 "Epics": [
                     {
                         "Epic Name": epic["epic_name"],
-                        "Description": epic["description"],
+                        "Description": epic.get("epic_description", ""),
                         "Requirements": epic["requirement_ids"],
                         "Stories": [
                             {
