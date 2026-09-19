@@ -123,43 +123,53 @@ def generate_stories_agentic():
             logger.info(f"Generated: {len(requirements)} requirements, {len(epics)} epics, {len(stories)} stories, {len(test_cases)} test cases")
 
             # Convert to format expected by old story_service
-            # The orchestrator returns structured data, we need to convert to the old JSON string format
+            # The orchestrator returns structured data; convert to the JSON string
+            # format story_service expects.
+            #
+            # NOTE: the converter wants a FLAT list of stories under "User Stories".
+            # Nesting them under "Epics" makes it treat each epic as a story and
+            # discard every one of them as empty.
             epics_json = json.dumps({
-                "Epics": [
+                "User Stories": [
                     {
-                        "Epic Name": epic["epic_name"],
-                        "Description": epic.get("epic_description", ""),
-                        "Requirements": epic["requirement_ids"],
-                        "Stories": [
-                            {
-                                "User Story": story["user_story"],
-                                "Acceptance Criteria": story.get("acceptance_criteria", []),
-                                "Definition of Done": story.get("definition_of_done", ""),
-                                "Priority": story.get("priority", "Medium"),
-                                "Estimation": story.get("estimation", "")
+                        "User Story": story["user_story"],
+                        "Acceptance Criteria": story.get("acceptance_criteria", []),
+                        "Deliverables": {
+                            "Definition of Done": {
+                                "definition_of_done": story.get("definition_of_done", [])
                             }
-                            for story in stories
-                            if story.get("epic_id") == epic["epic_id"]
-                        ]
+                        },
+                        "Priority": story.get("priority", "Medium"),
+                        "Estimation": story.get("story_points", "")
                     }
-                    for epic in epics
+                    for story in stories
                 ]
             }, indent=2)
+
+            # Group test cases by requirement. The converter matches a group to a
+            # story by text similarity against "requirement", so the requirement
+            # description has to travel with the group, not just its ID.
+            requirement_text_by_id = {
+                req["id"]: req["description"] for req in requirements
+            }
+
+            tc_groups = {}
+            for tc in test_cases:
+                tc_groups.setdefault(tc.get("requirement_id", ""), []).append({
+                    "id": tc.get("test_id", ""),
+                    "description": tc.get("test_description", ""),
+                    "steps": tc.get("test_steps", []),
+                    "expected_result": tc.get("expected_result", "")
+                })
 
             test_cases_json = json.dumps({
                 "test_cases": [
                     {
-                        "requirement_id": tc["requirement_id"],
-                        "test_cases": [
-                            {
-                                "id": tc["test_id"],
-                                "description": tc["test_description"],
-                                "steps": tc.get("test_steps", []),
-                                "expected": tc.get("expected_result", "")
-                            }
-                        ]
+                        "requirement_id": req_id,
+                        "requirement": requirement_text_by_id.get(req_id, ""),
+                        "test_cases": group
                     }
-                    for tc in test_cases
+                    for req_id, group in tc_groups.items()
                 ]
             }, indent=2)
 
