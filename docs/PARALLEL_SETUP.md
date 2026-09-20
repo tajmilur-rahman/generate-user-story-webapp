@@ -37,6 +37,13 @@ OLLAMA_CONNECT_TIMEOUT=10
 OLLAMA_NUM_PREDICT=4096
 # Attempts per call before giving up. Uses exponential backoff with jitter.
 OLLAMA_MAX_ATTEMPTS=3
+
+# QUALITY REVIEW
+# Model used to judge story quality. Leave unset to reuse OLLAMA_MODEL, but
+# prefer a DIFFERENT model: a model judging output from its own family shows
+# self-preference bias, which is why the judge returned a constant 93/100 and
+# never failed a story. Deterministic INVEST checks run first either way.
+REVIEWER_MODEL=llama3.2:3b
 ```
 
 > **Why these matter with 5 workers.** Without a timeout a stalled call blocks

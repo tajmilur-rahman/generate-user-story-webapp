@@ -20,7 +20,8 @@ class BaseAgent(ABC):
         role: str,
         goal: str,
         temperature: float = 0.0,
-        output_model: Optional[Type[BaseModel]] = None
+        output_model: Optional[Type[BaseModel]] = None,
+        model_env_var: Optional[str] = None
     ):
         self.name = name
         self.role = role
@@ -30,8 +31,14 @@ class BaseAgent(ABC):
         # surfacing as a KeyError several layers downstream.
         self.output_model = output_model
 
-        # Use same model as current system
-        model_name = os.getenv('OLLAMA_MODEL', 'qwen3-coder:30b')
+        # Use same model as current system, unless this agent names its own
+        # environment variable. The reviewer uses that to judge with a different
+        # model than the one that wrote the stories.
+        default_model = os.getenv('OLLAMA_MODEL', 'qwen3-coder:30b')
+        model_name = (
+            os.getenv(model_env_var, default_model) if model_env_var
+            else default_model
+        )
 
         # A stalled call is worse than a failed one: it blocks a worker thread
         # forever, never raises, and so can never be retried. ChatOllama exposes

@@ -380,3 +380,82 @@ class TestCheckpointing:
         orchestrator._checkpoint("01_requirements", [{"id": "REQ-001"}])
 
         assert orchestrator.completed_phases == ["01_requirements"]
+
+
+class TestDeterministicQualityGate:
+    """The model judge returned a constant 93/100 and never failed a story,
+    so the rewrite path never ran and a corruption bug stayed latent there."""
+
+    @staticmethod
+    def _story(**overrides):
+        story = {
+            "story_id": "EPIC-001-STORY-001",
+            "requirement_id": "REQ-001",
+            "user_story": "As a weather station operator, I want the system to "
+                          "record temperature readings, so that I have "
+                          "continuous monitoring data",
+            "acceptance_criteria": ["Readings captured every 60 seconds"],
+            "definition_of_done": ["Sensor polling implemented"],
+        }
+        story.update(overrides)
+        return story
+
+    def test_well_formed_story_passes(self):
+        from agents.invest_checks import evaluate_story
+
+        assert evaluate_story(self._story())["score"] == 100
+
+    @pytest.mark.parametrize("overrides,expected_issue", [
+        ({"user_story": "The system must record temperature readings"},
+         "does not follow"),
+        ({"acceptance_criteria": []}, "No acceptance criteria"),
+    ])
+    def test_critical_failures_cross_the_rewrite_threshold(self, overrides,
+                                                           expected_issue):
+        """A rule-detectable failure must send the story back, whatever the
+        model judge says about it."""
+        from agents.invest_checks import evaluate_story
+
+        result = evaluate_story(self._story(**overrides))
+
+        assert result["score"] < 70
+        assert any(expected_issue in issue for issue in result["issues"])
+
+    @pytest.mark.parametrize("overrides,expected_issue", [
+        ({"acceptance_criteria": ["works", "done"]}, "Vague acceptance criteria"),
+        ({"requirement_id": ""}, "does not reference a requirement"),
+        ({"definition_of_done": []}, "No definition of done"),
+    ])
+    def test_soft_signals_flag_without_forcing_a_rewrite(self, overrides,
+                                                         expected_issue):
+        from agents.invest_checks import evaluate_story
+
+        result = evaluate_story(self._story(**overrides))
+
+        assert result["score"] >= 70
+        assert any(expected_issue in issue for issue in result["issues"])
+
+    def test_weights_sum_to_one_hundred(self):
+        from agents.invest_checks import _WEIGHTS
+
+        assert sum(_WEIGHTS.values()) == 100
+
+    def test_stories_without_ids_do_not_collide(self):
+        """A missing story_id must not collapse two stories onto one result."""
+        from agents.invest_checks import evaluate_stories
+
+        results = evaluate_stories([self._story(story_id=""),
+                                    self._story(story_id="")])
+
+        assert len(results) == 2
+
+    def test_constant_judge_scores_are_detectable(self):
+        """A judge returning the same number for everything looks identical to
+        a uniform batch if only the mean is reported."""
+        from agents.invest_checks import summarise_scores
+
+        constant = summarise_scores([93] * 5)
+        varied = summarise_scores([55, 70, 82, 93, 60])
+
+        assert constant["distinct_values"] == 1 and constant["spread"] == 0
+        assert varied["distinct_values"] == 5 and varied["spread"] == 38

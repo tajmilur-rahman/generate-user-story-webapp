@@ -5,6 +5,7 @@ from .story_agent import StoryAgent
 from .test_agent import TestCaseAgent
 from .reviewer_agent import ReviewerAgent
 from .rewriter_agent import RewriterAgent
+from .invest_checks import evaluate_stories, summarise_scores
 from difflib import SequenceMatcher
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -618,6 +619,23 @@ class ParallelStoryOrchestrator:
             iteration += 1
             logger.info(f"\n  Review Iteration {iteration}/{max_iterations}")
 
+            # Deterministic INVEST checks first. They are free, unbiased and
+            # cannot return a false pass, so anything they can decide should
+            # not cost a model call.
+            rubric = evaluate_stories(stories)
+            rubric_scores = [r["score"] for r in rubric.values()]
+            rubric_dist = summarise_scores(rubric_scores)
+            logger.info(
+                f"  Rubric scores: mean={rubric_dist['mean']} "
+                f"min={rubric_dist['min']} max={rubric_dist['max']}"
+            )
+            for story_id, outcome in rubric.items():
+                if outcome["issues"]:
+                    logger.info(
+                        f"    {story_id}: {outcome['score']}/100 - "
+                        f"{'; '.join(outcome['issues'][:2])}"
+                    )
+
             # Review in PARALLEL batches. A single call scoring every story was
             # the serial bottleneck of this phase (~22% of total runtime), and
             # its prompt grew without bound as the story count rose, risking
@@ -643,16 +661,47 @@ class ParallelStoryOrchestrator:
                       for r in story_reviews if isinstance(r, dict)]
             avg_score = round(sum(scores) / len(scores), 1) if scores else 0
 
+            # Log the distribution, not just the mean. A judge returning the
+            # same number for every story is indistinguishable from a genuinely
+            # uniform batch if you only print the average -- which is how a
+            # constant 93/100 went unquestioned across runs.
+            dist = summarise_scores(scores)
+            logger.info(
+                f"  Judge scores: mean={dist['mean']} median={dist['median']} "
+                f"min={dist['min']} max={dist['max']} "
+                f"distinct={dist['distinct_values']}/{dist['count']}"
+            )
+            if dist["count"] > 2 and dist["distinct_values"] == 1:
+                logger.warning(
+                    f"  ⚠ Judge returned {dist['mean']} for all "
+                    f"{dist['count']} stories -- the model score is not "
+                    f"discriminating. Set REVIEWER_MODEL to a different model."
+                )
+
             logger.info(f"  Average INVEST Score: {avg_score}/100")
 
             # Find stories needing improvement
-            low_quality = [
-                review for review in story_reviews
-                if isinstance(review, dict) and review.get("total_score", 0) < 70
-            ]
+            low_quality = []
+            for review in story_reviews:
+                if not isinstance(review, dict):
+                    continue
+                judge_score = review.get("total_score", 0)
+                rubric_score = rubric.get(review.get("story_id"), {}).get("score", 100)
+
+                # Either gate can send a story back. The rubric catches what the
+                # judge is too generous to fail; the judge catches what no rule
+                # can express.
+                if judge_score < 70 or rubric_score < 70:
+                    review.setdefault("issues", [])
+                    review["issues"] = list(review["issues"]) + rubric.get(
+                        review.get("story_id"), {}).get("issues", [])
+                    low_quality.append(review)
 
             if not low_quality:
-                logger.info(f"  ✓ All stories meet quality threshold (≥70)")
+                logger.info(
+                    "  ✓ All stories meet quality threshold (≥70) on both the "
+                    "deterministic rubric and the model judge"
+                )
                 break
 
             logger.info(f"  ↻ Rewriting {len(low_quality)} low-quality stories IN PARALLEL...")

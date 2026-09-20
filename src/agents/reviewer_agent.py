@@ -10,7 +10,11 @@ class ReviewerAgent(BaseAgent):
             name="Story Reviewer",
             role="Quality Assurance Reviewer",
             goal="Score every story on INVEST criteria and identify issues",
-            output_model=ReviewOutput
+            output_model=ReviewOutput,
+            # A model judging output from its own family exhibits
+            # self-preference bias. Set REVIEWER_MODEL to a different model to
+            # get an independent opinion; falls back to OLLAMA_MODEL.
+            model_env_var='REVIEWER_MODEL'
         )
 
     def get_system_prompt(self, context: Dict[str, Any]) -> str:
