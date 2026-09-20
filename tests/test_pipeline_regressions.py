@@ -1,0 +1,382 @@
+"""
+Regression tests for defects fixed in the parallel agentic pipeline.
+
+Every bug these cover was deterministic and reproducible without a model:
+character-similarity thresholds discarding distinct requirements, ID collisions
+across parallel workers, and mismatched dictionary keys between the orchestrator
+and the converter. None needed an LLM to detect, and none would have reached
+production with these tests in place.
+
+No test here requires a running Ollama instance.
+"""
+
+import os
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
+
+from agents.orchestrator_parallel import ParallelStoryOrchestrator, _story_core
+from backend.services.story_service import (
+    _tc_similarity,
+    convert_stories_to_frontend_format,
+)
+
+
+@pytest.fixture
+def orchestrator():
+    """Orchestrator instance without constructing any agents (no LLM needed)."""
+    from threading import Lock
+
+    orch = ParallelStoryOrchestrator.__new__(ParallelStoryOrchestrator)
+    orch.failures = []
+    orch._failures_lock = Lock()
+    orch.run_id = None
+    orch.run_dir = None
+    orch.completed_phases = []
+    orch.max_workers = 5
+    return orch
+
+
+class TestRequirementDeduplication:
+    """Dedup compared characters, not meaning, and deleted real requirements."""
+
+    def test_distinct_sensors_are_not_merged(self, orchestrator):
+        """Pressure, wind speed and wind direction are separate measurements.
+
+        At the original 0.60 SequenceMatcher threshold, "Collect pressure
+        readings periodically" scored 0.63 against the temperature requirement
+        and wind direction scored 0.86 against wind speed, so all were silently
+        discarded along with every story and test case derived from them.
+        """
+        descriptions = [
+            "Collect temperature readings every minute",
+            "Calculate and store temperature averages every 5 minutes",
+            "Collect pressure readings periodically",
+            "Record pressure readings every minute",
+            "Collect wind speed readings periodically",
+            "Collect wind direction readings periodically",
+            "Collect sunshine duration data every 24 hours",
+            "Record rainfall volume data every 24 hours",
+        ]
+        reqs = [{"id": f"REQ-{i:03d}", "description": d}
+                for i, d in enumerate(descriptions, 1)]
+
+        result = orchestrator.deduplicate_requirements(reqs)
+
+        assert len(result) == len(reqs), (
+            "distinct requirements were merged: "
+            f"{set(descriptions) - {r['description'] for r in result}}"
+        )
+
+    def test_exact_duplicate_is_still_removed(self, orchestrator):
+        """Loosening the threshold must not disable dedup entirely."""
+        reqs = [
+            {"id": "REQ-001", "description": "Collect temperature readings every minute"},
+            {"id": "REQ-002", "description": "Store readings with a timestamp"},
+            {"id": "REQ-003", "description": "Collect temperature readings every minute"},
+        ]
+
+        result = orchestrator.deduplicate_requirements(reqs)
+
+        assert len(result) == 2
+        assert [r["id"] for r in result] == ["REQ-001", "REQ-002"]
+
+
+class TestStoryDeduplication:
+    """Shared persona boilerplate made unrelated stories look similar."""
+
+    def test_persona_prefix_is_stripped_before_comparison(self):
+        core = _story_core(
+            "As a weather station operator, I want to replace parts, "
+            "so that it stays serviceable"
+        )
+        assert core.startswith("replace parts")
+        assert "weather station operator" not in core
+
+    def test_distinct_stories_survive_shared_boilerplate(self, orchestrator):
+        """Every story opens with the same ~41 character persona clause.
+
+        The original rule was `title_sim > 0.5 OR desc_sim > 0.7`, and the
+        boilerplate alone put unrelated pairs at 50-68%. A story whose
+        description was only 3.5% similar -- entirely different work -- was
+        dropped on title overlap.
+        """
+        stories = [
+            {"user_story": "As a weather station operator, I want to replace parts "
+                           "of the station, so that it stays serviceable",
+             "acceptance_criteria": ["Parts can be swapped in the field"]},
+            {"user_story": "As a weather station operator, I want to switch backup "
+                           "instruments, so that data keeps flowing",
+             "acceptance_criteria": ["Backup activates on primary failure"]},
+            {"user_story": "As a weather station operator, I want to update the "
+                           "embedded software, so that fixes are deployed",
+             "acceptance_criteria": ["Firmware updates apply remotely"]},
+        ]
+
+        result = orchestrator.deduplicate_stories(stories)
+
+        assert len(result) == 3
+
+    def test_true_duplicate_story_is_removed(self, orchestrator):
+        stories = [
+            {"user_story": "As an operator, I want to replace parts of the station, "
+                           "so that it stays serviceable",
+             "acceptance_criteria": ["Parts can be swapped in the field"]},
+            {"user_story": "As an operator, I want to replace parts of the station, "
+                           "so that it remains serviceable",
+             "acceptance_criteria": ["Parts can be swapped in the field"]},
+        ]
+
+        result = orchestrator.deduplicate_stories(stories)
+
+        assert len(result) == 1
+
+
+class TestIdentifierAssignment:
+    """Independent workers must not mint IDs in a shared namespace."""
+
+    def test_story_ids_are_unique_across_parallel_epics(self):
+        """Each epic is a separate Story Writer call numbering from STORY-001.
+
+        Unnamespaced, `story_map = {s["story_id"]: s}` collapsed 19 stories to
+        4 entries: 15 became unreachable by the rewrite pass, and rewriting one
+        story overwrote every story sharing its ID.
+        """
+        epic_sizes = {"EPIC-001": 2, "EPIC-002": 4, "EPIC-003": 2, "EPIC-004": 4,
+                      "EPIC-005": 2, "EPIC-006": 2, "EPIC-007": 3}
+        stories = []
+        for epic_id, count in epic_sizes.items():
+            batch = [{"story_id": f"STORY-{i:03d}"} for i in range(1, count + 1)]
+            for offset, story in enumerate(batch, start=1):
+                story["epic_id"] = epic_id
+                story["story_id"] = f"{epic_id}-STORY-{offset:03d}"
+            stories.extend(batch)
+
+        ids = [s["story_id"] for s in stories]
+
+        assert len(set(ids)) == len(stories) == 19
+        assert len({s["story_id"]: s for s in stories}) == 19
+
+    def test_malformed_test_case_ids_do_not_crash(self, orchestrator):
+        """IDs were renumbered via int(test_id.replace('TC', '')).
+
+        'tc1', 'TC_1', 'TC1a' and 'TC01-A' all raise ValueError there, and a
+        missing key raises KeyError -- after all five phases had completed.
+        """
+        reqs = [{"id": f"REQ-{i:03d}"} for i in range(1, 4)]
+        batches = {
+            0: [{"requirement_id": "REQ-001", "test_id": "tc1"},
+                {"requirement_id": "REQ-001", "test_id": "TC_1"}],
+            1: [{"requirement_id": "REQ-002", "test_id": "TC01-A"},
+                {"requirement_id": "REQ-002"}],
+            2: [{"requirement_id": "REQ-003", "test_id": "TC1a"},
+                {"requirement_id": "UNKNOWN-REQ", "test_id": "???"}],
+        }
+
+        result = orchestrator._assign_test_case_ids(batches, reqs)
+
+        ids = [tc["test_id"] for tc in result]
+        assert ids == [f"TC{i}" for i in range(1, len(result) + 1)]
+        assert len(set(ids)) == len(ids)
+
+    def test_test_case_ids_do_not_depend_on_completion_order(self, orchestrator):
+        """Results were appended as futures completed, so ties resolved by
+        thread timing and the same document could yield different orderings."""
+        reqs = [{"id": f"REQ-{i:03d}"} for i in range(1, 4)]
+
+        def batches():
+            return {
+                0: [{"requirement_id": "REQ-001", "test_description": "a"}],
+                1: [{"requirement_id": "REQ-002", "test_description": "b"}],
+                2: [{"requirement_id": "REQ-003", "test_description": "c"}],
+            }
+
+        expected = [(tc["test_id"], tc["test_description"])
+                    for tc in orchestrator._assign_test_case_ids(batches(), reqs)]
+
+        for order in ([2, 0, 1], [1, 2, 0], [2, 1, 0]):
+            shuffled = {k: batches()[k] for k in order}
+            actual = [(tc["test_id"], tc["test_description"])
+                      for tc in orchestrator._assign_test_case_ids(shuffled, reqs)]
+            assert actual == expected
+
+
+class TestOrchestratorToConverterContract:
+    """The orchestrator hands structured data to a converter with its own shape.
+
+    Three mismatches in this handoff each produced a 500 after a full pipeline
+    run: a nested Epics structure the converter read as stories, test case
+    groups it could not match, and renamed fields it silently ignored.
+    """
+
+    @staticmethod
+    def _build_payload(requirements, stories, test_cases):
+        """Mirror the conversion the agentic route performs."""
+        import json
+
+        epics_json = json.dumps({
+            "User Stories": [
+                {
+                    "User Story": s["user_story"],
+                    "Acceptance Criteria": s.get("acceptance_criteria", []),
+                    "Deliverables": {
+                        "Definition of Done": {
+                            "definition_of_done": s.get("definition_of_done", [])
+                        }
+                    },
+                    "Priority": s.get("priority", "Medium"),
+                    "Estimation": s.get("story_points", "")
+                }
+                for s in stories
+            ]
+        }, indent=2)
+
+        text_by_id = {r["id"]: r["description"] for r in requirements}
+        groups = {}
+        for tc in test_cases:
+            groups.setdefault(tc.get("requirement_id", ""), []).append({
+                "id": tc.get("test_id", ""),
+                "description": tc.get("test_description", ""),
+                "steps": tc.get("test_steps", []),
+                "expected_result": tc.get("expected_result", "")
+            })
+
+        test_cases_json = json.dumps({
+            "test_cases": [
+                {"requirement_id": rid,
+                 "requirement": text_by_id.get(rid, ""),
+                 "test_cases": group}
+                for rid, group in groups.items()
+            ]
+        }, indent=2)
+
+        requirements_text = "\n".join(
+            f"{r['id']}: {r['description']}" for r in requirements)
+        return epics_json, test_cases_json, requirements_text
+
+    @pytest.fixture
+    def pipeline_output(self):
+        requirements = [
+            {"id": "REQ-001", "description": "Collect temperature readings every minute"},
+            {"id": "REQ-002", "description": "Store readings in local database with timestamps"},
+        ]
+        stories = [
+            {"story_id": "EPIC-001-STORY-001", "requirement_id": "REQ-001",
+             "epic_id": "EPIC-001",
+             "user_story": "As a weather station operator, I want the system to "
+                           "automatically record temperature readings, so that I "
+                           "have continuous monitoring data",
+             "acceptance_criteria": ["Readings captured every 60 seconds"],
+             "definition_of_done": ["Sensor polling implemented"],
+             "story_points": 3, "priority": "HIGH"},
+            {"story_id": "EPIC-001-STORY-002", "requirement_id": "REQ-002",
+             "epic_id": "EPIC-001",
+             "user_story": "As a weather station operator, I want readings stored "
+                           "in a local database with timestamps, so that data "
+                           "survives network outages",
+             "acceptance_criteria": ["Rows written to readings table"],
+             "definition_of_done": ["Schema migration applied"],
+             "story_points": 5, "priority": "MEDIUM"},
+        ]
+        test_cases = [
+            {"test_id": "TC1", "requirement_id": "REQ-001",
+             "test_description": "Verify temperature readings recorded every minute",
+             "test_steps": ["Start station"], "expected_result": "Readings present"},
+            {"test_id": "TC2", "requirement_id": "REQ-002",
+             "test_description": "Verify readings persisted to local database with timestamps",
+             "test_steps": ["Record a reading"], "expected_result": "Row present"},
+        ]
+        return requirements, stories, test_cases
+
+    def test_stories_survive_conversion(self, pipeline_output):
+        """A nested Epics payload made the converter read epics as stories and
+        skip all of them, returning 0 stories after a full pipeline run."""
+        result = convert_stories_to_frontend_format(
+            *self._build_payload(*pipeline_output))
+
+        assert len(result) == 2
+
+    def test_titles_are_distinct(self, pipeline_output):
+        """Title generation stripped "The system must" but not the As-a clause,
+        so every story rendered as "As Weather Station Operator I"."""
+        result = convert_stories_to_frontend_format(
+            *self._build_payload(*pipeline_output))
+
+        titles = [story["title"] for story in result]
+        assert len(set(titles)) == len(titles)
+        assert not any(title.startswith("As ") for title in titles)
+
+    def test_each_story_receives_its_own_test_cases(self, pipeline_output):
+        result = convert_stories_to_frontend_format(
+            *self._build_payload(*pipeline_output))
+
+        assert "TC1" in result[0]["testCases"]
+        assert "TC2" in result[1]["testCases"]
+
+
+class TestTestCaseSimilarity:
+    """Story-to-requirement matching must tolerate asymmetric text lengths."""
+
+    def test_similarity_is_importable(self):
+        """_tc_similarity was nested inside convert_stories_to_frontend_format,
+        so the orchestrator's import could never resolve and silently fell back
+        to a cruder matcher."""
+        assert callable(_tc_similarity)
+
+    def test_matching_story_outscores_non_matching(self):
+        """Jaccard scored a correct match as low as 0.15 because a terse
+        requirement against a verbose story produces a story-dominated union."""
+        req_temp = "Collect temperature readings every minute"
+        req_store = "Store readings in local database with timestamps"
+        story_temp = ("As a weather station operator, I want the system to "
+                      "automatically record temperature readings, so that I have "
+                      "continuous monitoring data")
+
+        assert _tc_similarity(req_temp, story_temp) >= 0.35
+        assert _tc_similarity(req_store, story_temp) < 0.35
+
+
+class TestPartialFailureReporting:
+    """A run that lost an epic must not look identical to a complete one."""
+
+    def test_failures_are_recorded_thread_safely(self, orchestrator):
+        from threading import Thread
+
+        threads = [
+            Thread(target=orchestrator._record_failure,
+                   args=("stories", f"epic {i}", "boom"))
+            for i in range(50)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(orchestrator.failures) == 50
+        assert all(f["phase"] == "stories" for f in orchestrator.failures)
+
+
+class TestCheckpointing:
+    """A failure late in the pipeline must not discard completed phases."""
+
+    def test_phase_output_is_persisted(self, orchestrator, tmp_path):
+        import json
+
+        orchestrator.run_dir = str(tmp_path / "run-1")
+        orchestrator._checkpoint("01_requirements",
+                                 [{"id": "REQ-001", "description": "x"}])
+
+        written = tmp_path / "run-1" / "01_requirements.json"
+        assert written.exists()
+        assert json.loads(written.read_text(encoding="utf-8"))[0]["id"] == "REQ-001"
+        assert orchestrator.completed_phases == ["01_requirements"]
+
+    def test_unwritable_checkpoint_does_not_fail_the_run(self, orchestrator):
+        """Persisting is best-effort; it must never take down a good run."""
+        orchestrator.run_dir = os.path.join("Z:", "nonexistent", "path")
+
+        orchestrator._checkpoint("01_requirements", [{"id": "REQ-001"}])
+
+        assert orchestrator.completed_phases == ["01_requirements"]

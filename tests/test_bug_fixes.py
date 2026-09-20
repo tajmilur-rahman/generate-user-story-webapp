@@ -14,7 +14,6 @@ from backend.services.story_service import (
     sanitize_story_output,
     log_quality_metrics,
 )
-from core_engine.prompts import extract_epics
 class TestBug1FabricatedQuotes:
     """Bug 1: Stories with fabricated quotes should be REJECTED"""
     
@@ -51,19 +50,24 @@ class TestBug1FabricatedQuotes:
 class TestBug2HallucinatedRequirements:
     """Bug 2: Hallucinated features should not appear in output"""
     
-    def test_no_auth_keywords_in_weather_system(self):
-        """Verify no authentication keywords appear in weather system stories"""
-        # This would need to be tested with actual LLM generation
-        # For now, we verify the prompt has the forbidden features
+    def test_extraction_prompt_forbids_inventing_features(self):
+        """The extraction prompt must forbid inventing unstated features.
+
+        Previously asserted against a FORBIDDEN FEATURES block in
+        core_engine.prompts.extract_epics. That module no longer exists, and the
+        block did not survive the restructure -- this test was uncollectable, so
+        nobody noticed. The agentic pipeline enforces the same intent with a
+        general instruction in the requirements extractor, which is the live
+        guardrail worth protecting.
+        """
         import inspect
-        
-        source = inspect.getsource(extract_epics)
-        
-        # Verify FORBIDDEN FEATURES are in prompt
-        assert "FORBIDDEN FEATURES" in source
-        assert "Authentication systems" in source
-        assert "User management" in source
-        assert "Search functionality" in source
+        from agents.requirements_agent import RequirementsAgent
+
+        source = inspect.getsource(RequirementsAgent.get_system_prompt)
+
+        assert "do NOT invent" in source
+        assert "EXTRACT ONLY WHAT IS STATED" in source
+        assert "EXPLICITLY mentioned" in source
 
 
 class TestBug3InventedMetrics:
@@ -156,19 +160,23 @@ class TestBug6QualityMetrics:
     """Bug 6: Quality metrics should be logged"""
     
     def test_quality_metrics_file_created(self):
-        # Clean up any existing file
-        if os.path.exists("quality_metrics.jsonl"):
-            os.remove("quality_metrics.jsonl")
-        
+        # log_quality_metrics writes to data/logs/, not the working directory.
+        # The original assertion predates that move.
+        project_root = os.path.dirname(os.path.dirname(__file__))
+        metrics_file = os.path.join(project_root, "data", "logs",
+                                    "quality_metrics.jsonl")
+        if os.path.exists(metrics_file):
+            os.remove(metrics_file)
+
         stories = [{
             "id": 1,
             "source_quote": "test quote",
             "definitionOfDone": "test dod"
         }]
-        
+
         metrics = log_quality_metrics(stories, [])
-        
-        assert os.path.exists("quality_metrics.jsonl")
+
+        assert os.path.exists(metrics_file)
         assert metrics["total_stories"] == 1
         assert "timestamp" in metrics
     
@@ -202,27 +210,45 @@ class TestIntegration:
         stories = [
             {
                 "id": 1,
+                "User Story": "As a meteorologist, I want the system to collect "
+                              "weather data from instruments, so that readings "
+                              "are captured continuously",
+                "Deliverables": {"Collector": {"definition_of_done": "Instrument polling service"}},
                 "source_quote": "collect weather data from instruments",
                 "definitionOfDone": "System collects data successfully"
             },
             {
                 "id": 2,
+                "User Story": "As a meteorologist, I want data transmitted via "
+                              "satellite, so that readings reach the central "
+                              "station",
+                "Deliverables": {"Uplink": {"definition_of_done": "Satellite transmission module"}},
                 "source_quote": "transmit via satellite",
                 "definitionOfDone": "Data transmitted reliably"
             },
             {
                 "id": 3,
+                "User Story": "As an administrator, I want user authentication, "
+                              "so that access is controlled",
+                "Deliverables": {"Auth": {"definition_of_done": "Login module"}},
                 "source_quote": "user authentication required",  # FABRICATED
                 "definitionOfDone": "Auth works"
             }
         ]
         
         valid, errors = validate_generated_stories(stories, source)
-        
-        # Should have 2 valid stories (story 3 rejected)
-        assert len(valid) == 2
-        assert valid[0]["id"] == 1
-        assert valid[1]["id"] == 2
-        
-        # Should have error for rejected story
-        assert any("REJECTED" in str(e) for e in errors)
+
+        # Fabricated quotes are deliberately a WARNING rather than a rejection.
+        # story_service records the reason inline: "Changed to WARNING instead
+        # of REJECT ... quote validation is too strict". This test predates that
+        # decision and asserted a rejection. What still matters -- and what this
+        # now asserts -- is that the fabricated quote is DETECTED and reported.
+        assert len(valid) == 3
+        assert [story["id"] for story in valid] == [1, 2, 3]
+
+        # Story 3's quote does not appear in the source and must be flagged
+        assert any("Story 3" in str(e) and "source quote" in str(e).lower()
+                   for e in errors)
+        # Stories 1 and 2 quote the source verbatim and must not be flagged
+        assert not any("Story 1" in str(e) or "Story 2" in str(e)
+                       for e in errors)
