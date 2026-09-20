@@ -118,6 +118,15 @@ def generate_stories_agentic():
             stories = result["stories"]
             test_cases = result["test_cases"]
             execution_time = result.get("execution_time", 0)
+            failures = result.get("failures", [])
+
+            if failures:
+                logger.warning(
+                    f"Pipeline completed with {len(failures)} partial failure(s); "
+                    f"output is incomplete"
+                )
+                for f in failures:
+                    logger.warning(f"  [{f['phase']}] {f['detail']}: {f['error']}")
 
             logger.info(f"Pipeline complete in {execution_time:.1f}s ({execution_time/60:.1f} min)")
             logger.info(f"Generated: {len(requirements)} requirements, {len(epics)} epics, {len(stories)} stories, {len(test_cases)} test cases")
@@ -216,6 +225,11 @@ def generate_stories_agentic():
                 'count': len(frontend_stories),
                 'output_file': output_file_path,
                 'execution_time': execution_time,
+                # A run that lost an epic must not look identical to a complete
+                # one. Callers can surface this rather than silently shipping
+                # fewer stories than the document warranted.
+                'partial': bool(failures),
+                'failures': failures,
                 'performance': {
                     'total_seconds': round(execution_time, 1),
                     'total_minutes': round(execution_time / 60, 2),

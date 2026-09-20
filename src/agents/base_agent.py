@@ -23,14 +23,28 @@ class BaseAgent(ABC):
 
         # Use same model as current system
         model_name = os.getenv('OLLAMA_MODEL', 'qwen3-coder:30b')
-        self.llm = ChatOllama(
+
+        llm = ChatOllama(
             model=model_name,
             temperature=temperature,
             base_url="http://localhost:11434",
             format="json"  # Enforce JSON output
         )
 
-        logger.info(f"[{name}] Initialized with model: {model_name}")
+        # Retry transient Ollama failures with exponential backoff AND jitter.
+        #
+        # Jitter is the part that matters here: the orchestrator runs 5 workers
+        # against a single Ollama instance, so failures tend to arrive together.
+        # Without jitter those workers would back off in lockstep and re-collide
+        # on every attempt (the thundering-herd problem). LangChain's with_retry
+        # is tenacity-backed and enables jitter by default.
+        self.max_attempts = int(os.getenv('OLLAMA_MAX_ATTEMPTS', '3'))
+        self.llm = llm.with_retry(stop_after_attempt=self.max_attempts)
+
+        logger.info(
+            f"[{name}] Initialized with model: {model_name} "
+            f"(max_attempts={self.max_attempts})"
+        )
 
     @abstractmethod
     def get_system_prompt(self, context: Dict[str, Any]) -> str:
@@ -67,11 +81,16 @@ class BaseAgent(ABC):
             }
 
         except Exception as e:
-            logger.error(f"[{self.name}] Error: {str(e)}")
+            # Reached only after with_retry has exhausted every attempt.
+            logger.error(
+                f"[{self.name}] Failed after {self.max_attempts} attempts: {e}"
+            )
             return {
                 "agent": self.name,
                 "success": False,
-                "error": str(e)
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "attempts": self.max_attempts
             }
 
     def _extract_json(self, text: str) -> Dict:

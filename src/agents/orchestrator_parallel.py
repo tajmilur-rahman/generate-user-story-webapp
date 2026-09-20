@@ -8,6 +8,7 @@ from .rewriter_agent import RewriterAgent
 from difflib import SequenceMatcher
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 import logging
 import time
 
@@ -56,6 +57,12 @@ class ParallelStoryOrchestrator:
 
         # Default to 5 workers (good balance for single GPU)
         self.max_workers = max_workers or 5
+
+        # Partial failures are collected here rather than only logged, so a run
+        # that lost an epic is distinguishable from a complete one. Guarded by a
+        # lock because worker threads append concurrently.
+        self.failures = []
+        self._failures_lock = Lock()
 
         logger.info(f"ParallelStoryOrchestrator initialized with {self.max_workers} workers")
 
@@ -175,6 +182,23 @@ class ParallelStoryOrchestrator:
 
         return unique
 
+    def _record_failure(self, phase, detail, error):
+        """
+        Record a partial failure so it can be reported to the caller.
+
+        Args:
+            phase: Pipeline phase name
+            detail: What was being processed (epic name, batch, story id)
+            error: Error description
+        """
+        with self._failures_lock:
+            self.failures.append({
+                "phase": phase,
+                "detail": detail,
+                "error": str(error)
+            })
+        logger.error(f"  ✗ [{phase}] {detail}: {error}")
+
     def _process_single_epic(self, epic, requirements):
         """
         Process one epic with all its batches (sequential batches within epic)
@@ -199,6 +223,13 @@ class ParallelStoryOrchestrator:
                 f"Generate stories for batch {i//batch_size + 1}",
                 {"requirements_batch": batch, "epic": epic}
             )
+
+            if not story_result["success"]:
+                self._record_failure(
+                    "stories", f"epic {epic['epic_name']} batch {i//batch_size + 1}",
+                    story_result.get("error", "unknown")
+                )
+                continue
 
             if story_result["success"]:
                 batch_stories = story_result["output"]["stories"]
@@ -243,7 +274,10 @@ class ParallelStoryOrchestrator:
             logger.info(f"  [PARALLEL] ✓ Generated {len(test_cases)} test cases (starting TC{batch_info['starting_tc']})")
             return test_cases
 
-        logger.error(f"  [PARALLEL] ✗ Test case batch failed")
+        self._record_failure(
+            "test_cases", f"batch starting TC{batch_info['starting_tc']}",
+            tc_result.get("error", "unknown")
+        )
         return []
 
     def _calculate_tc_ranges(self, requirements, batch_size=4):
@@ -337,6 +371,10 @@ class ParallelStoryOrchestrator:
 
         start_time = time.time()
 
+        # Reset per-run state: the orchestrator may be reused across requests.
+        with self._failures_lock:
+            self.failures = []
+
         logger.info("=" * 60)
         logger.info("Starting PARALLEL Agentic Story Generation Pipeline")
         logger.info(f"Workers: {self.max_workers}")
@@ -409,7 +447,7 @@ class ParallelStoryOrchestrator:
                     stories = future.result()
                     all_stories.extend(stories)
                 except Exception as e:
-                    logger.error(f"  ✗ Epic {epic['epic_name']} failed: {e}")
+                    self._record_failure("stories", f"epic {epic['epic_name']}", e)
 
         logger.info(f"✓ Generated {len(all_stories)} stories ({time.time() - phase_start:.1f}s)")
 
@@ -467,7 +505,9 @@ class ParallelStoryOrchestrator:
             "epics": epics,
             "stories": all_stories,
             "test_cases": all_test_cases,
-            "execution_time": total_time
+            "execution_time": total_time,
+            "failures": list(self.failures),
+            "partial": bool(self.failures)
         }
 
     def _quality_review_loop(self, stories: list) -> list:
@@ -495,7 +535,7 @@ class ParallelStoryOrchestrator:
                     try:
                         story_reviews.extend(future.result())
                     except Exception as e:
-                        logger.error(f"  ✗ Review batch failed: {e}")
+                        self._record_failure("review", "review batch", e)
 
             if not story_reviews:
                 logger.error("  Review failed, skipping quality loop")
@@ -545,7 +585,8 @@ class ParallelStoryOrchestrator:
                         if improved_story:
                             improved_stories[review["story_id"]] = improved_story
                     except Exception as e:
-                        logger.error(f"  ✗ Rewrite failed for {review['story_id']}: {e}")
+                        self._record_failure(
+                            "rewrite", f"story {review.get('story_id', '?')}", e)
 
             # Replace improved stories
             for i, story in enumerate(stories):
