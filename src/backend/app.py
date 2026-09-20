@@ -76,8 +76,20 @@ def create_app():
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
     
-    # Authentication configuration
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+    # Authentication configuration.
+    #
+    # The development fallback is a known constant, so anyone who knows it can
+    # forge a session cookie. That is acceptable on a laptop and not acceptable
+    # anywhere else, so say so loudly rather than failing silently.
+    _secret = os.environ.get('SECRET_KEY')
+    if not _secret:
+        _secret = 'dev-secret-key-change-in-production'
+        logger.warning(
+            "SECRET_KEY is not set; using the well-known development default. "
+            "Session cookies can be forged. Set SECRET_KEY before exposing "
+            "this beyond localhost."
+        )
+    app.config['SECRET_KEY'] = _secret
     
     # Database path in project root/instance directory
     db_path = os.path.join(project_root, 'instance', 'users.db')
