@@ -11,6 +11,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 import logging
 import time
+import json
+import os
+import uuid
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +67,11 @@ class ParallelStoryOrchestrator:
         # lock because worker threads append concurrently.
         self.failures = []
         self._failures_lock = Lock()
+
+        # Set per run by generate_stories()
+        self.run_id = None
+        self.run_dir = None
+        self.completed_phases = []
 
         logger.info(f"ParallelStoryOrchestrator initialized with {self.max_workers} workers")
 
@@ -181,6 +190,35 @@ class ParallelStoryOrchestrator:
             logger.info(f"✅ Removed {len(duplicates_found)} duplicate stories ({len(stories)} → {len(unique)})")
 
         return unique
+
+    def _checkpoint(self, phase, payload):
+        """
+        Persist one phase's output as soon as it completes.
+
+        GPU time is the expensive resource in this pipeline. Holding every
+        intermediate result in memory until the final step means a bug in the
+        last 2% discards a multi-minute run -- which is exactly what happened
+        twice before this was added. Writing each phase as it lands turns a
+        total loss into a recoverable one, and doubles as an audit trail.
+
+        Never raises: a checkpoint failure must not take down a good run.
+
+        Args:
+            phase: Phase name, used as the filename
+            payload: JSON-serialisable phase output
+        """
+        if not self.run_dir:
+            return
+
+        self.completed_phases.append(phase)
+        try:
+            os.makedirs(self.run_dir, exist_ok=True)
+            path = os.path.join(self.run_dir, f"{phase}.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+            logger.info(f"  [CHECKPOINT] {phase} -> {path}")
+        except Exception as e:
+            logger.warning(f"  [CHECKPOINT] Could not persist {phase}: {e}")
 
     def _record_failure(self, phase, detail, error):
         """
@@ -375,6 +413,16 @@ class ParallelStoryOrchestrator:
         with self._failures_lock:
             self.failures = []
 
+        self.run_id = (
+            f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
+        )
+        self.run_dir = os.path.join(
+            os.getenv('RUN_ARTIFACT_DIR', os.path.join('data', 'runs')),
+            self.run_id
+        )
+        self.completed_phases = []
+        logger.info(f"Run ID: {self.run_id}")
+
         logger.info("=" * 60)
         logger.info("Starting PARALLEL Agentic Story Generation Pipeline")
         logger.info(f"Workers: {self.max_workers}")
@@ -398,6 +446,7 @@ class ParallelStoryOrchestrator:
         logger.info("\n[DEDUPLICATION] Checking for duplicate requirements...")
         requirements = self.deduplicate_requirements(requirements)
         logger.info(f"✓ Final requirement count: {len(requirements)}")
+        self._checkpoint("01_requirements", requirements)
 
         # PHASE 2: Epic Generation (LOOP 2 - Extract → Refine)
         phase_start = time.time()
@@ -426,6 +475,7 @@ class ParallelStoryOrchestrator:
 
         epics = epic_refine_result["output"]["epics"]
         logger.info(f"✓ Refined to {len(epics)} final epics ({time.time() - phase_start:.1f}s)")
+        self._checkpoint("02_epics", epics)
 
         # PHASE 3: Story Generation (PARALLEL EPICS) ⚡
         phase_start = time.time()
@@ -455,6 +505,7 @@ class ParallelStoryOrchestrator:
         logger.info("\n[DEDUPLICATION] Checking for duplicate stories...")
         all_stories = self.deduplicate_stories(all_stories)
         logger.info(f"✓ Final story count: {len(all_stories)}")
+        self._checkpoint("03_stories", all_stories)
 
         # PHASE 4: Test Case Generation (PARALLEL BATCHES) ⚡
         phase_start = time.time()
@@ -476,7 +527,7 @@ class ParallelStoryOrchestrator:
                     test_cases = future.result()
                     all_test_cases.extend(test_cases)
                 except Exception as e:
-                    logger.error(f"  ✗ Batch failed: {e}")
+                    self._record_failure("test_cases", "batch", e)
 
         # Re-number TCs sequentially (cleanup any gaps from estimation)
         all_test_cases.sort(key=lambda x: int(x['test_id'].replace('TC', '')))
@@ -484,6 +535,7 @@ class ParallelStoryOrchestrator:
             tc['test_id'] = f"TC{idx + 1}"
 
         logger.info(f"✓ Generated {len(all_test_cases)} test cases ({time.time() - phase_start:.1f}s)")
+        self._checkpoint("04_test_cases", all_test_cases)
 
         # Match TCs to stories
         all_stories = self._match_test_cases(all_stories, all_test_cases)
@@ -493,6 +545,7 @@ class ParallelStoryOrchestrator:
         logger.info(f"\n[PHASE 5] Quality Review Loop (PARALLEL - {self.max_workers} workers)...")
         all_stories = self._quality_review_loop(all_stories)
         logger.info(f"✓ Quality review complete ({time.time() - phase_start:.1f}s)")
+        self._checkpoint("05_reviewed_stories", all_stories)
 
         total_time = time.time() - start_time
 
@@ -501,6 +554,7 @@ class ParallelStoryOrchestrator:
         logger.info("=" * 60)
 
         return {
+            "run_id": self.run_id,
             "requirements": requirements,
             "epics": epics,
             "stories": all_stories,

@@ -94,3 +94,7 @@ SECRET_KEY.txt
 # Cache
 .cache/
 *.cache
+
+# Per-run pipeline artifacts (checkpoints)
+data/runs/*
+!data/runs/.gitkeep

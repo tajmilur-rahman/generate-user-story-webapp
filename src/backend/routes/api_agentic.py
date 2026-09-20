@@ -94,6 +94,10 @@ def generate_stories_agentic():
 
         logger.info(f"File saved: {filepath} ({os.path.getsize(filepath)} bytes)")
 
+        # Declared before the try so the failure handler can report the run id
+        # and which phases completed, making the on-disk artifacts findable.
+        orchestrator = None
+
         try:
             # Extract text from document
             if filename.endswith('.docx') or filename.endswith('.doc'):
@@ -119,6 +123,7 @@ def generate_stories_agentic():
             test_cases = result["test_cases"]
             execution_time = result.get("execution_time", 0)
             failures = result.get("failures", [])
+            run_id = result.get("run_id")
 
             if failures:
                 logger.warning(
@@ -230,6 +235,7 @@ def generate_stories_agentic():
                 # fewer stories than the document warranted.
                 'partial': bool(failures),
                 'failures': failures,
+                'run_id': run_id,
                 'performance': {
                     'total_seconds': round(execution_time, 1),
                     'total_minutes': round(execution_time / 60, 2),
@@ -250,7 +256,21 @@ def generate_stories_agentic():
     except Exception as e:
         logger.error(f"Error generating stories: {e}")
         logger.error(traceback.format_exc())
+
+        # Surface the run id and completed phases. A failure late in the
+        # pipeline no longer means the work is gone -- the artifacts for every
+        # completed phase are on disk under this run id.
+        run_id = getattr(orchestrator, 'run_id', None)
+        completed = list(getattr(orchestrator, 'completed_phases', []))
+        if run_id:
+            logger.error(
+                f"Run {run_id} failed after phases: {completed or 'none'}. "
+                f"Partial results retained in {getattr(orchestrator, 'run_dir', '?')}"
+            )
+
         return jsonify({
             'error': f'Error generating stories: {str(e)}',
-            'details': traceback.format_exc().split('\n')[-5:]
+            'details': traceback.format_exc().split(chr(10))[-5:],
+            'run_id': run_id,
+            'completed_phases': completed
         }), 500
