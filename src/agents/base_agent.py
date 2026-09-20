@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Type
+
+from pydantic import BaseModel, ValidationError
 from langchain_ollama import ChatOllama
+from langchain_core.runnables import RunnableLambda
 import httpx
 import os
 import json
@@ -16,11 +19,16 @@ class BaseAgent(ABC):
         name: str,
         role: str,
         goal: str,
-        temperature: float = 0.0
+        temperature: float = 0.0,
+        output_model: Optional[Type[BaseModel]] = None
     ):
         self.name = name
         self.role = role
         self.goal = goal
+        # Output contract. When set, run() validates the parsed JSON against it
+        # so a malformed response fails here, naming the bad field, instead of
+        # surfacing as a KeyError several layers downstream.
+        self.output_model = output_model
 
         # Use same model as current system
         model_name = os.getenv('OLLAMA_MODEL', 'qwen3-coder:30b')
@@ -50,15 +58,22 @@ class BaseAgent(ABC):
             }
         )
 
-        # Retry transient Ollama failures with exponential backoff AND jitter.
+        # Compose parse+validate INTO the retried unit rather than running it
+        # after invoke() returns. A schema violation is usually transient -- the
+        # same prompt often succeeds on the next attempt -- so it should be
+        # retried like any other failure. Retrying only the network call would
+        # leave the most common failure mode unretried.
         #
-        # Jitter is the part that matters here: the orchestrator runs 5 workers
-        # against a single Ollama instance, so failures tend to arrive together.
-        # Without jitter those workers would back off in lockstep and re-collide
-        # on every attempt (the thundering-herd problem). LangChain's with_retry
-        # is tenacity-backed and enables jitter by default.
+        # Jitter matters here: the orchestrator runs 5 workers against a single
+        # Ollama instance, so failures tend to arrive together. Without jitter
+        # those workers back off in lockstep and re-collide on every attempt
+        # (the thundering-herd problem). LangChain's with_retry is
+        # tenacity-backed and enables jitter by default.
         self.max_attempts = int(os.getenv('OLLAMA_MAX_ATTEMPTS', '3'))
-        self.llm = llm.with_retry(stop_after_attempt=self.max_attempts)
+        self.llm = llm
+        self._chain = (
+            llm | RunnableLambda(self._coerce_output)
+        ).with_retry(stop_after_attempt=self.max_attempts)
 
         logger.info(
             f"[{name}] Initialized with model: {model_name} "
@@ -79,17 +94,9 @@ class BaseAgent(ABC):
             system_prompt = self.get_system_prompt(context)
             full_prompt = f"{system_prompt}\n\n{task}"
 
-            # Call LLM
-            response = self.llm.invoke(full_prompt)
-
-            # Extract content from response
-            if hasattr(response, 'content'):
-                response_text = response.content
-            else:
-                response_text = str(response)
-
-            # Parse JSON response
-            result = self._extract_json(response_text)
+            # Call LLM. Parsing and contract validation happen inside the
+            # chain, so both are covered by the retry policy.
+            result = self._chain.invoke(full_prompt)
 
             logger.info(f"[{self.name}] Completed successfully")
 
@@ -111,6 +118,45 @@ class BaseAgent(ABC):
                 "error_type": type(e).__name__,
                 "attempts": self.max_attempts
             }
+
+    def _coerce_output(self, response: Any) -> Dict[str, Any]:
+        """
+        Turn a raw LLM response into a validated dict.
+
+        Runs inside the retried chain, so a parse failure or a contract
+        violation is retried rather than returned as a hard failure.
+
+        Args:
+            response: Raw LLM response
+
+        Returns:
+            Parsed, contract-validated output
+
+        Raises:
+            ValueError: No JSON found, or output violates the declared contract
+        """
+        response_text = getattr(response, 'content', None) or str(response)
+
+        result = self._extract_json(response_text)
+
+        if self.output_model is None:
+            return result
+
+        try:
+            validated = self.output_model.model_validate(result)
+        except ValidationError as ve:
+            # Name the offending fields. The previous behaviour surfaced this
+            # as a KeyError several layers downstream, where the message said
+            # nothing about which agent produced the bad output.
+            fields = "; ".join(
+                f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
+                for err in ve.errors()[:5]
+            )
+            raise ValueError(
+                f"{self.name} returned output violating its contract ({fields})"
+            ) from ve
+
+        return validated.model_dump()
 
     def _extract_json(self, text: str) -> Dict:
         """Extract JSON from response - reuse _strip_fences logic"""

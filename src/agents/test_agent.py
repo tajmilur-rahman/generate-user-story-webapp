@@ -1,4 +1,5 @@
 from .base_agent import BaseAgent
+from .schemas import TestCasesOutput
 from typing import Dict, Any
 
 class TestCaseAgent(BaseAgent):
@@ -8,7 +9,8 @@ class TestCaseAgent(BaseAgent):
         super().__init__(
             name="Test Case Generator",
             role="QA Test Engineer",
-            goal="Generate comprehensive test cases covering all scenarios"
+            goal="Generate comprehensive test cases covering all scenarios",
+            output_model=TestCasesOutput
         )
 
     def get_system_prompt(self, context: Dict[str, Any]) -> str:

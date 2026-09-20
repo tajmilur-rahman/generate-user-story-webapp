@@ -1,4 +1,5 @@
 from .base_agent import BaseAgent
+from .schemas import RequirementsOutput
 from typing import Dict, Any
 
 class RequirementsAgent(BaseAgent):
@@ -8,7 +9,8 @@ class RequirementsAgent(BaseAgent):
         super().__init__(
             name="Requirements Extractor",
             role="Requirements Analyst",
-            goal="Extract and refine all requirements from documents"
+            goal="Extract and refine all requirements from documents",
+            output_model=RequirementsOutput
         )
 
     def get_system_prompt(self, context: Dict[str, Any]) -> str:

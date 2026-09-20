@@ -1,4 +1,5 @@
 from .base_agent import BaseAgent
+from .schemas import EpicsOutput
 from typing import Dict, Any
 
 class EpicExtractorAgent(BaseAgent):
@@ -8,7 +9,8 @@ class EpicExtractorAgent(BaseAgent):
         super().__init__(
             name="Epic Extractor",
             role="Epic Strategist",
-            goal="Extract 5-10 strategic epics from requirements"
+            goal="Extract 5-10 strategic epics from requirements",
+            output_model=EpicsOutput
         )
 
     def get_system_prompt(self, context: Dict[str, Any]) -> str:

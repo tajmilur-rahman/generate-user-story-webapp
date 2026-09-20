@@ -1,4 +1,5 @@
 from .base_agent import BaseAgent
+from .schemas import StoriesOutput
 from typing import Dict, Any
 
 class StoryAgent(BaseAgent):
@@ -9,7 +10,8 @@ class StoryAgent(BaseAgent):
             name="Story Writer",
             role="User Story Specialist",
             goal="Write clear, testable user stories following INVEST principles",
-            temperature=0.4  # Slightly higher for creative story writing
+            temperature=0.4,  # Slightly higher for creative story writing
+            output_model=StoriesOutput
         )
 
     def get_system_prompt(self, context: Dict[str, Any]) -> str:

@@ -1,4 +1,5 @@
 from .base_agent import BaseAgent
+from .schemas import EpicsOutput
 from typing import Dict, Any
 
 class EpicRefinerAgent(BaseAgent):
@@ -8,7 +9,8 @@ class EpicRefinerAgent(BaseAgent):
         super().__init__(
             name="Epic Refiner",
             role="Epic Quality Specialist",
-            goal="Refine and optimize epic structure"
+            goal="Refine and optimize epic structure",
+            output_model=EpicsOutput
         )
 
     def get_system_prompt(self, context: Dict[str, Any]) -> str:

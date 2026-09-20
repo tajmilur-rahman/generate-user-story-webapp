@@ -1,4 +1,5 @@
 from .base_agent import BaseAgent
+from .schemas import ReviewOutput
 from typing import Dict, Any, List
 
 class ReviewerAgent(BaseAgent):
@@ -8,7 +9,8 @@ class ReviewerAgent(BaseAgent):
         super().__init__(
             name="Story Reviewer",
             role="Quality Assurance Reviewer",
-            goal="Score every story on INVEST criteria and identify issues"
+            goal="Score every story on INVEST criteria and identify issues",
+            output_model=ReviewOutput
         )
 
     def get_system_prompt(self, context: Dict[str, Any]) -> str:

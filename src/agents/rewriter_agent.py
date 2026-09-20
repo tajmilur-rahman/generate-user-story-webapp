@@ -1,4 +1,5 @@
 from .base_agent import BaseAgent
+from .schemas import RewriteOutput
 from typing import Dict, Any
 
 class RewriterAgent(BaseAgent):
@@ -9,7 +10,8 @@ class RewriterAgent(BaseAgent):
             name="Story Rewriter",
             role="Story Improvement Specialist",
             goal="Fix low-quality stories to achieve INVEST score ≥70",
-            temperature=0.5  # Higher for creative rewriting
+            temperature=0.5,  # Higher for creative rewriting
+            output_model=RewriteOutput
         )
 
     def get_system_prompt(self, context: Dict[str, Any]) -> str:
