@@ -318,6 +318,50 @@ class ParallelStoryOrchestrator:
         )
         return []
 
+    def _assign_test_case_ids(self, batch_results, requirements):
+        """
+        Flatten parallel batch results and assign test case IDs centrally.
+
+        Model-authored IDs are ignored entirely rather than parsed. The previous
+        implementation sorted on int(test_id.replace('TC', '')), so a single
+        malformed ID from any batch -- 'tc1', 'TC_1', 'TC01-A', or a missing key
+        -- raised and destroyed a completed multi-minute run. Nothing the model
+        writes should be able to do that.
+
+        Ordering is by requirement position then batch position, so the same
+        input yields the same IDs regardless of thread completion order.
+
+        Args:
+            batch_results: Mapping of batch position -> list of test cases
+            requirements: Requirements in document order
+
+        Returns:
+            Flat list of test cases with sequential TC IDs
+        """
+        req_order = {req["id"]: idx for idx, req in enumerate(requirements)}
+        flattened = []
+
+        for batch_pos in sorted(batch_results):
+            for within_batch, tc in enumerate(batch_results[batch_pos]):
+                if not isinstance(tc, dict):
+                    continue
+                # Unknown requirement ids sort last rather than crashing
+                sort_key = (
+                    req_order.get(tc.get("requirement_id"), len(req_order)),
+                    batch_pos,
+                    within_batch
+                )
+                flattened.append((sort_key, tc))
+
+        flattened.sort(key=lambda pair: pair[0])
+
+        ordered = []
+        for idx, (_, tc) in enumerate(flattened, start=1):
+            tc["test_id"] = f"TC{idx}"
+            ordered.append(tc)
+
+        return ordered
+
     def _calculate_tc_ranges(self, requirements, batch_size=4):
         """
         Pre-calculate starting TC numbers for each batch
@@ -515,24 +559,24 @@ class ParallelStoryOrchestrator:
         tc_ranges = self._calculate_tc_ranges(requirements, batch_size=4)
         all_test_cases = []
 
-        # Process batches in parallel
+        # Process batches in parallel. Results are keyed by batch position, not
+        # appended on arrival, so ordering never depends on which thread
+        # finishes first.
+        batch_results = {}
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_batch = {
-                executor.submit(self._process_tc_batch, batch_info): batch_info
-                for batch_info in tc_ranges
+                executor.submit(self._process_tc_batch, batch_info): pos
+                for pos, batch_info in enumerate(tc_ranges)
             }
 
             for future in as_completed(future_to_batch):
+                pos = future_to_batch[future]
                 try:
-                    test_cases = future.result()
-                    all_test_cases.extend(test_cases)
+                    batch_results[pos] = future.result()
                 except Exception as e:
-                    self._record_failure("test_cases", "batch", e)
+                    self._record_failure("test_cases", f"batch {pos}", e)
 
-        # Re-number TCs sequentially (cleanup any gaps from estimation)
-        all_test_cases.sort(key=lambda x: int(x['test_id'].replace('TC', '')))
-        for idx, tc in enumerate(all_test_cases):
-            tc['test_id'] = f"TC{idx + 1}"
+        all_test_cases = self._assign_test_case_ids(batch_results, requirements)
 
         logger.info(f"✓ Generated {len(all_test_cases)} test cases ({time.time() - phase_start:.1f}s)")
         self._checkpoint("04_test_cases", all_test_cases)
