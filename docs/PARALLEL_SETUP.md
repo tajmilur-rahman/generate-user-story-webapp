@@ -25,7 +25,25 @@ OLLAMA_MODEL=qwen3-coder:30b
 # PARALLEL PROCESSING - NEW
 OLLAMA_NUM_PARALLEL=5
 MAX_PARALLEL_WORKERS=5
+
+# RELIABILITY
+# Read/write budget for a single model call, in seconds. Raise for larger
+# models or slower hardware; a 30B model on a modest GPU can exceed 180s.
+OLLAMA_TIMEOUT=180
+# Connection budget. Short on purpose: if Ollama is not listening we want to
+# fail immediately, not wait out the full read timeout.
+OLLAMA_CONNECT_TIMEOUT=10
+# Maximum tokens per response. Bounds a runaway generation.
+OLLAMA_NUM_PREDICT=4096
+# Attempts per call before giving up. Uses exponential backoff with jitter.
+OLLAMA_MAX_ATTEMPTS=3
 ```
+
+> **Why these matter with 5 workers.** Without a timeout a stalled call blocks
+> its worker forever and never raises, so it can never be retried and the HTTP
+> request never returns. Without jittered backoff, workers that fail together
+> retry in lockstep and collide again. Both defaults are safe starting points;
+> tune `OLLAMA_TIMEOUT` first if you see retries on a large model.
 
 #### **Option B: Ollama Server Configuration**
 

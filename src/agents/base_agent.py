@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 from langchain_ollama import ChatOllama
+import httpx
 import os
 import json
 import logging
@@ -24,11 +25,29 @@ class BaseAgent(ABC):
         # Use same model as current system
         model_name = os.getenv('OLLAMA_MODEL', 'qwen3-coder:30b')
 
+        # A stalled call is worse than a failed one: it blocks a worker thread
+        # forever, never raises, and so can never be retried. ChatOllama exposes
+        # no `timeout` field, but client_kwargs is forwarded to the underlying
+        # httpx client, which bounds the request at the transport layer.
+        #
+        # Budgets are env-tunable because a 7B model on a laptop GPU and a 30B
+        # model on a workstation need very different allowances.
+        timeout_s = float(os.getenv('OLLAMA_TIMEOUT', '180'))
+        connect_timeout_s = float(os.getenv('OLLAMA_CONNECT_TIMEOUT', '10'))
+        num_predict = int(os.getenv('OLLAMA_NUM_PREDICT', '4096'))
+        base_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+
         llm = ChatOllama(
             model=model_name,
             temperature=temperature,
-            base_url="http://localhost:11434",
-            format="json"  # Enforce JSON output
+            base_url=base_url,
+            format="json",  # Enforce JSON output
+            # Cap generation length. An unbounded response is the other way a
+            # call runs away, and it is the cheaper one to prevent.
+            num_predict=num_predict,
+            client_kwargs={
+                "timeout": httpx.Timeout(timeout_s, connect=connect_timeout_s)
+            }
         )
 
         # Retry transient Ollama failures with exponential backoff AND jitter.
@@ -43,7 +62,7 @@ class BaseAgent(ABC):
 
         logger.info(
             f"[{name}] Initialized with model: {model_name} "
-            f"(max_attempts={self.max_attempts})"
+            f"(timeout={timeout_s}s, max_attempts={self.max_attempts})"
         )
 
     @abstractmethod
