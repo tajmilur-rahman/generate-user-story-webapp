@@ -6,11 +6,26 @@ from .test_agent import TestCaseAgent
 from .reviewer_agent import ReviewerAgent
 from .rewriter_agent import RewriterAgent
 from difflib import SequenceMatcher
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import time
 
 logger = logging.getLogger(__name__)
+
+# Every generated story opens with the same persona clause, e.g.
+# "As a weather station operator, I want to ...". That boilerplate is ~40
+# characters of pure overlap, which inflates character-level similarity
+# between completely unrelated stories. Strip it before comparing.
+_STORY_PREFIX_RE = re.compile(
+    r"^\s*as\s+an?\s+[^,]{0,80},\s*i\s+want(?:\s+to)?\s*", re.IGNORECASE)
+
+
+def _story_core(text):
+    """Return the story text with its persona boilerplate removed."""
+    if not text:
+        return ""
+    return _STORY_PREFIX_RE.sub("", text).strip()
 
 class ParallelStoryOrchestrator:
     """
@@ -73,7 +88,15 @@ class ParallelStoryOrchestrator:
             for existing in unique:
                 existing_desc = existing.get('description', '')
                 similarity = SequenceMatcher(None, description.lower(), existing_desc.lower()).ratio()
-                if similarity > 0.6:  # 60% similar = duplicate
+                # SequenceMatcher scores CHARACTER overlap, not meaning. At 0.60
+                # genuinely distinct requirements were being discarded -- e.g.
+                # "Collect pressure readings periodically" scored 0.63 against
+                # "Collect temperature readings every minute", and wind direction
+                # scored 0.86 against wind speed. Only near-identical wording
+                # should count as a duplicate. 0.90 specifically: "Collect wind
+                # direction readings periodically" scores 0.857 against the wind
+                # SPEED requirement, and those are different measurements.
+                if similarity > 0.90:
                     is_duplicate = True
                     duplicates_found.append((description, existing_desc, similarity))
                     logger.info(f"🔍 Duplicate requirement detected ({similarity:.1%} similar)")
@@ -123,14 +146,20 @@ class ParallelStoryOrchestrator:
                 existing_desc = existing.get('acceptance_criteria', [])
                 existing_desc_text = ' '.join(existing_desc) if isinstance(existing_desc, list) else str(existing_desc)
 
-                # Check title similarity
-                title_sim = SequenceMatcher(None, title.lower(), existing_title.lower()).ratio()
+                # Compare the story bodies with the shared persona prefix removed,
+                # otherwise every story looks ~50-68% alike on boilerplate alone.
+                title_sim = SequenceMatcher(
+                    None, _story_core(title).lower(),
+                    _story_core(existing_title).lower()).ratio()
 
                 # Check description similarity
                 desc_sim = SequenceMatcher(None, desc_text.lower(), existing_desc_text.lower()).ratio()
 
-                # Duplicate if titles are 50% similar OR descriptions are 70% similar
-                if title_sim > 0.5 or desc_sim > 0.7:
+                # Require BOTH signals to agree. The previous `title_sim > 0.5 or
+                # desc_sim > 0.7` dropped stories whose descriptions were only 3.5%
+                # similar -- i.e. entirely different work -- on title overlap alone.
+                # A near-identical title still counts on its own.
+                if (title_sim > 0.75 and desc_sim > 0.60) or title_sim > 0.92:
                     is_duplicate = True
                     duplicates_found.append((title, existing_title, max(title_sim, desc_sim)))
                     logger.info(f"🔍 Duplicate story detected (title: {title_sim:.1%}, desc: {desc_sim:.1%})")
@@ -173,10 +202,19 @@ class ParallelStoryOrchestrator:
 
             if story_result["success"]:
                 batch_stories = story_result["output"]["stories"]
-                # Add epic context
-                for s in batch_stories:
+                # Add epic context.
+                #
+                # Each epic is a separate Story Writer call with no starting
+                # number, so every epic independently numbers its stories from
+                # STORY-001. Left alone those IDs collide across the parallel
+                # workers: the review loop keys stories by story_id, so most
+                # stories become unreachable and a single rewrite overwrites
+                # every story sharing the ID. Namespace the ID by epic, which
+                # stays unique without any cross-thread counter.
+                for offset, s in enumerate(batch_stories, start=len(stories) + 1):
                     s["epic_id"] = epic["epic_id"]
                     s["epic_name"] = epic["epic_name"]
+                    s["story_id"] = f"{epic['epic_id']}-STORY-{offset:03d}"
                 stories.extend(batch_stories)
 
         logger.info(f"  [PARALLEL] ✓ Completed epic: {epic['epic_name']} ({len(stories)} stories)")
@@ -235,6 +273,29 @@ class ParallelStoryOrchestrator:
 
         return tc_ranges
 
+    def _review_batch(self, batch):
+        """
+        Review one batch of stories.
+
+        Args:
+            batch: List of story dictionaries
+
+        Returns:
+            List of review dictionaries (empty on failure)
+        """
+        result = self.reviewer_agent.run(
+            "Review and score all stories",
+            {"stories": batch}
+        )
+
+        if not result["success"]:
+            logger.error(f"    [PARALLEL] ✗ Review batch of {len(batch)} failed")
+            return []
+
+        reviews = result["output"].get("story_reviews", [])
+        logger.info(f"    [PARALLEL] ✓ Reviewed {len(reviews)} stories")
+        return reviews
+
     def _rewrite_single_story(self, story, review):
         """
         Rewrite one story
@@ -258,7 +319,15 @@ class ParallelStoryOrchestrator:
 
         if rewrite_result["success"]:
             logger.info(f"    [PARALLEL] ✓ Rewritten {story_id}")
-            return rewrite_result["output"]["rewritten_story"]
+            improved = rewrite_result["output"]["rewritten_story"]
+            # The rewriter returns fresh story text and may drop or invent the
+            # identity fields. Carry the originals over so the story stays
+            # attached to its epic and keeps the ID the review loop matches on.
+            if isinstance(improved, dict):
+                for field in ("story_id", "epic_id", "epic_name", "requirement_id"):
+                    if field in story:
+                        improved[field] = story[field]
+            return improved
 
         logger.error(f"    [PARALLEL] ✗ Rewrite failed for {story_id}")
         return None
@@ -411,25 +480,37 @@ class ParallelStoryOrchestrator:
             iteration += 1
             logger.info(f"\n  Review Iteration {iteration}/{max_iterations}")
 
-            # Review all stories (sequential - one LLM call reviews all)
-            review_result = self.reviewer_agent.run(
-                "Review and score all stories",
-                {"stories": stories}
-            )
+            # Review in PARALLEL batches. A single call scoring every story was
+            # the serial bottleneck of this phase (~22% of total runtime), and
+            # its prompt grew without bound as the story count rose, risking
+            # truncated or degraded scoring on larger documents.
+            review_batch_size = 4
+            batches = [stories[i:i + review_batch_size]
+                       for i in range(0, len(stories), review_batch_size)]
 
-            if not review_result["success"]:
+            story_reviews = []
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = [executor.submit(self._review_batch, b) for b in batches]
+                for future in as_completed(futures):
+                    try:
+                        story_reviews.extend(future.result())
+                    except Exception as e:
+                        logger.error(f"  ✗ Review batch failed: {e}")
+
+            if not story_reviews:
                 logger.error("  Review failed, skipping quality loop")
                 break
 
-            story_reviews = review_result["output"]["story_reviews"]
-            avg_score = review_result["output"]["summary"]["average_score"]
+            scores = [r.get("total_score", 0)
+                      for r in story_reviews if isinstance(r, dict)]
+            avg_score = round(sum(scores) / len(scores), 1) if scores else 0
 
             logger.info(f"  Average INVEST Score: {avg_score}/100")
 
             # Find stories needing improvement
             low_quality = [
                 review for review in story_reviews
-                if review["total_score"] < 70
+                if isinstance(review, dict) and review.get("total_score", 0) < 70
             ]
 
             if not low_quality:
@@ -468,7 +549,7 @@ class ParallelStoryOrchestrator:
 
             # Replace improved stories
             for i, story in enumerate(stories):
-                if story["story_id"] in improved_stories:
+                if story.get("story_id") in improved_stories:
                     stories[i] = improved_stories[story["story_id"]]
 
         if iteration == max_iterations:
@@ -478,9 +559,10 @@ class ParallelStoryOrchestrator:
 
     def _match_test_cases(self, stories: list, test_cases: list) -> list:
         """Match TCs to stories - reuses existing similarity logic"""
-        # Import the similarity function from existing code
+        # Import the similarity function from existing code. The package is
+        # rooted at src/, so the path is backend.services -- not src.backend.
         try:
-            from src.backend.services.story_service import _tc_similarity
+            from backend.services.story_service import _tc_similarity
         except ImportError:
             # Fallback to simple keyword matching
             logger.warning("Could not import _tc_similarity, using fallback matching")
@@ -500,7 +582,10 @@ class ParallelStoryOrchestrator:
                 tc_text = f"{tc.get('test_description', '')} {' '.join(tc.get('test_steps', []))}"
                 similarity = _tc_similarity(story_text, tc_text)
 
-                if similarity > best_score and similarity >= 0.5:
+                # 0.35 matches the threshold story_service uses for the same
+                # comparison. At 0.5 a story and its test case almost never
+                # cleared the bar, so stories came back with no test cases.
+                if similarity > best_score and similarity >= 0.35:
                     best_score = similarity
                     best_match = tc
 

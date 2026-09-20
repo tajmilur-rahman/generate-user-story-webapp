@@ -787,6 +787,48 @@ def normalize_story_structure(story):
             
     return story
 
+# Words that carry no signal when matching a story to its test cases. The
+# persona clause ("As a weather station operator, I want to ...") appears in
+# every story, so those words are excluded too -- otherwise they dominate the
+# union and push every score below the match threshold.
+_TC_STOP_WORDS = {
+    'the', 'a', 'an', 'and', 'or', 'for', 'with', 'from', 'to',
+    'in', 'on', 'at', 'by', 'of', 'be', 'is', 'are', 'that',
+    'this', 'must', 'shall', 'will', 'can', 'system', 'using',
+    'want', 'so', 'as', 'i', 'my', 'have', 'need', 'able',
+    'user', 'operator', 'verify', 'ensure', 'should',
+}
+
+
+def _tc_similarity(req_text, story_text):
+    """Return Jaccard similarity (0-1) between two requirement texts.
+
+    Module level on purpose: the parallel orchestrator imports this to match
+    test cases to stories. It used to be nested inside
+    convert_stories_to_frontend_format, so that import could never resolve and
+    silently fell back to a cruder matcher.
+    """
+    if not req_text or not story_text:
+        return 0.0
+
+    def keywords(t):
+        return set(w.strip('.,;:[]()') for w in t.lower().split()
+                   if len(w) > 3 and w.lower() not in _TC_STOP_WORDS)
+
+    req_kw = keywords(req_text)
+    story_kw = keywords(story_text)
+    if not req_kw or not story_kw:
+        return 0.0
+
+    # Overlap coefficient, not Jaccard. A requirement is terse ("Collect
+    # temperature readings every minute") while a story is verbose, so the
+    # union is dominated by story-only words and Jaccard scores a correct
+    # match as low as 0.15. Dividing by the smaller keyword set asks the
+    # question that actually matters: how much of the requirement does this
+    # story cover?
+    return len(req_kw & story_kw) / min(len(req_kw), len(story_kw))
+
+
 def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements_text):
     """
     Convert backend output format to frontend format
@@ -953,8 +995,13 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
             if not title or title.endswith('Must') or title.endswith('Shall') or len(title) < 5:
                 # Generate a COMPLETE, meaningful title (3-5 words)
                 if story_text:
-                    # Remove common prefixes to get to the core action
-                    action_text = story_text
+                    # Remove common prefixes to get to the core action.
+                    # Agentic stories are written as "As a <role>, I want to
+                    # <action>, so that ...". Without stripping that clause every
+                    # title came out as "As Weather Station Operator I".
+                    action_text = re.sub(
+                        r'^\s*as\s+an?\s+[^,]{0,80},\s*i\s+want(?:\s+to)?\s*',
+                        '', story_text, flags=re.IGNORECASE).strip() or story_text
                     prefixes_to_remove = [
                         'The Insulin Pump system must ',
                         'The Insulin Pump system shall ',
@@ -1083,24 +1130,6 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
             # Try multiple matching strategies
             test_cases = None
 
-            def _tc_similarity(req_text, story_text):
-                """Return Jaccard similarity (0-1) between two requirement texts."""
-                if not req_text or not story_text:
-                    return 0.0
-                stop = {'the', 'a', 'an', 'and', 'or', 'for', 'with', 'from', 'to',
-                        'in', 'on', 'at', 'by', 'of', 'be', 'is', 'are', 'that',
-                        'this', 'must', 'shall', 'will', 'can', 'system', 'using'}
-                def keywords(t):
-                    return set(w.strip('.,;:[]()') for w in t.lower().split()
-                               if len(w) > 3 and w.lower() not in stop)
-                req_kw = keywords(req_text)
-                story_kw = keywords(story_text)
-                if not req_kw or not story_kw:
-                    return 0.0
-                intersection = req_kw & story_kw
-                union = req_kw | story_kw
-                return len(intersection) / len(union)
-
             # Strategy 1: Best-match assignment — each TC group claimed by at most one story.
             # Score every unclaimed group against this story; take the highest scoring one
             # above the threshold. This prevents the same TCs appearing in multiple stories.
@@ -1127,7 +1156,7 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
                         best_nested = nested_test_cases
 
                 # Claim the best group if it clears the minimum threshold
-                if best_group_idx != -1 and best_score >= 0.25:
+                if best_group_idx != -1 and best_score >= 0.35:
                     claimed_tc_groups.add(best_group_idx)
                     matching_test_cases = best_nested
                     logger.info(f"Claimed TC group {best_group_idx} for story {idx+1} (score={best_score:.2f})")
