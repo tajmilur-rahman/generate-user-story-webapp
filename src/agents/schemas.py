@@ -62,6 +62,12 @@ class Story(_Base):
     requirement_id: str = ""
     user_story: str
     acceptance_criteria: List[str] = Field(default_factory=list)
+    # Engineering work grouped by category (architecture_design,
+    # database_schema_design, unit_tests, ...). This is what renders as the
+    # Definition of Done. Kept as a mapping rather than a flat list so each
+    # category keeps its heading, matching the legacy output format.
+    deliverables: Dict[str, List[str]] = Field(default_factory=dict)
+    # Retained for older payloads that still send a flat list.
     definition_of_done: List[str] = Field(default_factory=list)
     story_points: Optional[Union[int, str]] = None
     priority: str = "MEDIUM"
@@ -75,6 +81,24 @@ class Story(_Base):
     def _coerce_lists(cls, v: Any) -> List[str]:
         # Models return these as either a list or a single string.
         return _as_str_list(v)
+
+    @field_validator("deliverables", mode="before")
+    @classmethod
+    def _coerce_deliverables(cls, v: Any) -> Dict[str, List[str]]:
+        # Each category may come back as a list, a single string, or a nested
+        # dict; normalise all three to a list of items.
+        if not isinstance(v, dict):
+            return {}
+        out: Dict[str, List[str]] = {}
+        for category, items in v.items():
+            if isinstance(items, dict):
+                items = (items.get("definition_of_done")
+                         or items.get("items")
+                         or list(items.values()))
+            coerced = _as_str_list(items)
+            if coerced:
+                out[str(category)] = coerced
+        return out
 
 
 class StoriesOutput(_Base):

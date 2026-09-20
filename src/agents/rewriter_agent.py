@@ -27,7 +27,7 @@ Story ID: {story.get('story_id', 'N/A')}
 Requirement ID: {story.get('requirement_id', 'N/A')}
 User Story: {story.get('user_story', 'N/A')}
 Acceptance Criteria: {story.get('acceptance_criteria', [])}
-Definition of Done: {story.get('definition_of_done', [])}
+Deliverables: {story.get('deliverables', {}) or story.get('definition_of_done', [])}
 Story Points: {story.get('story_points', 'N/A')}
 
 INVEST SCORES (current):
@@ -74,14 +74,19 @@ OUTPUT FORMAT (JSON only):
       "Given the thermometer sensor is disconnected, When the 5-minute interval elapses, Then an error is logged with message 'Sensor disconnected' and no reading is recorded",
       "Given temperature exceeds range (-50 to 50 Celsius), When reading is recorded, Then quality_flag is set to 'out_of_range'"
     ],
-    "definition_of_done": [
-      "Unit tests written for temperature_reader.record() covering normal path, sensor disconnection, and out-of-range scenarios",
-      "Integration test with real thermometer sensor validates 5-minute interval timing accuracy",
-      "Code review completed and approved by technical lead",
-      "Performance test confirms recording completes in <500ms per reading",
-      "Error handling tested for all identified failure scenarios",
-      "Deployment tested in staging environment with live sensor data"
-    ],
+    "deliverables": {{{{
+      "architecture_design": [
+        "Architecture diagram showing temperature_reader, thermometer_driver and scheduler with all data-flow paths documented",
+        "Design reviewed and approved by technical lead"
+      ],
+      "unit_tests": [
+        "Unit tests for temperature_reader.record() covering normal path, sensor disconnection and out-of-range scenarios",
+        "All tests passing in CI/CD pipeline"
+      ],
+      "error_handling": [
+        "Fault detection for sensor disconnection with logged message and no partial write"
+      ]
+    }}}},
     "story_points": 3,
     "priority": "{story.get('priority', 'MEDIUM')}"
   }}}},

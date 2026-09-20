@@ -57,11 +57,24 @@ ACCEPTANCE CRITERIA RULES:
 4. Use specific field names and values from the requirement
 5. Make criteria testable and measurable
 
-DEFINITION OF DONE RULES:
-1. Always include: unit tests, code review, integration testing
-2. Add specific items based on story type (e.g., security testing for auth stories)
-3. 4-6 items per story
-4. Each item must be specific and measurable
+DELIVERABLE RULES:
+Deliverables are the engineering work the story requires, grouped by category.
+Select 2-4 categories per story from this list:
+- architecture_design: Design of specific modules, components, algorithms, system architecture
+- database_schema_design: Database schema with specific tables, fields, relationships
+- api_endpoints: API/interface contracts for integration points
+- unit_tests: Tests to verify specific functionality
+- integration_tests: Tests for component interactions
+- error_handling: Fault detection, reporting, and recovery mechanisms
+- security_controls: Authentication, authorization, encryption, validation
+- performance_optimization: Caching, indexing, query optimization
+- monitoring_logging: Telemetry, metrics, alerts, observability
+- user_documentation: End-user guides and training materials
+
+1. Each selected category holds 2-4 concrete, verifiable items
+2. Name the ACTUAL modules, drivers, tables, fields and functions from the requirement
+3. Every item must be checkable -- a reviewer can say done or not done
+4. Do NOT use generic items like "code works" or "tests pass" without naming what
 
 OUTPUT FORMAT (JSON only):
 {{{{
@@ -77,14 +90,22 @@ OUTPUT FORMAT (JSON only):
         "Given the thermometer sensor is disconnected, When the 5-minute interval elapses, Then an error is logged and no reading is recorded",
         "Given temperature exceeds normal range (-50 to 50 Celsius), When reading is recorded, Then a quality_flag is set to 'out_of_range'"
       ],
-      "definition_of_done": [
-        "Unit tests written for temperature_reader.record() covering normal path and sensor disconnection",
-        "Integration test with real thermometer sensor validates 5-minute interval timing",
-        "Code review completed and approved by technical lead",
-        "Performance test confirms recording completes in <500ms",
-        "Error handling tested for sensor disconnection and out-of-range values",
-        "Deployment tested in staging environment with live sensor"
-      ],
+      "deliverables": {{{{
+        "architecture_design": [
+          "Architecture diagram showing data_collection_module, thermometer_driver, scheduler and buffer with all data-flow paths documented",
+          "Design doc for data_collection_module specifying sensor_driver interfaces and buffer management",
+          "API specification for sensor_driver interfaces including data format and error codes",
+          "Design reviewed and approved by technical lead"
+        ],
+        "database_schema_design": [
+          "Schema: reading_id, sensor_type, timestamp, temperature_value, unit, quality_flag indexed by timestamp",
+          "NOT NULL constraints on sensor_type and temperature_value"
+        ],
+        "unit_tests": [
+          "Unit tests for thermometer_driver.read() and scheduler.poll()",
+          "All tests passing in CI/CD pipeline"
+        ]
+      }}}},
       "story_points": 3,
       "priority": "HIGH"
     }}}}
@@ -96,7 +117,7 @@ CRITICAL RULES:
 2. Each story must start with "As a [specific user type]" — no generic "user"
 3. "so that" clause must describe concrete benefit — not "data is available"
 4. Acceptance criteria: 3-5 items, Given-When-Then format, use actual field names
-5. Definition of Done: 4-6 items, specific and measurable
+5. Deliverables: 2-4 categories, each with 2-4 specific verifiable items
 6. Story points: 1, 2, 3, 5, or 8 (Fibonacci)
 7. Generate ONE story per requirement minimum (more if split triggers apply)
 8. NO meta-stories about testing methodology or documentation

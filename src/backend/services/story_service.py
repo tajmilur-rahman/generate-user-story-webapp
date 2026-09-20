@@ -254,8 +254,10 @@ def sanitize_story_output(story):
     # Generic "at least X" patterns
     dod = re.sub(r'at\s+least\s+\d+', '', dod, flags=re.IGNORECASE)
     
-    # Clean up whitespace
-    dod = re.sub(r'\s+', ' ', dod)
+    # Clean up whitespace WITHOUT flattening the structure. A blanket
+    # re.sub(r'\s+', ' ') collapsed the whole Definition of Done onto one line,
+    # losing every deliverable heading and its nested items.
+    dod = tidy_whitespace(dod)
     dod = re.sub(r'[,\s]+\.', '.', dod)
     dod = re.sub(r'\.\s*\.', '.', dod)  # Remove double periods
     dod = dod.strip()
@@ -611,6 +613,33 @@ def is_template_test_case(test_case_text):
     
     return False
 
+def tidy_whitespace(text):
+    """
+    Collapse runs of spaces without destroying line structure.
+
+    A blanket whitespace collapse flattens the Definition of Done onto a single
+    line, which loses every deliverable heading and its nested items. Leading
+    indentation is preserved so the nesting still reads.
+
+    Args:
+        text: Text to tidy
+
+    Returns:
+        Text with intra-line space runs collapsed and line breaks intact
+    """
+    if not text:
+        return text
+
+    tidied = []
+    for line in text.split("\n"):
+        body = line.lstrip(" \t")
+        indent = line[:len(line) - len(body)]
+        tidied.append((indent + re.sub(r"[ \t]+", " ", body)).rstrip())
+
+    # Collapse runs of blank lines but keep single separators
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(tidied)).strip()
+
+
 def remove_invented_metrics(text):
     """
     Remove invented metrics (percentages, time windows, specific numbers) from text.
@@ -685,8 +714,9 @@ def remove_invented_metrics(text):
             cleaned = cleaned[:match.start()] + cleaned[match.end():]
     
     # Clean up extra whitespace and punctuation artifacts
-    # Remove multiple spaces and tabs (but preserve newlines)
-    cleaned = re.sub(r'[ \t]+', ' ', cleaned)
+    # Collapse space runs but keep newlines AND the leading indentation that
+    # makes nested deliverable items read as nested.
+    cleaned = tidy_whitespace(cleaned)
     # Remove orphaned commas/punctuation
     cleaned = re.sub(r',\s*,', ',', cleaned)
     cleaned = re.sub(r',\s*\.', '.', cleaned)

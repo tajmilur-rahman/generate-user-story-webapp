@@ -29,6 +29,51 @@ OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'qwen3-coder:30b')
 MAX_WORKERS = int(os.environ.get('MAX_PARALLEL_WORKERS', '5'))
 
+def _build_deliverables(story):
+    """
+    Shape a story's deliverables for the frontend converter.
+
+    The converter renders {category: {"definition_of_done": [items]}} as a
+    heading per category with its items nested beneath, which is the legacy
+    Definition of Done format:
+
+        - Architecture Design:
+          - Architecture diagram showing ...
+          - Design doc for ...
+
+    Falls back to a flat definition_of_done list if the model did not group
+    its output into categories.
+
+    Args:
+        story: Story dictionary from the orchestrator
+
+    Returns:
+        Mapping of deliverable category to its nested items
+    """
+    deliverables = story.get("deliverables") or {}
+
+    if isinstance(deliverables, dict) and deliverables:
+        shaped = {}
+        for category, items in deliverables.items():
+            if isinstance(items, str):
+                items = [items]
+            items = [str(i).strip() for i in (items or []) if str(i).strip()]
+            if items:
+                shaped[str(category)] = {"definition_of_done": items}
+        if shaped:
+            return shaped
+
+    # Older payloads: a flat list with no categories.
+    flat = story.get("definition_of_done") or []
+    if isinstance(flat, str):
+        flat = [flat]
+    flat = [str(i).strip() for i in flat if str(i).strip()]
+    if flat:
+        return {"definition_of_done": {"definition_of_done": flat}}
+
+    return {}
+
+
 @api_agentic_bp.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for agentic architecture"""
@@ -143,16 +188,19 @@ def generate_stories_agentic():
             # NOTE: the converter wants a FLAT list of stories under "User Stories".
             # Nesting them under "Epics" makes it treat each epic as a story and
             # discard every one of them as empty.
+            # Definition of Done renders from "Deliverables" only.
+            #
+            # Acceptance Criteria is deliberately NOT passed: the converter
+            # folds that key into the Definition of Done field, and DoD should
+            # contain engineering deliverables, not restated criteria. The
+            # criteria remain on the story data for dedup and review.
             epics_json = json.dumps({
                 "User Stories": [
                     {
                         "User Story": story["user_story"],
-                        "Acceptance Criteria": story.get("acceptance_criteria", []),
-                        "Deliverables": {
-                            "Definition of Done": {
-                                "definition_of_done": story.get("definition_of_done", [])
-                            }
-                        },
+                        # Each category becomes its own heading with its items
+                        # nested beneath, matching the legacy output format.
+                        "Deliverables": _build_deliverables(story),
                         "Priority": story.get("priority", "Medium"),
                         "Estimation": story.get("story_points", "")
                     }

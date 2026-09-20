@@ -96,11 +96,25 @@ def check_criteria_are_specific(story: Dict[str, Any]) -> Tuple[bool, str]:
 
 
 def check_has_definition_of_done(story: Dict[str, Any]) -> Tuple[bool, str]:
+    """A story must say what work it entails.
+
+    Stories carry this as `deliverables` grouped by category. Older payloads
+    used a flat `definition_of_done` list, which is still accepted.
+    """
+    deliverables = story.get("deliverables") or {}
+    if isinstance(deliverables, dict):
+        for items in deliverables.values():
+            if isinstance(items, str) and items.strip():
+                return True, ""
+            if isinstance(items, (list, tuple)) and any(
+                    str(i).strip() for i in items):
+                return True, ""
+
     dod = story.get("definition_of_done", []) or []
     if isinstance(dod, str):
         dod = [dod] if dod.strip() else []
     if not [d for d in dod if str(d).strip()]:
-        return False, "No definition of done"
+        return False, "No deliverables or definition of done"
     return True, ""
 
 

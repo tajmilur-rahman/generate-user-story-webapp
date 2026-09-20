@@ -424,7 +424,7 @@ class TestDeterministicQualityGate:
     @pytest.mark.parametrize("overrides,expected_issue", [
         ({"acceptance_criteria": ["works", "done"]}, "Vague acceptance criteria"),
         ({"requirement_id": ""}, "does not reference a requirement"),
-        ({"definition_of_done": []}, "No definition of done"),
+        ({"definition_of_done": []}, "No deliverables or definition of done"),
     ])
     def test_soft_signals_flag_without_forcing_a_rewrite(self, overrides,
                                                          expected_issue):
@@ -434,6 +434,23 @@ class TestDeterministicQualityGate:
 
         assert result["score"] >= 70
         assert any(expected_issue in issue for issue in result["issues"])
+
+    def test_deliverables_satisfy_the_definition_of_done_check(self):
+        """Stories now carry work as categorised `deliverables`; the flat
+        `definition_of_done` list is only a fallback for older payloads."""
+        from agents.invest_checks import evaluate_story
+
+        story = self._story(definition_of_done=[])
+        story["deliverables"] = {
+            "architecture_design": ["Design doc for data_collection_module"],
+            "unit_tests": ["Unit tests for scheduler.poll()"],
+        }
+
+        result = evaluate_story(story)
+
+        assert result["score"] == 100
+        assert not any("definition of done" in issue.lower()
+                       for issue in result["issues"])
 
     def test_weights_sum_to_one_hundred(self):
         from agents.invest_checks import _WEIGHTS
@@ -459,3 +476,81 @@ class TestDeterministicQualityGate:
 
         assert constant["distinct_values"] == 1 and constant["spread"] == 0
         assert varied["distinct_values"] == 5 and varied["spread"] == 38
+
+
+class TestDefinitionOfDoneFormat:
+    """DoD must show deliverable categories with nested items, and must NOT
+    restate acceptance criteria.
+
+    The converter folds an "Acceptance Criteria" key into the definitionOfDone
+    field, so the agentic route deliberately stops passing it. Sanitisation
+    also used to flatten the whole field onto one line, destroying the
+    headings.
+    """
+
+    @staticmethod
+    def _render(story):
+        import json
+        from backend.routes.api_agentic import _build_deliverables
+
+        payload = json.dumps({"User Stories": [{
+            "User Story": story["user_story"],
+            "Deliverables": _build_deliverables(story),
+        }]})
+        result = convert_stories_to_frontend_format(
+            payload, json.dumps({"test_cases": []}), "REQ-001: x")
+        return result[0]["definitionOfDone"]
+
+    @pytest.fixture
+    def story(self):
+        return {
+            "user_story": "As a weather station operator, I want readings "
+                          "collected, so that data is captured",
+            "acceptance_criteria": [
+                "Given powered on, When time elapses, Then a reading is recorded"],
+            "deliverables": {
+                "architecture_design": [
+                    "Architecture diagram showing data_collection_module and scheduler",
+                    "Design reviewed and approved by technical lead"],
+                "database_schema_design": [
+                    "Schema: reading_id, sensor_type, timestamp, value"],
+                "unit_tests": [
+                    "Unit tests for scheduler.poll()",
+                    "All tests passing in CI/CD pipeline"],
+            },
+        }
+
+    def test_acceptance_criteria_are_not_in_definition_of_done(self, story):
+        rendered = self._render(story)
+
+        assert "Acceptance Criteria" not in rendered
+        assert "Given powered on" not in rendered
+
+    def test_each_category_becomes_a_heading(self, story):
+        rendered = self._render(story)
+
+        for heading in ("Architecture Design", "Database Schema Design",
+                        "Unit Tests"):
+            assert heading in rendered
+
+    def test_items_stay_nested_under_their_heading(self, story):
+        """A blanket whitespace collapse flattened this onto one line."""
+        rendered = self._render(story)
+        lines = [line for line in rendered.split("\n") if line.strip()]
+
+        assert len(lines) > 1, f"definitionOfDone was flattened: {rendered!r}"
+
+        heading_idx = next(i for i, line in enumerate(lines)
+                           if "Architecture Design" in line)
+        following = lines[heading_idx + 1]
+        assert following.startswith(" "), "nested item lost its indentation"
+        assert "Architecture diagram" in following
+
+    def test_flat_definition_of_done_still_renders(self):
+        """Older payloads sent a flat list with no categories."""
+        rendered = self._render({
+            "user_story": "As a x, I want y, so that z",
+            "definition_of_done": ["Schema migration applied", "Unit tests pass"],
+        })
+
+        assert "Schema migration applied" in rendered
