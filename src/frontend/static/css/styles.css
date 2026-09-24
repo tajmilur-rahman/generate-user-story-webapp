@@ -209,6 +209,8 @@ body {
     color: #333;
     word-wrap: break-word;
     overflow-wrap: break-word;
+    display: flex;
+    align-items: center;
 }
 
 .story-item:hover {

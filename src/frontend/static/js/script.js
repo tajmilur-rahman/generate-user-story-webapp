@@ -205,12 +205,9 @@ async function loadUserStories() {
 
     renderStoryList();
 
-    // Select first story by default if available
+    // Highlight first story for viewing by default (but don't select/check it)
     if (userStories.length > 0) {
-        selectedStories.add(0);
         selectStory(0);
-        applySelectionClasses();
-        updateSelectedCount();
     }
 }
 
@@ -235,14 +232,29 @@ function renderStoryList() {
         const listItem = document.createElement('li');
         listItem.className = 'story-item';
         listItem.setAttribute('data-story-index', index);
-        
-        // Make entire item clickable - toggles selection AND shows details
-        listItem.onclick = () => {
+
+        // Create checkbox for selection
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'story-checkbox';
+        checkbox.style.cssText = 'margin-right: 8px; cursor: pointer;';
+        checkbox.onclick = (e) => {
+            e.stopPropagation(); // Prevent triggering the listItem click
             toggleStorySelection(index);
+        };
+
+        // Create text span for story title
+        const textSpan = document.createElement('span');
+        textSpan.textContent = `User story ${index + 1}`;
+        textSpan.style.cssText = 'cursor: pointer; flex: 1;';
+
+        // Clicking the story text/area only highlights and views (does NOT select checkbox)
+        listItem.onclick = () => {
             selectStory(index);
         };
-        
-        listItem.textContent = `User story ${index + 1}`;
+
+        listItem.appendChild(checkbox);
+        listItem.appendChild(textSpan);
         storyList.appendChild(listItem);
     });
 
