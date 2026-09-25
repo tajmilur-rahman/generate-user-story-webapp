@@ -1181,12 +1181,48 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
             # Get test cases for this story
             # Try multiple matching strategies
             test_cases = None
+            matched_by_requirement = None
+
+            # Strategy 0: exact requirement match.
+            #
+            # Both sides carry a requirement id, so the link is known rather
+            # than inferred. Guessing it from text similarity produced three
+            # failure modes in practice: stories scoring below the threshold
+            # received no test cases at all; greedy first-come claiming let an
+            # earlier story take a group that belonged to a later one (a
+            # humidity story was assigned test cases covering sunshine,
+            # rainfall and wind); and unclaimed groups were silently dropped.
+            #
+            # Groups are NOT marked claimed here. Several stories can implement
+            # one requirement, and that requirement's test cases apply to all
+            # of them -- withholding them from every story but the first is
+            # what left stories bare.
+            story_requirement_id = str(story.get('Requirement ID', '') or '').strip()
+            if story_requirement_id and isinstance(test_cases_list, list):
+                for test_group in test_cases_list:
+                    if not isinstance(test_group, dict):
+                        continue
+                    group_requirement_id = str(
+                        test_group.get('requirement_id', '') or '').strip()
+                    if group_requirement_id != story_requirement_id:
+                        continue
+                    nested = test_group.get('test_cases', [])
+                    if isinstance(nested, list) and nested:
+                        matched_by_requirement = nested
+                        logger.info(
+                            f"Matched story {idx + 1} to test cases for "
+                            f"{story_requirement_id} by requirement id"
+                        )
+                    break
 
             # Strategy 1: Best-match assignment — each TC group claimed by at most one story.
             # Score every unclaimed group against this story; take the highest scoring one
             # above the threshold. This prevents the same TCs appearing in multiple stories.
-            if isinstance(test_cases_list, list) and len(test_cases_list) > 0:
-                matching_test_cases = []
+            matching_test_cases = []
+            if matched_by_requirement is not None:
+                # Exact link found; similarity scoring is not consulted.
+                matching_test_cases = matched_by_requirement
+            elif isinstance(test_cases_list, list) and len(test_cases_list) > 0:
                 best_score = 0.0
                 best_group_idx = -1
                 best_nested = []
@@ -1213,35 +1249,35 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
                     matching_test_cases = best_nested
                     logger.info(f"Claimed TC group {best_group_idx} for story {idx+1} (score={best_score:.2f})")
 
-                if matching_test_cases:
-                    # Format test cases with detailed structure (ID, description, steps, expected result)
-                    formatted_tests = []
-                    for test in matching_test_cases:
-                        if isinstance(test, dict):
-                            test_id = test.get('id', '')
-                            test_desc = test.get('description', '')
-                            test_steps = test.get('steps', [])
-                            test_expected = test.get('expected_result', '')
+            if matching_test_cases:
+                # Format test cases with detailed structure (ID, description, steps, expected result)
+                formatted_tests = []
+                for test in matching_test_cases:
+                    if isinstance(test, dict):
+                        test_id = test.get('id', '')
+                        test_desc = test.get('description', '')
+                        test_steps = test.get('steps', [])
+                        test_expected = test.get('expected_result', '')
 
-                            # Format nicely with ID, description, steps, and expected result
-                            test_formatted_parts = []
-                            if test_id:
-                                test_formatted_parts.append(f"**{test_id}**: {test_desc}")
-                            else:
-                                test_formatted_parts.append(f"**Test**: {test_desc}")
+                        # Format nicely with ID, description, steps, and expected result
+                        test_formatted_parts = []
+                        if test_id:
+                            test_formatted_parts.append(f"**{test_id}**: {test_desc}")
+                        else:
+                            test_formatted_parts.append(f"**Test**: {test_desc}")
 
-                            if test_steps and isinstance(test_steps, list):
-                                test_formatted_parts.append("**Steps**:")
-                                for i, step in enumerate(test_steps, 1):
-                                    test_formatted_parts.append(f"  {i}. {step}")
+                        if test_steps and isinstance(test_steps, list):
+                            test_formatted_parts.append("**Steps**:")
+                            for i, step in enumerate(test_steps, 1):
+                                test_formatted_parts.append(f"  {i}. {step}")
 
-                            if test_expected:
-                                test_formatted_parts.append(f"**Expected**: {test_expected}")
+                        if test_expected:
+                            test_formatted_parts.append(f"**Expected**: {test_expected}")
 
-                            formatted_tests.append('\n'.join(test_formatted_parts))
+                        formatted_tests.append('\n'.join(test_formatted_parts))
 
-                    test_cases = '\n\n'.join(formatted_tests) if formatted_tests else json.dumps(matching_test_cases, indent=2)
-                    logger.info(f"Found and formatted {len(matching_test_cases)} detailed test cases for story {idx + 1}")
+                test_cases = '\n\n'.join(formatted_tests) if formatted_tests else json.dumps(matching_test_cases, indent=2)
+                logger.info(f"Found and formatted {len(matching_test_cases)} detailed test cases for story {idx + 1}")
             
             # Strategy 2: Try dictionary lookup by index
             if not test_cases and test_cases_dict:

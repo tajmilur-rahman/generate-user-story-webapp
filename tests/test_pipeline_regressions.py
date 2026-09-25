@@ -919,3 +919,103 @@ class TestRetryBehaviour:
 
         assert timeout.read == 42.0
         assert timeout.connect == 7.0
+
+
+class TestTestCaseMatching:
+    """Stories are matched to test cases by requirement id, not text similarity.
+
+    Both sides carry the id, so the link is known rather than inferred.
+    Inferring it produced three failure modes in a real run: stories scoring
+    below the threshold received no test cases (3 of 16), greedy first-come
+    claiming gave a humidity story test cases covering sunshine, rainfall and
+    wind, and unclaimed groups were silently dropped (7 test cases orphaned).
+    """
+
+    STORIES = [
+        ("REQ-001", "As a weather station operator, I want the system to "
+                    "automatically record temperature readings, so that I have "
+                    "monitoring data"),
+        ("REQ-002", "As a system administrator, I want to update the software "
+                    "components dynamically, so that the system stays current"),
+        ("REQ-003", "As a weather station operator, I want the system to store "
+                    "weather data persistently with timestamps, so that I have "
+                    "a historical record"),
+    ]
+    REQUIREMENTS = {
+        "REQ-001": "Collect temperature readings every minute",
+        "REQ-002": "Support dynamic software component replacement",
+        "REQ-003": "Store readings persistently with timestamps",
+    }
+
+    @classmethod
+    def _convert(cls, carry_requirement_id=True):
+        import json
+        from backend.routes.api_agentic import _build_deliverables
+
+        deliverables = _build_deliverables({"deliverables": {"unit_tests": ["t"]}})
+        payload = {"User Stories": []}
+        for requirement_id, text in cls.STORIES:
+            story = {"User Story": text, "Deliverables": deliverables}
+            if carry_requirement_id:
+                story["Requirement ID"] = requirement_id
+            payload["User Stories"].append(story)
+
+        test_cases = {"test_cases": [
+            {"requirement_id": rid, "requirement": desc,
+             "test_cases": [{"id": f"TC-{rid}", "description": f"Verify {desc}",
+                             "steps": ["step"], "expected_result": "ok"}]}
+            for rid, desc in cls.REQUIREMENTS.items()
+        ]}
+
+        return convert_stories_to_frontend_format(
+            json.dumps(payload), json.dumps(test_cases),
+            "\n".join(f"{k}: {v}" for k, v in cls.REQUIREMENTS.items()))
+
+    def test_every_story_receives_its_own_requirements_test_cases(self):
+        result = self._convert()
+
+        assert len(result) == len(self.STORIES)
+        for story, (requirement_id, _) in zip(result, self.STORIES):
+            assert f"TC-{requirement_id}" in story["testCases"], (
+                f"{requirement_id} got: {story['testCases'][:60]}")
+
+    def test_no_story_is_left_without_test_cases(self):
+        result = self._convert()
+
+        bare = [s["title"] for s in result if s["testCases"].strip() == "-"]
+        assert not bare, f"stories with no test cases: {bare}"
+
+    def test_a_story_is_never_given_another_requirements_test_cases(self):
+        result = self._convert()
+
+        for story, (requirement_id, _) in zip(result, self.STORIES):
+            others = [f"TC-{r}" for r in self.REQUIREMENTS if r != requirement_id]
+            for wrong in others:
+                assert wrong not in story["testCases"], (
+                    f"{requirement_id} was given {wrong}")
+
+    def test_several_stories_may_share_one_requirements_test_cases(self):
+        """One requirement can yield several stories; its test cases apply to
+        all of them. Withholding them from every story but the first is what
+        left stories bare."""
+        import json
+        from backend.routes.api_agentic import _build_deliverables
+
+        deliverables = _build_deliverables({"deliverables": {"unit_tests": ["t"]}})
+        payload = {"User Stories": [
+            {"User Story": "As an operator, I want readings recorded, so that data exists",
+             "Requirement ID": "REQ-001", "Deliverables": deliverables},
+            {"User Story": "As an analyst, I want readings retained, so that trends emerge",
+             "Requirement ID": "REQ-001", "Deliverables": deliverables},
+        ]}
+        test_cases = {"test_cases": [
+            {"requirement_id": "REQ-001", "requirement": "Collect readings",
+             "test_cases": [{"id": "TC-1", "description": "Verify collection",
+                             "steps": ["s"], "expected_result": "ok"}]}
+        ]}
+
+        result = convert_stories_to_frontend_format(
+            json.dumps(payload), json.dumps(test_cases), "REQ-001: Collect readings")
+
+        assert len(result) == 2
+        assert all("TC-1" in s["testCases"] for s in result)
