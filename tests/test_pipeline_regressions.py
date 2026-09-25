@@ -554,3 +554,127 @@ class TestDefinitionOfDoneFormat:
         })
 
         assert "Schema migration applied" in rendered
+
+
+class TestDeduplicationBlocking:
+    """Similarity comparison must be blocked on requirement id.
+
+    Surface similarity cannot separate distinct stories from duplicates here:
+    measured on real output, "record temperature readings" scores 0.905 against
+    "record pressure readings" (distinct), while a genuinely reworded duplicate
+    scores 0.545 -- the ordering is inverted, so no threshold works. Stories
+    tracing to different requirements are therefore never compared at all.
+    """
+
+    TEMP = ("As a weather station operator, I want the system to automatically "
+            "record temperature readings, so that I have continuous monitoring data")
+    PRESSURE = ("As a weather station operator, I want the system to automatically "
+                "record pressure readings, so that I have continuous monitoring data")
+    TEMP_REWORDED = ("As a weather station operator, I want the system to automatically "
+                     "record temperature readings, so that continuous monitoring "
+                     "data is available")
+
+    # --- orchestrator layer -------------------------------------------------
+
+    def test_engine_keeps_stories_from_different_requirements(self, orchestrator):
+        stories = [
+            {"requirement_id": "REQ-001", "user_story": self.TEMP,
+             "acceptance_criteria": ["Reading captured every 60 seconds"]},
+            {"requirement_id": "REQ-002", "user_story": self.PRESSURE,
+             "acceptance_criteria": ["Reading captured every 60 seconds"]},
+        ]
+
+        assert len(orchestrator.deduplicate_stories(stories)) == 2
+
+    def test_engine_removes_reworded_duplicate_within_a_requirement(self, orchestrator):
+        stories = [
+            {"requirement_id": "REQ-001", "user_story": self.TEMP,
+             "acceptance_criteria": ["Reading captured every 60 seconds"]},
+            {"requirement_id": "REQ-001", "user_story": self.TEMP_REWORDED,
+             "acceptance_criteria": ["Reading captured every 60 seconds"]},
+        ]
+
+        assert len(orchestrator.deduplicate_stories(stories)) == 1
+
+    # --- presentation layer -------------------------------------------------
+
+    def test_presentation_keeps_stories_from_different_requirements(self):
+        from backend.services.story_service import remove_duplicate_stories
+
+        stories = [
+            {"User Story": self.TEMP, "Requirement ID": "REQ-001"},
+            {"User Story": self.PRESSURE, "Requirement ID": "REQ-002"},
+        ]
+
+        assert len(remove_duplicate_stories(stories)) == 2
+
+    def test_presentation_removes_reworded_duplicate_within_a_requirement(self):
+        from backend.services.story_service import remove_duplicate_stories
+
+        stories = [
+            {"User Story": self.TEMP, "Requirement ID": "REQ-001"},
+            {"User Story": self.TEMP_REWORDED, "Requirement ID": "REQ-001"},
+        ]
+
+        assert len(remove_duplicate_stories(stories)) == 1
+
+    def test_identical_text_is_removed_across_requirements(self):
+        """Identical text is a duplicate by definition, not a similarity call,
+        so blocking must not preserve it."""
+        from backend.services.story_service import remove_duplicate_stories
+
+        stories = [
+            {"User Story": self.TEMP, "Requirement ID": "REQ-001"},
+            {"User Story": self.TEMP, "Requirement ID": "REQ-009"},
+        ]
+
+        assert len(remove_duplicate_stories(stories)) == 1
+
+    def test_stories_without_requirement_ids_still_deduplicate(self):
+        """The legacy path supplies no requirement ids; behaviour there is
+        unchanged."""
+        from backend.services.story_service import remove_duplicate_stories
+
+        stories = [{"User Story": self.TEMP}, {"User Story": self.TEMP_REWORDED}]
+
+        assert len(remove_duplicate_stories(stories)) == 1
+
+    # --- end to end ---------------------------------------------------------
+
+    @staticmethod
+    def _sensor_story(requirement_id, sensor):
+        return {
+            "requirement_id": requirement_id,
+            "user_story": ("As a weather station operator, I want the system to "
+                           f"automatically record {sensor} readings, so that I "
+                           "have continuous monitoring data"),
+            "deliverables": {"unit_tests": [f"Unit tests for {sensor}_driver.read()"]},
+        }
+
+    def test_distinct_sensor_stories_survive_the_full_conversion(self):
+        """Three stories differing only by sensor name must all reach the user.
+
+        Without the requirement id carried through, token overlap merges them
+        and two of the three are silently discarded.
+        """
+        import json
+        from backend.routes.api_agentic import _build_deliverables
+
+        stories = [self._sensor_story("REQ-001", "temperature"),
+                   self._sensor_story("REQ-002", "pressure"),
+                   self._sensor_story("REQ-003", "wind speed")]
+
+        payload = json.dumps({"User Stories": [
+            {"User Story": s["user_story"],
+             "Requirement ID": s["requirement_id"],
+             "Deliverables": _build_deliverables(s)}
+            for s in stories
+        ]})
+
+        result = convert_stories_to_frontend_format(
+            payload, json.dumps({"test_cases": []}), "REQ-001: Collect readings")
+
+        assert len(result) == 3, (
+            "distinct sensor stories were merged: "
+            f"{[s['title'] for s in result]}"
+        )

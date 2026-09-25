@@ -157,8 +157,25 @@ class ParallelStoryOrchestrator:
                 unique.append(story)
                 continue
 
+            requirement_id = str(story.get('requirement_id', '') or '').strip()
+
             is_duplicate = False
             for existing in unique:
+                # BLOCKING: two stories that implement different requirements are
+                # not duplicates, whatever their wording. Surface similarity
+                # cannot decide this -- measured on real output, distinct stories
+                # ("record temperature readings" vs "record pressure readings")
+                # score HIGHER than a genuinely reworded duplicate, so no
+                # threshold separates them. Restricting comparison to stories
+                # that share a requirement removes the whole failure class by
+                # construction. Stories with no requirement id are still compared,
+                # since nothing distinguishes them.
+                existing_requirement_id = str(
+                    existing.get('requirement_id', '') or '').strip()
+                if (requirement_id and existing_requirement_id
+                        and requirement_id != existing_requirement_id):
+                    continue
+
                 existing_title = existing.get('user_story', '')
                 existing_desc = existing.get('acceptance_criteria', [])
                 existing_desc_text = ' '.join(existing_desc) if isinstance(existing_desc, list) else str(existing_desc)

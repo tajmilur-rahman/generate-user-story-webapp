@@ -198,6 +198,10 @@ def generate_stories_agentic():
                 "User Stories": [
                     {
                         "User Story": story["user_story"],
+                        # Carried so the converter's deduplication can block on
+                        # it: stories tracing to different requirements are not
+                        # duplicates and must never be compared by similarity.
+                        "Requirement ID": story.get("requirement_id", ""),
                         # Each category becomes its own heading with its items
                         # nested beneath, matching the legacy output format.
                         "Deliverables": _build_deliverables(story),

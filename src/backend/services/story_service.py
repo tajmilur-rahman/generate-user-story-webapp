@@ -731,13 +731,27 @@ def remove_invented_metrics(text):
     return cleaned
 
 def remove_duplicate_stories(stories):
-    """Remove duplicate or very similar user stories"""
+    """Remove duplicate or very similar user stories.
+
+    Similarity comparison is BLOCKED on requirement id: two stories that
+    implement different requirements are not duplicates, whatever their wording.
+    Token overlap cannot decide this -- measured on real output, distinct
+    stories ("record temperature readings" vs "record pressure readings") score
+    0.905 while a genuinely reworded duplicate scores 0.545, so the ordering is
+    inverted and no threshold separates them. Restricting comparison to stories
+    sharing a requirement removes the failure class by construction.
+
+    Exact text matches are still removed across requirements, since identical
+    text is a duplicate by definition rather than a similarity judgement.
+    Stories carrying no requirement id fall back to the previous behaviour.
+    """
     if not stories:
         return stories
-    
+
     unique_stories = []
-    seen_texts = set()
-    
+    seen = []           # (requirement_id, story_text) for blocked similarity
+    seen_exact = set()  # exact text, compared regardless of requirement
+
     for story in stories:
         # Safety: ensure each story item is a dict before calling .get()
         if not isinstance(story, dict):
@@ -748,24 +762,31 @@ def remove_duplicate_stories(stories):
             else:
                 continue
         story_text = story.get('User Story', '').strip().lower()
-        
+        requirement_id = str(story.get('Requirement ID', '') or '').strip()
+
         # Skip empty stories
         if not story_text:
             logger.info(f"Skipping empty story")
             continue
-        
+
         # Check for exact duplicates
-        if story_text in seen_texts:
+        if story_text in seen_exact:
             logger.info(f"Skipping duplicate story: {story_text[:50]}...")
             continue
-        
+
         # Check for similar stories (word overlap similarity)
         is_duplicate = False
-        for seen_text in seen_texts:
+        for seen_requirement_id, seen_text in seen:
+            # BLOCKING: skip the comparison entirely when the two stories trace
+            # to different requirements.
+            if (requirement_id and seen_requirement_id
+                    and requirement_id != seen_requirement_id):
+                continue
+
             # Calculate word overlap similarity
             words1 = set(story_text.split())
             words2 = set(seen_text.split())
-            
+
             if len(words1) > 0 and len(words2) > 0:
                 # Intersection of words
                 overlap = len(words1.intersection(words2))
@@ -783,7 +804,8 @@ def remove_duplicate_stories(stories):
         
         if not is_duplicate:
             unique_stories.append(story)
-            seen_texts.add(story_text)
+            seen.append((requirement_id, story_text))
+            seen_exact.add(story_text)
             logger.info(f"Added story: {story_text[:60]}...")
     
     removed_count = len(stories) - len(unique_stories)
