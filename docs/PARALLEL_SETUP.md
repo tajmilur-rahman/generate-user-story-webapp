@@ -38,6 +38,14 @@ OLLAMA_NUM_PREDICT=4096
 # Attempts per call before giving up. Uses exponential backoff with jitter.
 OLLAMA_MAX_ATTEMPTS=3
 
+# OUTPUT FIELDS
+# Story point and priority estimates. Off by default: nothing downstream
+# consumes either field, so generating them spends model attention and output
+# tokens for no delivered value. Story point estimation also depends on team
+# velocity the model has no access to. Set to true to restore them; the schema
+# keeps both fields optional, so no other change is needed.
+INCLUDE_ESTIMATES=false
+
 # QUALITY REVIEW
 # Model used to judge story quality. Leave unset to reuse OLLAMA_MODEL, but
 # prefer a DIFFERENT model: a model judging output from its own family shows

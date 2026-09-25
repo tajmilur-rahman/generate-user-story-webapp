@@ -678,3 +678,121 @@ class TestDeduplicationBlocking:
             "distinct sensor stories were merged: "
             f"{[s['title'] for s in result]}"
         )
+
+
+class TestAgentPromptsBuild:
+    """Every agent must be able to build its prompt.
+
+    RewriterAgent could not. Written inline in an f-string,
+    `review.get('invest_scores', {{}})` parses its default as a set literal
+    containing an empty dict, which is unhashable, so the call raised
+    TypeError every time. The rewrite path therefore never ran. It went
+    unnoticed because the model judge always scored above the rewrite
+    threshold, so the path was never reached.
+    """
+
+    CONTEXT = {
+        "document_text": "doc",
+        "requirements": [{"id": "REQ-001", "description": "Collect readings"}],
+        "requirements_batch": [{"id": "REQ-001", "description": "Collect readings"}],
+        "epic": {"epic_id": "EPIC-001", "epic_name": "Data Collection"},
+        "raw_epics": [],
+        "stories": [{"story_id": "S1", "user_story": "As a x, I want y, so that z"}],
+        "story": {"story_id": "S1", "user_story": "As a x, I want y, so that z"},
+        "review": {"total_score": 55, "issues": ["vague criteria"],
+                   "invest_scores": {"testable": 4}},
+        "starting_tc_number": 1,
+    }
+
+    @staticmethod
+    def _agents():
+        from agents.requirements_agent import RequirementsAgent
+        from agents.epic_extractor_agent import EpicExtractorAgent
+        from agents.epic_refiner_agent import EpicRefinerAgent
+        from agents.story_agent import StoryAgent
+        from agents.test_agent import TestCaseAgent
+        from agents.reviewer_agent import ReviewerAgent
+        from agents.rewriter_agent import RewriterAgent
+        return [RequirementsAgent, EpicExtractorAgent, EpicRefinerAgent,
+                StoryAgent, TestCaseAgent, ReviewerAgent, RewriterAgent]
+
+    def test_every_agent_builds_its_prompt(self):
+        for agent_cls in self._agents():
+            agent = agent_cls.__new__(agent_cls)
+            prompt = agent.get_system_prompt(self.CONTEXT)
+            assert prompt and len(prompt) > 100, f"{agent_cls.__name__} built no prompt"
+
+    def test_rewriter_builds_with_an_empty_review(self):
+        """The failure mode was in a `.get` default, so a review missing the
+        optional keys is the case that must not raise."""
+        from agents.rewriter_agent import RewriterAgent
+
+        agent = RewriterAgent.__new__(RewriterAgent)
+        prompt = agent.get_system_prompt(
+            {"story": {"user_story": "As a x, I want y, so that z"}, "review": {}})
+
+        assert len(prompt) > 100
+
+    def test_rewriter_renders_review_feedback_into_the_prompt(self):
+        """A rewrite driven by feedback the model never sees is pointless."""
+        from agents.rewriter_agent import RewriterAgent
+
+        agent = RewriterAgent.__new__(RewriterAgent)
+        prompt = agent.get_system_prompt(self.CONTEXT)
+
+        assert "vague criteria" in prompt
+        assert "testable" in prompt
+
+
+class TestEstimateToggle:
+    """Story points and priority are generated only when enabled.
+
+    Nothing downstream consumes either field, so by default they are kept out
+    of the prompt rather than produced and discarded.
+    """
+
+    CONTEXT = {
+        "requirements_batch": [{"id": "REQ-001", "description": "Collect readings"}],
+        "epic": {"epic_id": "EPIC-001", "epic_name": "Data Collection"},
+        "story": {"story_id": "S1", "priority": "HIGH", "story_points": 5,
+                  "user_story": "As a x, I want y, so that z"},
+        "review": {"total_score": 55},
+    }
+
+    @staticmethod
+    def _prompts(monkeypatch, enabled):
+        from agents.story_agent import StoryAgent
+        from agents.rewriter_agent import RewriterAgent
+
+        if enabled:
+            monkeypatch.setenv("INCLUDE_ESTIMATES", "true")
+        else:
+            monkeypatch.delenv("INCLUDE_ESTIMATES", raising=False)
+
+        writer = StoryAgent.__new__(StoryAgent)
+        rewriter = RewriterAgent.__new__(RewriterAgent)
+        return (writer.get_system_prompt(TestEstimateToggle.CONTEXT),
+                rewriter.get_system_prompt(TestEstimateToggle.CONTEXT))
+
+    def test_estimates_absent_by_default(self, monkeypatch):
+        writer, rewriter = self._prompts(monkeypatch, enabled=False)
+
+        assert "story_points" not in writer
+        assert "story_points" not in rewriter
+
+    def test_estimates_restored_when_enabled(self, monkeypatch):
+        writer, rewriter = self._prompts(monkeypatch, enabled=True)
+
+        assert "story_points" in writer
+        assert "story_points" in rewriter
+
+    @pytest.mark.parametrize("enabled", [False, True])
+    def test_critical_rule_numbering_stays_contiguous(self, monkeypatch, enabled):
+        """Removing a rule must not leave a gap or a duplicate number."""
+        import re
+
+        writer, _ = self._prompts(monkeypatch, enabled=enabled)
+        numbers = [int(n) for n in
+                   re.findall(r"^(\d+)\.", writer[writer.find("CRITICAL RULES"):], re.M)]
+
+        assert numbers == list(range(1, len(numbers) + 1)), numbers

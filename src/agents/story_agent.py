@@ -1,5 +1,6 @@
 from .base_agent import BaseAgent
 from .schemas import StoriesOutput
+from .settings import include_estimates
 from typing import Dict, Any
 
 class StoryAgent(BaseAgent):
@@ -22,6 +23,18 @@ class StoryAgent(BaseAgent):
             f"- {req['id']}: {req['description']}"
             for req in requirements_batch
         ])
+
+        # Story points and priority are generated only when explicitly enabled.
+        # Nothing downstream consumes them, so by default they are kept out of
+        # the prompt entirely rather than produced and discarded.
+        if include_estimates():
+            estimate_fields = ',\n      "story_points": 3,\n      "priority": "HIGH"'
+            estimate_rule = "\n6. Story points: 1, 2, 3, 5, or 8 (Fibonacci)"
+            rule_n, rule_n1 = 7, 8
+        else:
+            estimate_fields = ""
+            estimate_rule = ""
+            rule_n, rule_n1 = 6, 7
 
         return f"""RESPOND WITH JSON ONLY. Do not include any prose, explanations, markdown headers, or text outside the JSON. Your entire response must be a single valid JSON object starting with {{{{ and ending with }}}}.
 
@@ -105,9 +118,7 @@ OUTPUT FORMAT (JSON only):
           "Unit tests for thermometer_driver.read() and scheduler.poll()",
           "All tests passing in CI/CD pipeline"
         ]
-      }}}},
-      "story_points": 3,
-      "priority": "HIGH"
+      }}}}{estimate_fields}
     }}}}
   ]
 }}}}
@@ -117,10 +128,9 @@ CRITICAL RULES:
 2. Each story must start with "As a [specific user type]" — no generic "user"
 3. "so that" clause must describe concrete benefit — not "data is available"
 4. Acceptance criteria: 3-5 items, Given-When-Then format, use actual field names
-5. Deliverables: 2-4 categories, each with 2-4 specific verifiable items
-6. Story points: 1, 2, 3, 5, or 8 (Fibonacci)
-7. Generate ONE story per requirement minimum (more if split triggers apply)
-8. NO meta-stories about testing methodology or documentation
+5. Deliverables: 2-4 categories, each with 2-4 specific verifiable items{estimate_rule}
+{rule_n}. Generate ONE story per requirement minimum (more if split triggers apply)
+{rule_n1}. NO meta-stories about testing methodology or documentation
 
 BAD EXAMPLES (what NOT to do):
 ❌ Missing [specific elements] clause:

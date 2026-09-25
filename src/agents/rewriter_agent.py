@@ -1,5 +1,6 @@
 from .base_agent import BaseAgent
 from .schemas import RewriteOutput
+from .settings import include_estimates
 from typing import Dict, Any
 
 class RewriterAgent(BaseAgent):
@@ -18,6 +19,27 @@ class RewriterAgent(BaseAgent):
         story = context.get('story', {})
         review = context.get('review', {})
 
+        # Resolved outside the f-string on purpose. Written inline as
+        # `review.get('invest_scores', {{}})` the default is parsed as a set
+        # literal containing an empty dict, which is unhashable, so building
+        # this prompt raised TypeError on every call and the rewrite path could
+        # never run.
+        invest_scores = review.get('invest_scores', {})
+        issues = review.get('issues', [])
+
+        # Mirrors the Story Writer: estimates are only mentioned when enabled,
+        # so a rewrite does not reintroduce fields generation left out.
+        if include_estimates():
+            estimate_summary = f"\nStory Points: {story.get('story_points', 'N/A')}"
+            estimate_fields = (
+                ',\n    "story_points": 3,\n    "priority": "'
+                + str(story.get('priority', 'MEDIUM')) + '"')
+            estimate_preserve = ", and priority"
+        else:
+            estimate_summary = ""
+            estimate_fields = ""
+            estimate_preserve = ""
+
         return f"""RESPOND WITH JSON ONLY. Do not include any prose, explanations, markdown headers, or text outside the JSON. Your entire response must be a single valid JSON object starting with {{{{ and ending with }}}}.
 
 You are a Story Improvement Specialist. Rewrite this low-quality story to address ALL identified issues and achieve INVEST score ≥70.
@@ -27,14 +49,13 @@ Story ID: {story.get('story_id', 'N/A')}
 Requirement ID: {story.get('requirement_id', 'N/A')}
 User Story: {story.get('user_story', 'N/A')}
 Acceptance Criteria: {story.get('acceptance_criteria', [])}
-Deliverables: {story.get('deliverables', {}) or story.get('definition_of_done', [])}
-Story Points: {story.get('story_points', 'N/A')}
+Deliverables: {story.get('deliverables', {}) or story.get('definition_of_done', [])}{estimate_summary}
 
 INVEST SCORES (current):
-{review.get('invest_scores', {{}})}
+{invest_scores}
 
 ISSUES IDENTIFIED (must fix ALL):
-{review.get('issues', [])}
+{issues}
 
 REVIEWER FEEDBACK:
 {review.get('feedback', 'N/A')}
@@ -86,9 +107,7 @@ OUTPUT FORMAT (JSON only):
       "error_handling": [
         "Fault detection for sensor disconnection with logged message and no partial write"
       ]
-    }}}},
-    "story_points": 3,
-    "priority": "{story.get('priority', 'MEDIUM')}"
+    }}}}{estimate_fields}
   }}}},
   "changes_made": [
     "Added [specific elements: thermometer sensor, timestamp, temperature_value in Celsius] clause listing actual components",
@@ -110,6 +129,6 @@ CRITICAL RULES:
 5. Use actual field names, sensors, components from the requirement
 6. Make every criterion testable and measurable
 7. Keep changes minimal - only fix what's needed to achieve ≥70 score
-8. Preserve epic_id, epic_name, story_id, requirement_id, and priority
+8. Preserve epic_id, epic_name, story_id and requirement_id{estimate_preserve}
 
 RESPOND WITH JSON ONLY."""
