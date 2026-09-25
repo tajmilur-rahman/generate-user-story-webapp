@@ -1019,3 +1019,92 @@ class TestTestCaseMatching:
 
         assert len(result) == 2
         assert all("TC-1" in s["testCases"] for s in result)
+
+
+class TestTitleDerivation:
+    """Titles derived from story text must read as titles.
+
+    Four faults appeared in generated output. The deriver works on sentence
+    structure and English function words only -- no product names, no domain
+    vocabulary -- so these hold for any document. The previous version
+    hardcoded prefixes such as "The Insulin Pump system must ", which worked
+    for one specification and did nothing for any other.
+    """
+
+    STORY = ("As a weather station operator, I want the system to {action} "
+             "using [specific elements: sensor, timestamp], so that I have data")
+
+    @staticmethod
+    def _derive(text):
+        from backend.services.story_service import derive_title
+        return derive_title(text)
+
+    def test_title_never_ends_on_a_connective(self):
+        """Produced "... Conditions Using" and "... Animals Using"."""
+        for action in ["withstand outdoor/exposed conditions",
+                       "resist damage by animals",
+                       "transmit readings to the archive"]:
+            title = self._derive(self.STORY.format(action=action))
+            last = title.split()[-1].lower()
+            assert last not in {"using", "with", "by", "to", "from", "for",
+                                "and", "or", "of", "in", "on", "at"}, title
+
+    def test_title_has_no_repeated_word(self):
+        """Produced "Receive Aggregated Weather Data Weather"."""
+        title = self._derive(
+            "As a data management system, I want to receive aggregated weather "
+            "data from the weather station, so that I can store it")
+        words = [w.lower() for w in title.split()]
+
+        assert len(words) == len(set(words)), title
+
+    def test_title_does_not_begin_with_a_generic_subject(self):
+        """Produced "System Calculate Store Pressure Averages"."""
+        title = self._derive(self.STORY.format(
+            action="calculate and store pressure averages"))
+
+        assert not title.lower().startswith("system"), title
+
+    def test_title_does_not_strand_a_fragment(self):
+        """Stripping a preposition left its object behind: "at rest" became
+        "... Records Rest", "on behalf of a member" became "... Behalf Member".
+        """
+        assert not self._derive(
+            "The system must encrypt stored patient records at rest, so that "
+            "confidentiality is preserved").lower().endswith("rest")
+        assert "behalf" not in self._derive(
+            "As a librarian, I want to renew a borrowed item on behalf of a "
+            "member, so that fines are avoided").lower()
+
+    @pytest.mark.parametrize("story,forbidden", [
+        ("As a clinician, I want the system to deliver a basal insulin dose "
+         "every ten minutes, so that the patient stays in range", "ten"),
+        ("As a security officer, I want the platform to record every door "
+         "access event, so that entry can be audited", "platform"),
+    ])
+    def test_behaviour_holds_on_unrelated_domains(self, story, forbidden):
+        """No weather vocabulary exists in the deriver, so an insulin pump or a
+        door access system must behave the same way."""
+        title = self._derive(story)
+
+        assert title
+        assert forbidden not in title.lower(), title
+
+    def test_a_model_written_title_is_preferred_over_derivation(self):
+        import json
+        from backend.routes.api_agentic import _build_deliverables
+
+        payload = json.dumps({"User Stories": [{
+            "User Story": self.STORY.format(action="calculate pressure averages"),
+            "Title": "Average Barometric Pressure",
+            "Deliverables": _build_deliverables({"deliverables": {"unit_tests": ["t"]}}),
+        }]})
+
+        result = convert_stories_to_frontend_format(
+            payload, json.dumps({"test_cases": []}), "REQ-001: x")
+
+        assert result[0]["title"] == "Average Barometric Pressure"
+
+    @pytest.mark.parametrize("text", ["", "   ", "the and of to"])
+    def test_unusable_input_yields_no_title(self, text):
+        assert self._derive(text) == ""

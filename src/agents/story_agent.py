@@ -29,12 +29,12 @@ class StoryAgent(BaseAgent):
         # the prompt entirely rather than produced and discarded.
         if include_estimates():
             estimate_fields = ',\n      "story_points": 3,\n      "priority": "HIGH"'
-            estimate_rule = "\n6. Story points: 1, 2, 3, 5, or 8 (Fibonacci)"
-            rule_n, rule_n1 = 7, 8
+            estimate_rule = "\n7. Story points: 1, 2, 3, 5, or 8 (Fibonacci)"
+            rule_n, rule_n1 = 8, 9
         else:
             estimate_fields = ""
             estimate_rule = ""
-            rule_n, rule_n1 = 6, 7
+            rule_n, rule_n1 = 7, 8
 
         return f"""RESPOND WITH JSON ONLY. Do not include any prose, explanations, markdown headers, or text outside the JSON. Your entire response must be a single valid JSON object starting with {{{{ and ending with }}}}.
 
@@ -95,6 +95,7 @@ OUTPUT FORMAT (JSON only):
     {{{{
       "story_id": "STORY-001",
       "requirement_id": "REQ-001",
+      "title": "Record Temperature Readings Automatically",
       "user_story": "As a weather station operator, I want the system to automatically record temperature readings using [specific elements: thermometer sensor, timestamp, temperature_value in Celsius], so that I have continuous environmental monitoring data for analysis",
       "acceptance_criteria": [
         "Given the weather station is powered on, When 5 minutes elapse, Then a new temperature reading is recorded with timestamp and temperature_value",
@@ -124,11 +125,13 @@ OUTPUT FORMAT (JSON only):
 }}}}
 
 CRITICAL RULES:
-1. "[specific elements: ...]" clause is MANDATORY — list actual field names, sensors, parameters
-2. Each story must start with "As a [specific user type]" — no generic "user"
-3. "so that" clause must describe concrete benefit — not "data is available"
-4. Acceptance criteria: 3-5 items, Given-When-Then format, use actual field names
-5. Deliverables: 2-4 categories, each with 2-4 specific verifiable items{estimate_rule}
+1. Title: 3-5 words, Title Case, action-oriented. Name what the story DOES.
+   Do not restate the persona and do not begin with "System"
+2. "[specific elements: ...]" clause is MANDATORY — list actual field names, sensors, parameters
+3. Each story must start with "As a [specific user type]" — no generic "user"
+4. "so that" clause must describe concrete benefit — not "data is available"
+5. Acceptance criteria: 3-5 items, Given-When-Then format, use actual field names
+6. Deliverables: 2-4 categories, each with 2-4 specific verifiable items{estimate_rule}
 {rule_n}. Generate ONE story per requirement minimum (more if split triggers apply)
 {rule_n1}. NO meta-stories about testing methodology or documentation
 

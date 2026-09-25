@@ -60,6 +60,9 @@ class EpicsOutput(_Base):
 class Story(_Base):
     story_id: str = ""
     requirement_id: str = ""
+    # Written by the model. Deriving one from the story text is a keyword
+    # heuristic that reads like one, so it is only a fallback.
+    title: str = ""
     user_story: str
     acceptance_criteria: List[str] = Field(default_factory=list)
     # Engineering work grouped by category (architecture_design,

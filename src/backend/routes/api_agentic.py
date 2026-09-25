@@ -198,6 +198,9 @@ def generate_stories_agentic():
                 "User Stories": [
                     {
                         "User Story": story["user_story"],
+                        # Model-written title; the converter derives one only
+                        # when this is absent.
+                        "Title": story.get("title", ""),
                         # Carried so the converter's deduplication can block on
                         # it: stories tracing to different requirements are not
                         # duplicates and must never be compared by similarity.

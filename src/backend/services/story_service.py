@@ -881,6 +881,125 @@ def _tc_similarity(req_text, story_text):
     return len(req_kw & story_kw) / min(len(req_kw), len(story_kw))
 
 
+# Title derivation operates on sentence STRUCTURE and English function words
+# only. It contains no product names, no domain vocabulary and no reference to
+# any particular specification, so it behaves the same on a weather station, an
+# insulin pump or a library system. The previous implementation hardcoded
+# prefixes such as "The Insulin Pump system must ", which worked for one
+# document and silently did nothing for every other.
+
+# English function words. Grammatical categories, not domain terms.
+_TITLE_STOP_WORDS = {
+    "a", "an", "the", "and", "or", "but", "so", "that", "this", "these",
+    "those", "is", "are", "be", "been", "being", "was", "were", "it", "its",
+    "their", "our", "my", "your", "of", "to", "in", "on", "at", "by", "for",
+    "with", "from", "into", "onto", "upon", "via", "as", "using", "use",
+    "used", "such", "all", "any", "each", "every", "can", "will", "shall",
+    "must", "should", "would", "may", "might", "want", "wants", "need",
+    "needs", "able", "i", "we", "they", "he", "she", "you",
+}
+
+# Words a title must not end on: a title ending in a preposition or conjunction
+# has been cut mid-phrase. Produced "... Conditions Using" and "... Animals Using".
+_TITLE_TRAILING = _TITLE_STOP_WORDS | {"when", "while", "where", "if", "than", "then"}
+
+# Generic subjects. Dropped only in LEADING position, where they carry no
+# meaning ("the system to calculate averages"); kept elsewhere, where they can
+# ("the station maintenance system").
+_GENERIC_SUBJECTS = {"system", "application", "app", "platform", "service",
+                     "software", "tool", "solution", "product"}
+
+# "As a <role>, I want (to) ..." -- structural, matches any role.
+_PERSONA_RE = re.compile(
+    r"^\s*as\s+an?\s+[^,]{0,80},\s*i\s+want(?:\s+to)?\s*", re.IGNORECASE)
+# A bracketed elaboration, e.g. "[specific elements: sensor, timestamp]".
+_BRACKETED_RE = re.compile(r"\[[^\]]*\]")
+# A leading modal clause, e.g. "the system must ", "should ".
+_MODAL_RE = re.compile(
+    r"^\s*(?:the\s+)?(?:\w+\s+){0,2}?(?:must|shall|should|will)\s+", re.IGNORECASE)
+
+_TITLE_MAX_WORDS = 5
+# Below this, a function word is skipped over; at or above it, the phrase is
+# considered complete.
+_TITLE_MIN_PHRASE = 3
+
+
+def derive_title(story_text, max_words=_TITLE_MAX_WORDS):
+    """
+    Derive a short title from a user story when the model supplied none.
+
+    A keyword heuristic, used only as a fallback. Four faults in the previous
+    version showed up directly in generated output:
+
+        System Withstand Outdoor/exposed Conditions Using   trailing preposition
+        Receive Aggregated Weather Data Weather             repeated word
+        System Calculate Store Pressure Averages            leading generic subject
+        System Automatically Collect Record Sunshine        cut mid-phrase
+
+    Args:
+        story_text: Full user story sentence
+        max_words: Upper bound on title length
+
+    Returns:
+        Title Case string, or "" when nothing usable can be derived
+    """
+    if not story_text or not story_text.strip():
+        return ""
+
+    text = _PERSONA_RE.sub("", story_text).strip() or story_text
+    text = _BRACKETED_RE.sub(" ", text)
+
+    # Keep only the action, discarding the rationale clause.
+    lowered = text.lower()
+    if " so that " in lowered:
+        text = text[:lowered.index(" so that ")]
+
+    text = _MODAL_RE.sub("", text).strip()
+
+    words, seen = [], set()
+    for raw in text.split():
+        word = raw.strip(",;.:()\"'").strip()
+        if not word:
+            continue
+        key = word.lower()
+        if key in _TITLE_STOP_WORDS:
+            # Once the title has enough words, a function word marks the end of
+            # the phrase. Skipping past it strands whatever followed: "at rest"
+            # became "... Records Rest", "on behalf of a member" became
+            # "... Item Behalf Member". Stop instead of collecting fragments.
+            if len(words) >= _TITLE_MIN_PHRASE:
+                break
+            continue
+        if key in seen:
+            continue
+        # Drop a generic subject only while nothing meaningful has been taken.
+        if not words and key in _GENERIC_SUBJECTS:
+            continue
+        seen.add(key)
+        words.append(word)
+        if len(words) >= max_words:
+            break
+
+    # A title cut mid-phrase ends on a connective; drop those.
+    while words and words[-1].lower() in _TITLE_TRAILING:
+        words.pop()
+
+    if not words:
+        return ""
+
+    return " ".join(_title_case_word(w) for w in words)
+
+
+def _title_case_word(word):
+    """Title-case a word, including across an internal separator."""
+    for separator in ("/", "-"):
+        if separator in word:
+            return separator.join(
+                part[:1].upper() + part[1:] if part else part
+                for part in word.split(separator))
+    return word[:1].upper() + word[1:]
+
+
 def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements_text):
     """
     Convert backend output format to frontend format
@@ -1040,68 +1159,11 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
             # Extract user story title/description
             story_text = story.get('User Story', '').strip()
 
-            # Use title from LLM if available, otherwise generate one
+            # Prefer a title written by the model; derive one only as a
+            # fallback. Derivation is a keyword heuristic and reads like one.
             title = story.get('Title', '').strip()
-
-            # Generate title if not provided or if it's generic/truncated
             if not title or title.endswith('Must') or title.endswith('Shall') or len(title) < 5:
-                # Generate a COMPLETE, meaningful title (3-5 words)
-                if story_text:
-                    # Remove common prefixes to get to the core action.
-                    # Agentic stories are written as "As a <role>, I want to
-                    # <action>, so that ...". Without stripping that clause every
-                    # title came out as "As Weather Station Operator I".
-                    action_text = re.sub(
-                        r'^\s*as\s+an?\s+[^,]{0,80},\s*i\s+want(?:\s+to)?\s*',
-                        '', story_text, flags=re.IGNORECASE).strip() or story_text
-                    prefixes_to_remove = [
-                        'The Insulin Pump system must ',
-                        'The Insulin Pump system shall ',
-                        'The insulin pump system must ',
-                        'The insulin pump system shall ',
-                        'Insulin Pump system must ',
-                        'The system must ',
-                        'The system shall ',
-                        'System must ',
-                        'System shall '
-                    ]
-
-                    for prefix in prefixes_to_remove:
-                        if action_text.startswith(prefix):
-                            action_text = action_text[len(prefix):]
-                            break
-
-                    # Extract the action part (before "so that")
-                    if ' so that ' in action_text.lower():
-                        action_part = action_text.split(' so that ')[0].strip()
-                    else:
-                        action_part = action_text
-
-                    # Remove common stop words and extract meaningful keywords
-                    words = action_part.split()
-                    meaningful_words = []
-                    stop_words = {'the', 'a', 'an', 'and', 'or', 'for', 'with', 'from', 'to', 'in', 'on', 'at', 'by', 'of', 'be', 'is', 'are'}
-
-                    for w in words:
-                        w_clean = w.rstrip(',;.').lower()
-                        # Skip stop words unless it's a key verb
-                        if w_clean not in stop_words or w_clean in {'collect', 'calculate', 'compute', 'send', 'deliver', 'monitor', 'process'}:
-                            meaningful_words.append(w.rstrip(',;.'))
-                        # Stop at 4-5 words for a good title length
-                        if len(meaningful_words) >= 5:
-                            break
-
-                    # Use first 3-5 meaningful words as title
-                    if meaningful_words:
-                        title = ' '.join(meaningful_words[:5])
-                    else:
-                        # Fallback: use first 4 words
-                        title = ' '.join(words[:4])
-
-                    # Capitalize properly for title case
-                    title = ' '.join(word.capitalize() for word in title.split())
-                else:
-                    title = f'User Story {idx + 1}'
+                title = derive_title(story_text) or f'User Story {idx + 1}'
             
             # Extract Acceptance Criteria (new in v2 format)
             acceptance_criteria = story.get('Acceptance Criteria', [])
