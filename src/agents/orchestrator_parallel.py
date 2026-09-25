@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 import logging
 import time
+import copy
 import json
 import os
 import uuid
@@ -732,10 +733,34 @@ class ParallelStoryOrchestrator:
         return list(epics or []) + [recovery_epic]
 
     def _quality_review_loop(self, stories: list) -> list:
-        """LOOP 4: Iterative quality improvement with PARALLEL rewrites"""
+        """
+        Iterative quality improvement, as a ratchet.
 
+        Rewrites used to be applied unconditionally, which let the loop make
+        stories worse on every pass. A measured run went mean 79.5 -> 77.5 ->
+        64.1 with the rewrite count climbing 4 -> 5 -> 8, one story falling
+        56 -> 56 -> 43, and stories that had never been flagged dropping below
+        the threshold. The final pass then applied eight more rewrites and
+        returned, so the delivered output was a state no reviewer had ever
+        scored.
+
+        A rewrite is a bet, not an improvement: it can repair the listed defect
+        or drift off the original subject, and only the next review says which.
+        So every story keeps its best-scoring version, and a pass that scores
+        lower than that version is discarded. Quality can now only rise or hold.
+
+        The judge supplies the score rather than the deterministic rubric. The
+        rubric returns 100 for every story on this data -- saturated, and unable
+        to separate a good rewrite from a bad one. It still gates which stories
+        are sent for rewrite; it cannot decide whether one worked.
+        """
         max_iterations = 3
         iteration = 0
+
+        # Best-known version of each story, by judge score. Seeded from the
+        # originals at their first review.
+        best_stories = {}
+        best_scores = {}
 
         while iteration < max_iterations:
             iteration += 1
@@ -802,6 +827,49 @@ class ParallelStoryOrchestrator:
 
             logger.info(f"  Average INVEST Score: {avg_score}/100")
 
+            # RATCHET: keep whichever version of each story scored best. A
+            # rewrite that scored lower than the version it replaced is
+            # discarded here, before it can be rewritten again and drift
+            # further.
+            reverted = []
+            story_map = {s["story_id"]: s for s in stories
+                         if isinstance(s, dict) and s.get("story_id")}
+            for review in story_reviews:
+                if not isinstance(review, dict):
+                    continue
+                story_id = review.get("story_id")
+                story = story_map.get(story_id)
+                if story is None:
+                    continue
+                score = review.get("total_score", 0)
+
+                if story_id not in best_scores or score > best_scores[story_id]:
+                    best_scores[story_id] = score
+                    best_stories[story_id] = copy.deepcopy(story)
+                elif score < best_scores[story_id]:
+                    reverted.append((story_id, score, best_scores[story_id]))
+                    # The review describes the rejected version, so the issues
+                    # it lists do not apply to the one being restored. Score it
+                    # as the version we are keeping, so the gate below decides
+                    # on the story that will actually be delivered.
+                    review["total_score"] = best_scores[story_id]
+
+            if reverted:
+                logger.info(
+                    f"  ↩ Discarded {len(reverted)} rewrite(s) that scored "
+                    f"below the version they replaced"
+                )
+                for story_id, score, kept in reverted:
+                    logger.info(f"    {story_id}: {score} < {kept}, keeping {kept}")
+
+            # Restore the best version of every story before deciding what to
+            # rewrite next, so a degraded version is never the input to another
+            # rewrite.
+            for i, story in enumerate(stories):
+                story_id = story.get("story_id") if isinstance(story, dict) else None
+                if story_id in best_stories:
+                    stories[i] = copy.deepcopy(best_stories[story_id])
+
             # Find stories needing improvement
             low_quality = []
             for review in story_reviews:
@@ -826,14 +894,26 @@ class ParallelStoryOrchestrator:
                 )
                 break
 
+            # A rewrite produced on the last iteration is never reviewed, so
+            # the ratchet can never accept it and it would be discarded in any
+            # case. Skip the work rather than spend a minute of model time on
+            # output that cannot be used.
+            if iteration == max_iterations:
+                logger.info(
+                    f"  {len(low_quality)} story(s) still below threshold; not "
+                    f"rewriting on the final iteration -- the result could not "
+                    f"be reviewed before delivery"
+                )
+                break
+
             logger.info(f"  ↻ Rewriting {len(low_quality)} low-quality stories IN PARALLEL...")
 
             # PARALLEL REWRITES ⚡
             improved_stories = {}
 
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                # Create story lookup
-                story_map = {s["story_id"]: s for s in stories}
+                story_map = {s["story_id"]: s for s in stories
+                             if isinstance(s, dict) and s.get("story_id")}
 
                 # Submit rewrite tasks
                 future_to_review = {
@@ -862,8 +942,25 @@ class ParallelStoryOrchestrator:
                 if story.get("story_id") in improved_stories:
                     stories[i] = improved_stories[story["story_id"]]
 
-        if iteration == max_iterations:
-            logger.warning(f"  ⚠ Reached max iterations without full convergence")
+        # Deliver the best-scoring version of every story. Anything produced
+        # after the last review is unmeasured and is not shipped.
+        for i, story in enumerate(stories):
+            story_id = story.get("story_id") if isinstance(story, dict) else None
+            if story_id in best_stories:
+                stories[i] = best_stories[story_id]
+
+        if best_scores:
+            final = summarise_scores(list(best_scores.values()))
+            logger.info(
+                f"  Delivered scores: mean={final['mean']} "
+                f"min={final['min']} max={final['max']}"
+            )
+            below = [sid for sid, sc in best_scores.items() if sc < 70]
+            if below:
+                logger.warning(
+                    f"  ⚠ {len(below)} story(s) never reached 70: "
+                    f"{', '.join(sorted(below))}"
+                )
 
         return stories
 

@@ -1449,3 +1449,154 @@ class TestEpicBudgetScalesWithInput:
             assert "EVERY ONE OF THESE IDS MUST APPEAR" in prompt
             for req in requirements:
                 assert req["id"] in prompt
+
+
+class TestRewriteRatchet:
+    """
+    The rewrite loop used to apply every rewrite unconditionally, so it could
+    make stories worse on every pass. A measured run went mean 79.5 -> 77.5 ->
+    64.1, one story fell 56 -> 56 -> 43, and the final pass applied eight more
+    rewrites and returned -- delivering a state no reviewer had scored.
+    """
+
+    @staticmethod
+    def _story(story_id, text="As a user, I want a thing, so that benefit"):
+        return {"story_id": story_id, "requirement_id": "REQ-001",
+                "epic_id": "EPIC-001", "epic_name": "E",
+                "user_story": text,
+                "acceptance_criteria": ["Given a, When b, Then c"]}
+
+    def _drive(self, orchestrator, monkeypatch, score_sequence, rewrite_text):
+        """Run the loop with scripted judge scores and rewrites."""
+        calls = {"n": 0}
+
+        def fake_review_batch(batch):
+            scores = score_sequence[min(calls["n"], len(score_sequence) - 1)]
+            calls["n"] += 1
+            return [{"story_id": s["story_id"],
+                     "total_score": scores[s["story_id"]],
+                     "issues": ["something"]} for s in batch]
+
+        def fake_rewrite(story, review):
+            out = dict(story)
+            out["user_story"] = rewrite_text
+            return out
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+        monkeypatch.setattr(orchestrator, "_rewrite_single_story", fake_rewrite)
+        return calls
+
+    def test_a_rewrite_that_scores_worse_is_discarded(
+            self, orchestrator, monkeypatch):
+        original = self._story("EPIC-001-STORY-002", "the original wording")
+        # 56, then the rewrite scores 43 -- exactly the observed regression.
+        self._drive(orchestrator, monkeypatch,
+                    [{"EPIC-001-STORY-002": 56},
+                     {"EPIC-001-STORY-002": 43},
+                     {"EPIC-001-STORY-002": 43}],
+                    rewrite_text="drifted onto a different subject")
+
+        result = orchestrator._quality_review_loop([original])
+
+        assert result[0]["user_story"] == "the original wording", (
+            "a rewrite scoring 43 replaced a version scoring 56")
+
+    def test_a_rewrite_that_scores_better_is_kept(
+            self, orchestrator, monkeypatch):
+        original = self._story("EPIC-001-STORY-002", "the original wording")
+        self._drive(orchestrator, monkeypatch,
+                    [{"EPIC-001-STORY-002": 56},
+                     {"EPIC-001-STORY-002": 88},
+                     {"EPIC-001-STORY-002": 88}],
+                    rewrite_text="the repaired wording")
+
+        result = orchestrator._quality_review_loop([original])
+
+        assert result[0]["user_story"] == "the repaired wording", (
+            "the ratchet must still let genuine repairs through")
+
+    def test_the_best_version_survives_a_later_regression(
+            self, orchestrator, monkeypatch):
+        # 56 -> 88 -> 43: the peak must be delivered, not the last state.
+        original = self._story("EPIC-001-STORY-002", "v0")
+        texts = iter(["v1", "v2", "v3"])
+
+        def fake_rewrite(story, review):
+            out = dict(story)
+            out["user_story"] = next(texts)
+            return out
+
+        scores = iter([56, 88, 43])
+
+        def fake_review_batch(batch):
+            score = next(scores)
+            return [{"story_id": s["story_id"], "total_score": score,
+                     "issues": ["x"]} for s in batch]
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+        monkeypatch.setattr(orchestrator, "_rewrite_single_story", fake_rewrite)
+
+        result = orchestrator._quality_review_loop([original])
+
+        assert result[0]["user_story"] == "v1", (
+            "the 88-scoring version must be delivered, not the 43 that followed")
+
+    def test_no_unreviewed_rewrite_is_ever_delivered(
+            self, orchestrator, monkeypatch):
+        # The final iteration must not rewrite: nothing would score the result
+        # before it reached the user.
+        original = self._story("EPIC-001-STORY-002", "the original wording")
+        rewrites = {"n": 0}
+
+        def fake_rewrite(story, review):
+            rewrites["n"] += 1
+            out = dict(story)
+            out["user_story"] = f"rewrite {rewrites['n']}"
+            return out
+
+        def fake_review_batch(batch):
+            return [{"story_id": s["story_id"], "total_score": 50,
+                     "issues": ["x"]} for s in batch]
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+        monkeypatch.setattr(orchestrator, "_rewrite_single_story", fake_rewrite)
+
+        result = orchestrator._quality_review_loop([original])
+
+        assert rewrites["n"] == 2, (
+            f"3 iterations must produce 2 reviewed rewrites, got {rewrites['n']}")
+        assert result[0]["user_story"] != f"rewrite {rewrites['n']}", (
+            "the last rewrite was never scored and must not be delivered")
+
+    def test_quality_never_falls_across_the_whole_loop(
+            self, orchestrator, monkeypatch):
+        # The measured failure, as a property: with rewrites that always score
+        # worse, the delivered stories must be the originals.
+        stories = [self._story(f"EPIC-001-STORY-{i:03d}", f"original {i}")
+                   for i in range(1, 6)]
+        # Scored per story, not per call: batches complete out of order, so a
+        # shared counter would hand some story a rising score by accident.
+        seen = {}
+
+        def fake_review_batch(batch):
+            out = []
+            for story in batch:
+                story_id = story["story_id"]
+                seen[story_id] = seen.get(story_id, 0) + 1
+                out.append({"story_id": story_id,
+                            "total_score": 80 - 20 * (seen[story_id] - 1),
+                            "issues": ["x"]})
+            return out
+
+        def fake_rewrite(story, review):
+            out = dict(story)
+            out["user_story"] = "degraded"
+            return out
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+        monkeypatch.setattr(orchestrator, "_rewrite_single_story", fake_rewrite)
+
+        result = orchestrator._quality_review_loop(stories)
+
+        assert all(s["user_story"].startswith("original") for s in result), (
+            "every story degraded; none of the originals survived")
