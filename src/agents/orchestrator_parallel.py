@@ -733,11 +733,6 @@ class ParallelStoryOrchestrator:
                 logger.info(f"    [{failure['phase']}] {failure['detail']}")
 
         logger.info("=" * 62)
-        logger.info(
-            "Note: this is pipeline time. The browser reports end-to-end time, "
-            "which also covers upload, parsing and transfer."
-        )
-        logger.info("=" * 62)
 
     def _quality_review_loop(self, stories: list) -> list:
         """LOOP 4: Iterative quality improvement with PARALLEL rewrites"""
