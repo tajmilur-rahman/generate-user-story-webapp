@@ -484,6 +484,9 @@ class ParallelStoryOrchestrator:
             self.run_id
         )
         self.completed_phases = []
+        # Figures for the end-of-run summary, captured where each is already
+        # known rather than recomputed.
+        self.stats = {}
         logger.info(f"Run ID: {self.run_id}")
 
         logger.info("=" * 60)
@@ -503,11 +506,14 @@ class ParallelStoryOrchestrator:
             raise Exception(f"Requirements extraction failed: {req_result.get('error')}")
 
         requirements = req_result["output"]["requirements"]
+        self.stats["requirements_extracted"] = len(requirements)
+        self.stats["phase1_seconds"] = time.time() - phase_start
         logger.info(f"✓ Extracted {len(requirements)} requirements ({time.time() - phase_start:.1f}s)")
 
         # DEDUPLICATION: Remove duplicate requirements by semantic similarity
         logger.info("\n[DEDUPLICATION] Checking for duplicate requirements...")
         requirements = self.deduplicate_requirements(requirements)
+        self.stats["requirements_final"] = len(requirements)
         logger.info(f"✓ Final requirement count: {len(requirements)}")
         self._checkpoint("01_requirements", requirements)
 
@@ -537,6 +543,9 @@ class ParallelStoryOrchestrator:
             raise Exception("Epic refinement failed")
 
         epics = epic_refine_result["output"]["epics"]
+        self.stats["epics_raw"] = len(raw_epics)
+        self.stats["epics_final"] = len(epics)
+        self.stats["phase2_seconds"] = time.time() - phase_start
         logger.info(f"✓ Refined to {len(epics)} final epics ({time.time() - phase_start:.1f}s)")
         self._checkpoint("02_epics", epics)
 
@@ -562,11 +571,14 @@ class ParallelStoryOrchestrator:
                 except Exception as e:
                     self._record_failure("stories", f"epic {epic['epic_name']}", e)
 
+        self.stats["stories_generated"] = len(all_stories)
+        self.stats["phase3_seconds"] = time.time() - phase_start
         logger.info(f"✓ Generated {len(all_stories)} stories ({time.time() - phase_start:.1f}s)")
 
         # DEDUPLICATION: Remove duplicate stories by title/description similarity
         logger.info("\n[DEDUPLICATION] Checking for duplicate stories...")
         all_stories = self.deduplicate_stories(all_stories)
+        self.stats["stories_final"] = len(all_stories)
         logger.info(f"✓ Final story count: {len(all_stories)}")
 
         # GROUNDING REPORT: note vocabulary that does not occur in the source.
@@ -618,6 +630,8 @@ class ParallelStoryOrchestrator:
 
         all_test_cases = self._assign_test_case_ids(batch_results, requirements)
 
+        self.stats["test_cases"] = len(all_test_cases)
+        self.stats["phase4_seconds"] = time.time() - phase_start
         logger.info(f"✓ Generated {len(all_test_cases)} test cases ({time.time() - phase_start:.1f}s)")
         self._checkpoint("04_test_cases", all_test_cases)
 
@@ -628,14 +642,13 @@ class ParallelStoryOrchestrator:
         phase_start = time.time()
         logger.info(f"\n[PHASE 5] Quality Review Loop (PARALLEL - {self.max_workers} workers)...")
         all_stories = self._quality_review_loop(all_stories)
+        self.stats["phase5_seconds"] = time.time() - phase_start
         logger.info(f"✓ Quality review complete ({time.time() - phase_start:.1f}s)")
         self._checkpoint("05_reviewed_stories", all_stories)
 
         total_time = time.time() - start_time
 
-        logger.info("\n" + "=" * 60)
-        logger.info(f"Pipeline Complete! Total time: {total_time:.1f}s ({total_time/60:.1f} min)")
-        logger.info("=" * 60)
+        self._log_summary(total_time)
 
         return {
             "run_id": self.run_id,
@@ -647,6 +660,84 @@ class ParallelStoryOrchestrator:
             "failures": list(self.failures),
             "partial": bool(self.failures)
         }
+
+    def _log_summary(self, total_time):
+        """
+        Print one consolidated summary at the end of a run.
+
+        The per-phase figures are already logged as they happen, but they are
+        scattered across several minutes of output. Collecting them in one
+        block at the end makes a run readable at a glance and comparable
+        against the previous one.
+
+        Args:
+            total_time: Total pipeline wall-clock time in seconds
+        """
+        stats = self.stats
+
+        def line(label, value):
+            logger.info(f"  {label:<26} {value}")
+
+        def duration(seconds):
+            if seconds is None:
+                return "-"
+            if seconds < 60:
+                return f"{seconds:.1f}s"
+            return f"{int(seconds // 60)}m {seconds % 60:04.1f}s"
+
+        def dropped(before, after):
+            """Render "12 -> 10 (2 removed)" when anything was removed."""
+            if before is None or after is None:
+                return "-"
+            if before == after:
+                return str(after)
+            return f"{before} -> {after} ({before - after} removed)"
+
+        logger.info("\n" + "=" * 62)
+        logger.info("RUN SUMMARY")
+        logger.info("=" * 62)
+        line("Run ID", self.run_id or "-")
+        line("Workers", self.max_workers)
+
+        logger.info("-" * 62)
+        line("Requirements",
+             dropped(stats.get("requirements_extracted"),
+                     stats.get("requirements_final")))
+        line("Epics",
+             dropped(stats.get("epics_raw"), stats.get("epics_final")))
+        line("Stories",
+             dropped(stats.get("stories_generated"),
+                     stats.get("stories_final")))
+        line("Test cases", stats.get("test_cases", "-"))
+
+        logger.info("-" * 62)
+        line("P1 requirements", duration(stats.get("phase1_seconds")))
+        line("P2 epics", duration(stats.get("phase2_seconds")))
+        line("P3 stories", duration(stats.get("phase3_seconds")))
+        line("P4 test cases", duration(stats.get("phase4_seconds")))
+        line("P5 quality review", duration(stats.get("phase5_seconds")))
+
+        # Time not attributable to a phase: deduplication, grounding reports,
+        # checkpoint writes and the gaps between phases.
+        phase_total = sum(
+            stats.get(f"phase{n}_seconds", 0) or 0 for n in range(1, 6))
+        line("Other", duration(max(0.0, total_time - phase_total)))
+
+        logger.info("-" * 62)
+        line("TOTAL (pipeline)", duration(total_time))
+
+        if self.failures:
+            logger.info("-" * 62)
+            line("Partial failures", len(self.failures))
+            for failure in self.failures[:5]:
+                logger.info(f"    [{failure['phase']}] {failure['detail']}")
+
+        logger.info("=" * 62)
+        logger.info(
+            "Note: this is pipeline time. The browser reports end-to-end time, "
+            "which also covers upload, parsing and transfer."
+        )
+        logger.info("=" * 62)
 
     def _quality_review_loop(self, stories: list) -> list:
         """LOOP 4: Iterative quality improvement with PARALLEL rewrites"""

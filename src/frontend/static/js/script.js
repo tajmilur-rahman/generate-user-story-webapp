@@ -107,6 +107,11 @@ async function generateUserStories() {
     generateBtn.textContent = 'Generating...';
     generateBtn.disabled = true;
 
+    // Wall-clock from the button press. The server reports its own pipeline
+    // time, but that excludes upload, document extraction, response conversion
+    // and network, so it under-reports what the user actually waits.
+    const generationStartedAt = Date.now();
+
     try {
         // Create FormData to send file
         const formData = new FormData();
@@ -152,6 +157,16 @@ async function generateUserStories() {
             sessionStorage.setItem('userStories', JSON.stringify(data.stories));
             sessionStorage.setItem('projectDescription', file.name);
 
+            const elapsedSeconds = (Date.now() - generationStartedAt) / 1000;
+            sessionStorage.setItem('generationSeconds', String(elapsedSeconds));
+            // The server's own pipeline timing, when it reported one, so the
+            // two can be compared.
+            sessionStorage.setItem(
+                'pipelineSeconds',
+                String(data.execution_time || (data.performance && data.performance.total_seconds) || '')
+            );
+            console.log(`Generation took ${formatDuration(elapsedSeconds)} end to end`);
+
             // Navigate to stories page
             window.location.href = 'stories.html';
         } else {
@@ -181,6 +196,44 @@ async function generateUserStories() {
 let userStories = [];
 
 // Load user stories from backend API or sessionStorage
+// Render a duration the way a person reads it: seconds under a minute,
+// minutes and seconds above.
+function formatDuration(seconds) {
+    const total = Math.max(0, Math.round(Number(seconds) || 0));
+    if (total < 60) {
+        return `${total}s`;
+    }
+    const minutes = Math.floor(total / 60);
+    const remainder = total % 60;
+    return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
+}
+
+// Show how long the last generation took, measured from the button press.
+function showGenerationTime() {
+    const element = document.getElementById('generationTime');
+    if (!element) {
+        return;
+    }
+
+    const elapsed = parseFloat(sessionStorage.getItem('generationSeconds'));
+    if (!isFinite(elapsed) || elapsed <= 0) {
+        element.textContent = '';
+        return;
+    }
+
+    element.textContent = `Generated in ${formatDuration(elapsed)}`;
+
+    // When the server reported its own pipeline time, show the difference as
+    // a tooltip: the gap is upload, parsing, conversion and network.
+    const pipeline = parseFloat(sessionStorage.getItem('pipelineSeconds'));
+    if (isFinite(pipeline) && pipeline > 0) {
+        const overhead = Math.max(0, elapsed - pipeline);
+        element.title =
+            `Pipeline ${formatDuration(pipeline)}, ` +
+            `other ${formatDuration(overhead)} (upload, parsing, transfer)`;
+    }
+}
+
 async function loadUserStories() {
     // Check if stories are in sessionStorage (for demo purposes)
     const storedStories = sessionStorage.getItem('userStories');
@@ -204,6 +257,7 @@ async function loadUserStories() {
     }
 
     renderStoryList();
+    showGenerationTime();
 
     // Highlight first story for viewing by default (but don't select/check it)
     if (userStories.length > 0) {
