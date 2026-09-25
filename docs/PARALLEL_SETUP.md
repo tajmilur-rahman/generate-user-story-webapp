@@ -46,17 +46,6 @@ OLLAMA_MAX_ATTEMPTS=3
 # keeps both fields optional, so no other change is needed.
 INCLUDE_ESTIMATES=false
 
-# GROUNDING
-# Minimum fraction of a requirement's distinctive vocabulary that must appear
-# in the source document. Requirements below this are treated as fabrications
-# and removed, and reported in the API response rather than dropped silently.
-#
-# Measured against a real specification, hallucinated requirements scored
-# 0-20% and legitimate ones 33-100%, so 0.25 sits in the gap. Tuned on one
-# document: lower it if genuine requirements are being removed, and check the
-# log, which names the vocabulary that could not be found.
-REQUIREMENT_GROUNDING_THRESHOLD=0.25
-
 # QUALITY REVIEW
 # Model used to judge story quality. Leave unset to reuse OLLAMA_MODEL, but
 # prefer a DIFFERENT model: a model judging output from its own family shows
