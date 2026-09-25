@@ -169,6 +169,18 @@ def generate_stories_agentic():
             execution_time = result.get("execution_time", 0)
             failures = result.get("failures", [])
             run_id = result.get("run_id")
+            ungrounded = result.get("ungrounded_requirements", [])
+
+            if ungrounded:
+                logger.warning(
+                    f"{len(ungrounded)} requirement(s) removed as unsupported "
+                    f"by the source document"
+                )
+                for item in ungrounded:
+                    logger.warning(
+                        f"  not in document: {', '.join(item['missing_terms'][:5])} "
+                        f"-- {item['description'][:70]}"
+                    )
 
             if failures:
                 logger.warning(
@@ -287,6 +299,9 @@ def generate_stories_agentic():
                 # fewer stories than the document warranted.
                 'partial': bool(failures),
                 'failures': failures,
+                # Reported separately from failures: these are fabrications the
+                # grounding check removed, not work the pipeline lost.
+                'ungrounded_requirements': ungrounded,
                 'run_id': run_id,
                 'performance': {
                     'total_seconds': round(execution_time, 1),

@@ -5,6 +5,7 @@ from .story_agent import StoryAgent
 from .test_agent import TestCaseAgent
 from .reviewer_agent import ReviewerAgent
 from .rewriter_agent import RewriterAgent
+from .grounding import filter_grounded
 from .invest_checks import evaluate_stories, summarise_scores
 from difflib import SequenceMatcher
 import re
@@ -68,6 +69,11 @@ class ParallelStoryOrchestrator:
         # lock because worker threads append concurrently.
         self.failures = []
         self._failures_lock = Lock()
+
+        # Requirements removed for lacking support in the source document.
+        # Kept apart from failures: dropping a fabrication is a correction, not
+        # a degraded run, and marking it "partial" would misreport it.
+        self.ungrounded = []
 
         # Set per run by generate_stories()
         self.run_id = None
@@ -474,6 +480,7 @@ class ParallelStoryOrchestrator:
         # Reset per-run state: the orchestrator may be reused across requests.
         with self._failures_lock:
             self.failures = []
+        self.ungrounded = []
 
         self.run_id = (
             f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
@@ -503,6 +510,27 @@ class ParallelStoryOrchestrator:
 
         requirements = req_result["output"]["requirements"]
         logger.info(f"✓ Extracted {len(requirements)} requirements ({time.time() - phase_start:.1f}s)")
+
+        # GROUNDING: drop requirements the source document does not support.
+        #
+        # The extractor invents subjects the document never mentions -- a run
+        # against a weather station specification covering temperature,
+        # pressure, sunshine, rainfall and wind produced requirements for
+        # humidity readings and light intensity control, neither word appearing
+        # anywhere in the text. The prompt forbids this explicitly and the
+        # agent runs at temperature 0.0, so the instruction is not the lever;
+        # the document is, and it can be checked mechanically.
+        logger.info("\n[GROUNDING] Checking requirements against the source document...")
+        requirements, ungrounded = filter_grounded(requirements, document_text)
+        for rejected in ungrounded:
+            logger.warning(
+                f"  ⚠ Ungrounded requirement removed ({rejected['coverage']:.0%} "
+                f"of terms found): {rejected['description'][:80]}"
+            )
+            logger.warning(f"     not in document: {', '.join(rejected['missing_terms'][:5])}")
+            self.ungrounded.append(rejected)
+        if ungrounded:
+            logger.info(f"✅ Removed {len(ungrounded)} ungrounded requirements")
 
         # DEDUPLICATION: Remove duplicate requirements by semantic similarity
         logger.info("\n[DEDUPLICATION] Checking for duplicate requirements...")
@@ -623,7 +651,8 @@ class ParallelStoryOrchestrator:
             "test_cases": all_test_cases,
             "execution_time": total_time,
             "failures": list(self.failures),
-            "partial": bool(self.failures)
+            "partial": bool(self.failures),
+            "ungrounded_requirements": list(self.ungrounded)
         }
 
     def _quality_review_loop(self, stories: list) -> list:
