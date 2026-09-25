@@ -1108,3 +1108,121 @@ class TestTitleDerivation:
     @pytest.mark.parametrize("text", ["", "   ", "the and of to"])
     def test_unusable_input_yields_no_title(self, text):
         assert self._derive(text) == ""
+
+
+class TestSourceGrounding:
+    """Document-agnostic grounding measures: keyword injection and reporting.
+
+    An extractor run against a wilderness weather station specification
+    produced requirements for humidity readings and light intensity control;
+    neither word occurs anywhere in the source. Both measures here derive
+    everything from the document supplied at runtime, so they configure
+    nothing and behave the same on any input.
+
+    Neither removes anything. An earlier filtering attempt was reverted
+    (0f7990d) because its threshold rested on a single document.
+    """
+
+    @pytest.fixture(scope="class")
+    def documents(self):
+        from docx import Document
+
+        base = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                            "src", "autoAgile", "tests", "docs")
+        names = ["Wilderness_Weather_Station.docx", "insulinPump.docx",
+                 "patientInformationSystem.docx"]
+        return {n: "\n".join(p.text for p in Document(os.path.join(base, n)).paragraphs)
+                for n in names}
+
+    def test_keywords_reflect_each_document(self, documents):
+        """No vocabulary is configured, so each document yields its own."""
+        from agents.grounding import source_keywords
+
+        weather = source_keywords(documents["Wilderness_Weather_Station.docx"])
+        insulin = source_keywords(documents["insulinPump.docx"])
+        patient = source_keywords(documents["patientInformationSystem.docx"])
+
+        assert "weather" in weather and "insulin" not in weather
+        assert "insulin" in insulin and "weather" not in insulin
+        assert "patient" in patient or "patients" in patient
+        assert not set(weather) & set(insulin), "keyword sets should not overlap"
+
+    def test_keywords_are_deterministic(self, documents):
+        """The same document must always yield the same list."""
+        from agents.grounding import source_keywords
+
+        text = documents["insulinPump.docx"]
+        assert source_keywords(text) == source_keywords(text)
+
+    def test_keywords_exclude_generic_specification_vocabulary(self, documents):
+        from agents.grounding import source_keywords
+
+        keywords = source_keywords(documents["Wilderness_Weather_Station.docx"], 30)
+
+        for generic in ("system", "systems", "data", "requirements", "software"):
+            assert generic not in keywords, f"{generic} carries no subject signal"
+
+    def test_empty_document_yields_no_keywords(self):
+        from agents.grounding import source_keywords
+
+        assert source_keywords("") == []
+
+    def test_prompt_names_the_documents_own_subjects(self, documents):
+        """The instruction alone was ignored; the prompt must state the scope."""
+        from agents.requirements_agent import RequirementsAgent
+
+        agent = RequirementsAgent.__new__(RequirementsAgent)
+        prompt = agent.get_system_prompt(
+            {"document": documents["insulinPump.docx"]})
+
+        assert "SUBJECTS PRESENT IN THIS DOCUMENT" in prompt
+        assert "insulin" in prompt.split("SUBJECTS PRESENT")[1][:400]
+
+    def test_prompt_is_safe_without_a_document(self):
+        from agents.requirements_agent import RequirementsAgent
+
+        agent = RequirementsAgent.__new__(RequirementsAgent)
+        prompt = agent.get_system_prompt({"document": ""})
+
+        assert "SUBJECTS PRESENT IN THIS DOCUMENT" not in prompt
+        assert len(prompt) > 100
+
+    def test_invented_subjects_are_reported_as_unsupported(self, documents):
+        from agents.grounding import assess_grounding
+
+        source = documents["Wilderness_Weather_Station.docx"]
+
+        humidity = assess_grounding(
+            "Record Store Humidity | record and store humidity readings", source)
+        light = assess_grounding(
+            "Monitor Light Intensity | monitor and adjust light intensity", source)
+
+        assert "humidity" in humidity["unsupported_terms"]
+        assert "light" in light["unsupported_terms"]
+        assert "intensity" in light["unsupported_terms"]
+
+    def test_genuine_subjects_are_not_reported(self, documents):
+        from agents.grounding import assess_grounding
+
+        source = documents["Wilderness_Weather_Station.docx"]
+        report = assess_grounding(
+            "Record Temperature Readings | record temperature and pressure "
+            "readings from the instruments", source)
+
+        for term in ("temperature", "pressure", "instruments", "readings"):
+            assert term not in report["unsupported_terms"], report
+
+    def test_grounding_reports_rather_than_judges(self, documents):
+        """No verdict is published: a ratio was measured not to separate the
+        two populations, so asserting one would be false precision."""
+        from agents.grounding import assess_grounding
+
+        report = assess_grounding("anything at all", documents["insulinPump.docx"])
+
+        assert set(report) == {"score", "unsupported_terms"}
+        assert "confidence" not in report
+
+    def test_grounding_is_inert_without_a_source(self):
+        from agents.grounding import assess_grounding
+
+        assert assess_grounding("some story text", "")["unsupported_terms"] == []

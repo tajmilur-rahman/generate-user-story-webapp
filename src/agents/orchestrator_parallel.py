@@ -5,6 +5,7 @@ from .story_agent import StoryAgent
 from .test_agent import TestCaseAgent
 from .reviewer_agent import ReviewerAgent
 from .rewriter_agent import RewriterAgent
+from .grounding import assess_grounding
 from .invest_checks import evaluate_stories, summarise_scores
 from difflib import SequenceMatcher
 import re
@@ -567,6 +568,27 @@ class ParallelStoryOrchestrator:
         logger.info("\n[DEDUPLICATION] Checking for duplicate stories...")
         all_stories = self.deduplicate_stories(all_stories)
         logger.info(f"✓ Final story count: {len(all_stories)}")
+
+        # GROUNDING REPORT: note vocabulary that does not occur in the source.
+        #
+        # Reporting only -- nothing is removed. A ratio was measured not to
+        # separate fabricated stories from genuine ones (a fabrication scored
+        # 44% against a genuine story's 29%, because fabrications reuse the
+        # document's framing and only the subject is invented), so no verdict
+        # is asserted. The absent vocabulary is what a reader can act on:
+        # "humidity" missing from a weather specification is obvious.
+        for story in all_stories:
+            report = assess_grounding(
+                f"{story.get('title', '')} {story.get('user_story', '')}",
+                document_text)
+            story["grounding"] = report
+            if report["unsupported_terms"]:
+                logger.info(
+                    f"  ℹ Not in source document ({report['score']:.0%} of terms "
+                    f"found): {', '.join(report['unsupported_terms'][:6])} "
+                    f"-- {story.get('user_story', '')[:60]}"
+                )
+
         self._checkpoint("03_stories", all_stories)
 
         # PHASE 4: Test Case Generation (PARALLEL BATCHES) ⚡

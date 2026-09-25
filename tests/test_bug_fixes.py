@@ -66,8 +66,13 @@ class TestBug2HallucinatedRequirements:
         source = inspect.getsource(RequirementsAgent.get_system_prompt)
 
         assert "do NOT invent" in source
-        assert "EXTRACT ONLY WHAT IS STATED" in source
+        assert "EXTRACTOR, NOT AN INVENTOR" in source
         assert "EXPLICITLY mentioned" in source
+        # The prompt must also name this document's own subject vocabulary,
+        # rather than relying on the instruction alone -- the instruction was
+        # present and ignored when the extractor produced humidity and light
+        # intensity requirements from a document containing neither word.
+        assert "SUBJECTS PRESENT IN THIS DOCUMENT" in source
 
 
 class TestBug3InventedMetrics:

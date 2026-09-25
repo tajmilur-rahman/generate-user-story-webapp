@@ -1,5 +1,6 @@
 from .base_agent import BaseAgent
 from .schemas import RequirementsOutput
+from .grounding import source_keywords
 from typing import Dict, Any
 
 class RequirementsAgent(BaseAgent):
@@ -16,12 +17,34 @@ class RequirementsAgent(BaseAgent):
     def get_system_prompt(self, context: Dict[str, Any]) -> str:
         document = context.get('document', '')
 
+        # Name this document's own subject vocabulary in the prompt.
+        #
+        # The instruction below forbids invention, and the model ignored it --
+        # producing requirements for humidity and light intensity from a
+        # specification containing neither word. An instruction asks the model
+        # to infer a boundary; naming the vocabulary states where it is. The
+        # terms are counted from whatever document was uploaded, so this adapts
+        # to any input and configures nothing.
+        keywords = source_keywords(document, limit=20)
+        subject_scope = ""
+        if keywords:
+            subject_scope = (
+                "\n\nSUBJECTS PRESENT IN THIS DOCUMENT "
+                "(counted from the text above):\n"
+                + ", ".join(keywords)
+                + "\n\nThese are the things this document is about. A "
+                  "requirement whose subject is NOT among them, and NOT "
+                  "otherwise written in the document, does not belong in the "
+                  "output. Before writing each requirement, find the sentence "
+                  "it comes from. If you cannot, do not write it."
+            )
+
         return f"""RESPOND WITH JSON ONLY. Do not include any prose, explanations, markdown headers, or text outside the JSON. Your entire response must be a single valid JSON object starting with {{{{ and ending with }}}}.
 
 You are a senior software engineer extracting ALL functional requirements from a product specification document.
 
 DOCUMENT TEXT:
-{document}
+{document}{subject_scope}
 
 EXTRACTION RULES (apply in order):
 1. EXTRACT: Extract EVERY distinct functional requirement mentioned — do not skip, merge, or summarise.
@@ -41,7 +64,8 @@ EXTRACTION RULES (apply in order):
    ✅ Document says "99.9% uptime" → "99.9% uptime"
    ❌ Document says "99.9% uptime" → "high availability"
    If the document does not state a specific value, do NOT invent one.
-8. EXTRACT ONLY WHAT IS STATED: Only include instruments, sensors, components, fields, modules, systems, roles, or entities that are EXPLICITLY mentioned in the document. Do NOT add items that seem logical, related, or industry-standard but are not stated.
+8. YOU ARE AN EXTRACTOR, NOT AN INVENTOR. Your only job is to restate what the document says. Only include instruments, sensors, components, fields, modules, systems, roles, or entities EXPLICITLY mentioned in it. Do NOT add anything that seems logical, related, or industry-standard but is not stated.
+   For EVERY requirement, ask: "which sentence in the document says this?" If you cannot point to one, delete that requirement. A subject that is not mentioned does not exist.
    ✅ Document says "temperature, pressure, rainfall" → extract these 3
    ❌ Adding "humidity" because weather systems usually measure it
    ✅ Document says "username and password" → extract these 2

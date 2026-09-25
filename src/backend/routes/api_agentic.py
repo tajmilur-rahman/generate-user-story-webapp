@@ -201,6 +201,9 @@ def generate_stories_agentic():
                         # Model-written title; the converter derives one only
                         # when this is absent.
                         "Title": story.get("title", ""),
+                        # Vocabulary not found in the source document. Carried
+                        # for display; no story is removed because of it.
+                        "Grounding": story.get("grounding", {}),
                         # Carried so the converter's deduplication can block on
                         # it: stories tracing to different requirements are not
                         # duplicates and must never be compared by similarity.

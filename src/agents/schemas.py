@@ -78,6 +78,9 @@ class Story(_Base):
     # Attached by the orchestrator after generation, not by the model.
     epic_id: str = ""
     epic_name: str = ""
+    # Which of the story's terms do not occur in the source document.
+    # Reporting only; nothing is removed on the strength of it.
+    grounding: Dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("acceptance_criteria", "definition_of_done", mode="before")
     @classmethod
