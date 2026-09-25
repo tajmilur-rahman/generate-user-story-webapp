@@ -33,3 +33,27 @@ def include_estimates() -> bool:
     can flip it without reimporting the module.
     """
     return _flag("INCLUDE_ESTIMATES", default=False)
+
+
+def epic_count_range(requirement_count):
+    """
+    Derive how many epics a requirement set needs.
+
+    The prompts previously asked for "5-10 epics" regardless of input size.
+    At twenty-odd requirements that happens to be right, but the number is a
+    constant attached to a variable, and the two instructions can contradict
+    each other: 10 epics holding at most 5 requirements each is 50 slots, so a
+    60-requirement specification is asked to group everything AND to produce
+    too few epics to hold it. A model resolving that conflict has to drop
+    requirements, and no coverage instruction can save it.
+
+    Deriving the range from the count removes the contradiction: at 3-4
+    requirements per epic, n requirements need about n/4 to n/3 epics.
+
+    Returns:
+        (low, high) epic counts, always with high > low and low >= 1
+    """
+    n = max(int(requirement_count or 0), 1)
+    low = max(1, round(n / 4))
+    high = max(low + 1, round(n / 3))
+    return low, high

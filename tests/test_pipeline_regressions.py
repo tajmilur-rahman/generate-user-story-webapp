@@ -1387,3 +1387,65 @@ class TestUnclaimedRequirementRecovery:
         phase_three = source.index("[PHASE 3]")
 
         assert recovery < checkpoint < phase_three
+
+
+class TestEpicBudgetScalesWithInput:
+    """
+    The epic count was a constant ("5-10 epics") attached to a variable input.
+
+    Combined with "2-5 requirements per epic" that is a capacity of 10-50
+    requirements. A 60-requirement specification was therefore asked to group
+    every requirement AND to produce too few epics to hold them all -- a
+    contradiction the model can only resolve by dropping requirements.
+    """
+
+    def test_budget_never_asks_for_fewer_slots_than_requirements(self):
+        from agents.settings import epic_count_range
+
+        for n in (1, 6, 12, 24, 40, 60, 120, 400):
+            low, high = epic_count_range(n)
+            assert high * 5 >= n, (
+                f"{n} requirements cannot fit in {high} epics of 5")
+            assert low >= 1 and high > low
+
+    def test_twenty_four_requirements_keep_the_previous_budget(self):
+        # The constant was right at this size; deriving it must not churn
+        # behaviour on the documents already in use.
+        from agents.settings import epic_count_range
+
+        assert epic_count_range(24) == (6, 8)
+
+    def test_extractor_prompt_states_a_derived_count_not_a_constant(self):
+        from agents.epic_extractor_agent import EpicExtractorAgent
+
+        agent = EpicExtractorAgent.__new__(EpicExtractorAgent)
+        few = agent.get_system_prompt({"requirements": [
+            {"id": f"REQ-{i:03d}", "description": "x"} for i in range(1, 9)]})
+        many = agent.get_system_prompt({"requirements": [
+            {"id": f"REQ-{i:03d}", "description": "x"} for i in range(1, 61)]})
+
+        assert "5-10 EPICS" not in few
+        assert "2-3 EPICS" in few
+        assert "15-20 EPICS" in many, "budget must grow with the document"
+
+    def test_both_epic_prompts_list_every_requirement_id(self):
+        from agents.epic_extractor_agent import EpicExtractorAgent
+        from agents.epic_refiner_agent import EpicRefinerAgent
+
+        requirements = [{"id": f"REQ-{i:03d}", "description": "x"}
+                        for i in range(1, 25)]
+        raw_epics = [{"epic_id": "EPIC-001", "epic_name": "E",
+                      "epic_description": "d",
+                      "requirement_ids": ["REQ-001"]}]
+
+        prompts = [
+            EpicExtractorAgent.__new__(EpicExtractorAgent).get_system_prompt(
+                {"requirements": requirements}),
+            EpicRefinerAgent.__new__(EpicRefinerAgent).get_system_prompt(
+                {"requirements": requirements, "raw_epics": raw_epics}),
+        ]
+
+        for prompt in prompts:
+            assert "EVERY ONE OF THESE IDS MUST APPEAR" in prompt
+            for req in requirements:
+                assert req["id"] in prompt

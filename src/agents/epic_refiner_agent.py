@@ -27,6 +27,11 @@ class EpicRefinerAgent(BaseAgent):
             for req in requirements
         ])
 
+        # Merging is where ids go missing: two epics become one and an id
+        # that was in neither survivor list is simply gone. Naming the ids
+        # gives the model something to check its own output against.
+        all_ids = ", ".join(req['id'] for req in requirements)
+
         return f"""RESPOND WITH JSON ONLY. Do not include any prose, explanations, markdown headers, or text outside the JSON. Your entire response must be a single valid JSON object starting with {{{{ and ending with }}}}.
 
 You are an Epic Quality Specialist performing second-pass epic optimization.
@@ -37,6 +42,9 @@ RAW EPICS (from first pass):
 ALL REQUIREMENTS (for reference):
 {reqs_text}
 
+EVERY ONE OF THESE IDS MUST APPEAR IN YOUR OUTPUT:
+{all_ids}
+
 REFINEMENT RULES (apply in order):
 1. MERGE SIMILAR: If 2+ epics cover the same feature area or business capability, merge them
    - Example: "User Login" + "User Authentication" → "User Authentication & Authorization"
@@ -44,7 +52,11 @@ REFINEMENT RULES (apply in order):
 2. SPLIT BROAD: If an epic has >6 requirements or covers disparate concerns, split it
    - Example: "Data Management" with 8 requirements about collection, storage, transmission → split into "Data Collection" + "Data Storage" + "Data Transmission"
 3. BALANCE SIZE: Target 2-5 requirements per epic (optimal: 3-4)
-4. VERIFY COVERAGE: Ensure ALL requirements are assigned to exactly one epic
+4. VERIFY COVERAGE: Ensure ALL requirements are assigned to exactly one epic.
+   Merging is where ids get lost: when you combine two epics, the combined
+   requirement_ids must be the union of both, with nothing dropped. Before
+   responding, check your output against the id list above and add any id
+   that is missing. Keep an extra epic rather than leaving an id out.
 5. RENUMBER: Renumber epics sequentially (EPIC-001, EPIC-002, ...) after merging/splitting
 6. IMPROVE NAMES: Make epic names more specific and business-focused
 
