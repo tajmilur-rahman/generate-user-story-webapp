@@ -1226,3 +1226,77 @@ class TestSourceGrounding:
         from agents.grounding import assess_grounding
 
         assert assess_grounding("some story text", "")["unsupported_terms"] == []
+
+
+class TestRewriterPrompt:
+    """The rewriter repairs listed defects; it does not compose a new story.
+
+    Its first real outing (the prompt raised TypeError before 844ffc9, so no
+    rewrite had ever run) returned a story the judge had scored 94 as one it
+    scored 64. The prompt was pushing toward expansion: six of ten rules said
+    ADD, "keep changes minimal" was buried last, and the worked example
+    demonstrated a maximal rewrite that grew one acceptance criterion into five.
+    """
+
+    CONTEXT = {
+        "story": {
+            "story_id": "EPIC-005-STORY-001",
+            "requirement_id": "REQ-007",
+            "epic_id": "EPIC-005",
+            "user_story": ("As a dispatcher, I want to flag affected routes, "
+                           "so that delays are visible"),
+            "acceptance_criteria": [
+                "Given a delay, When it is detected, Then the route is flagged"],
+            "deliverables": {"unit_tests": ["Unit tests for route_flagger.flag()"]},
+        },
+        "review": {"total_score": 62, "issues": ["Story does not follow the As-a form"],
+                   "invest_scores": {"testable": 6}, "feedback": "Form is wrong"},
+    }
+
+    @staticmethod
+    def _prompt():
+        from agents.rewriter_agent import RewriterAgent
+        agent = RewriterAgent.__new__(RewriterAgent)
+        return agent.get_system_prompt(TestRewriterPrompt.CONTEXT)
+
+    def test_prompt_carries_no_domain_vocabulary(self):
+        """The worked example was a weather station story, shown verbatim while
+        rewriting stories from any other domain."""
+        prompt = self._prompt().lower()
+
+        for term in ("thermometer", "weather station", "celsius",
+                     "temperature", "anemometer", "barometric"):
+            assert term not in prompt, f"{term} biases the rewrite toward one domain"
+
+    def test_prompt_does_not_reference_disabled_estimates(self, monkeypatch):
+        """Story points are off by default, so instructing the model to reason
+        about them asks it to act on a value it never receives."""
+        monkeypatch.delenv("INCLUDE_ESTIMATES", raising=False)
+        prompt = self._prompt().lower()
+
+        assert "story point" not in prompt
+        assert "story_points" not in prompt
+
+    def test_prompt_frames_the_task_as_repair(self):
+        prompt = self._prompt()
+
+        assert "REPAIR, NOT A REWRITE" in prompt
+        assert "PRESERVE THE SUBJECT" in prompt
+        assert "PRESERVE THE SCOPE" in prompt
+
+    def test_prompt_includes_the_story_being_repaired(self):
+        """A repair needs the original in front of it, not just the defects."""
+        prompt = self._prompt()
+
+        assert "dispatcher" in prompt
+        assert "route_flagger.flag()" in prompt
+        assert "Story does not follow the As-a form" in prompt
+
+    def test_rewriter_runs_at_low_temperature(self):
+        """Sampling variance in a repair shows up as drift from the original."""
+        from agents.rewriter_agent import RewriterAgent
+        import inspect
+
+        source = inspect.getsource(RewriterAgent.__init__)
+
+        assert "temperature=0.2" in source, "repair should not sample freely"

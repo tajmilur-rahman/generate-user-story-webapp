@@ -10,8 +10,13 @@ class RewriterAgent(BaseAgent):
         super().__init__(
             name="Story Rewriter",
             role="Story Improvement Specialist",
-            goal="Fix low-quality stories to achieve INVEST score ≥70",
-            temperature=0.5,  # Higher for creative rewriting
+            goal="Repair the listed defects in a story without changing anything else",
+            # Low on purpose. This is a repair, not composition: the task is to
+            # reproduce the original with specific defects corrected, and
+            # sampling variance here shows up as drift away from the original
+            # subject. A run at 0.5 returned a story the judge had scored 94 as
+            # one it scored 64.
+            temperature=0.2,
             output_model=RewriteOutput
         )
 
@@ -42,7 +47,8 @@ class RewriterAgent(BaseAgent):
 
         return f"""RESPOND WITH JSON ONLY. Do not include any prose, explanations, markdown headers, or text outside the JSON. Your entire response must be a single valid JSON object starting with {{{{ and ending with }}}}.
 
-You are a Story Improvement Specialist. Rewrite this low-quality story to address ALL identified issues and achieve INVEST score ≥70.
+You are a Story Improvement Specialist. Repair the specific defects listed
+below in the story provided, so it reaches an INVEST score of 70 or more.
 
 ORIGINAL STORY (Score: {review.get('total_score', 0)}/100):
 Story ID: {story.get('story_id', 'N/A')}
@@ -60,25 +66,44 @@ ISSUES IDENTIFIED (must fix ALL):
 REVIEWER FEEDBACK:
 {review.get('feedback', 'N/A')}
 
-REWRITING RULES (apply to fix issues):
-1. PRESERVE INTENT: Keep the original requirement purpose and scope
-2. ADD [SPECIFIC ELEMENTS]: If missing, insert "[specific elements: field1, field2, ...]" clause with actual component/field names from the requirement
-3. ADD/FIX "SO THAT": If missing or vague, add concrete benefit clause describing measurable outcome
-4. SPECIFIC USER TYPE: Replace "As a user" with specific role (e.g., "As a data analyst", "As a system administrator")
-5. ADD ACCEPTANCE CRITERIA: If <3 criteria, add more. Make them Given-When-Then format with actual field names
-6. MAKE TESTABLE: Use concrete field names, values, and measurable outcomes in acceptance criteria
-7. REDUCE SCOPE: If story points >5, narrow the scope to make it completable in one sprint
-8. REMOVE VAGUENESS: Replace vague terms ("good", "fast", "flexible") with specific, measurable requirements
-9. REMOVE DEPENDENCIES: Eliminate "depends on", "requires", "after completing" references
-10. SPECIFIC DOD: Make Definition of Done items concrete and measurable
+THIS IS A REPAIR, NOT A REWRITE.
+
+The story above is mostly correct. Your job is to fix the specific defects
+listed under ISSUES IDENTIFIED and change nothing else. A story that comes back
+altered beyond those defects is a worse answer than one left alone, even if the
+new version reads well on its own.
+
+BEFORE ANYTHING ELSE:
+1. REPAIR ONLY WHAT IS LISTED: every issue above must be fixed, and nothing that
+   is not listed may be changed. If a sentence has no listed defect, reproduce
+   it exactly.
+2. PRESERVE THE SUBJECT: the repaired story must be about the same actor, the
+   same capability and the same components as the original. Never substitute a
+   different role, sensor, field, module or capability.
+3. PRESERVE THE SCOPE: do not widen the story to cover more, and do not narrow
+   it to cover less. Keep the same number of acceptance criteria unless a listed
+   issue says there are too few.
+
+HOW TO FIX EACH KIND OF DEFECT:
+4. MISSING [SPECIFIC ELEMENTS]: insert "[specific elements: field1, field2, ...]"
+   naming components already referenced by the original story or its requirement
+5. MISSING OR VAGUE "SO THAT": state the concrete benefit the original implies
+6. GENERIC ACTOR: replace "As a user" with the specific role the original is
+   about -- do not invent a new one
+7. TOO FEW ACCEPTANCE CRITERIA: add only enough to reach three, in
+   Given-When-Then form, covering behaviour the original already describes
+8. UNTESTABLE CRITERIA: restate them with the concrete field names and values
+   already present, without adding new behaviour
+9. VAGUE TERMS: replace "good", "fast", "flexible" with what the original means
+10. DEPENDENCIES: remove "depends on", "requires", "after completing" phrasing
 
 USER STORY FORMAT (MANDATORY):
 As a [specific role], I want to [specific action] using [specific elements: field1, field2, sensor3], so that [concrete, measurable benefit].
 
 ACCEPTANCE CRITERIA FORMAT:
 - Given [specific context with field names], When [specific action], Then [specific outcome with expected values]
-- Include at least one error/edge case scenario
-- 3-5 criteria total
+- Keep the criteria the original already has. Add one only when a listed issue
+  says there are too few, and stop at three.
 
 OUTPUT FORMAT (JSON only):
 {{{{
@@ -87,48 +112,38 @@ OUTPUT FORMAT (JSON only):
     "requirement_id": "{story.get('requirement_id', 'N/A')}",
     "epic_id": "{story.get('epic_id', 'N/A')}",
     "epic_name": "{story.get('epic_name', 'N/A')}",
-    "user_story": "As a weather station operator, I want the system to automatically record temperature readings using [specific elements: thermometer sensor, timestamp, temperature_value in Celsius], so that I have continuous environmental monitoring data for detecting anomalies within 5 minutes",
+    "user_story": "As a <the original role>, I want to <the original action> using [specific elements: <components already named above>], so that <the benefit the original implies>",
     "acceptance_criteria": [
-      "Given the weather station is powered on, When 5 minutes elapse, Then a new temperature reading is recorded in the readings table with sensor_id, timestamp, and temperature_value fields",
-      "Given temperature is recorded, When I query the readings table, Then the record includes all 3 fields (sensor_id, timestamp, temperature_value) and timestamp is in UTC format",
-      "Given readings are being recorded, When I check the log for the past hour, Then I see exactly 12 entries spaced 5 minutes apart",
-      "Given the thermometer sensor is disconnected, When the 5-minute interval elapses, Then an error is logged with message 'Sensor disconnected' and no reading is recorded",
-      "Given temperature exceeds range (-50 to 50 Celsius), When reading is recorded, Then quality_flag is set to 'out_of_range'"
+      "Given <context using the original's own field names>, When <the original's action>, Then <the outcome the original states>",
+      "Given <an error condition the original already mentions>, When <it occurs>, Then <the behaviour the original states>"
     ],
     "deliverables": {{{{
-      "architecture_design": [
-        "Architecture diagram showing temperature_reader, thermometer_driver and scheduler with all data-flow paths documented",
-        "Design reviewed and approved by technical lead"
-      ],
-      "unit_tests": [
-        "Unit tests for temperature_reader.record() covering normal path, sensor disconnection and out-of-range scenarios",
-        "All tests passing in CI/CD pipeline"
-      ],
-      "error_handling": [
-        "Fault detection for sensor disconnection with logged message and no partial write"
+      "<categories carried over from the original>": [
+        "<items carried over, edited only where a listed issue requires it>"
       ]
     }}}}{estimate_fields}
   }}}},
   "changes_made": [
-    "Added [specific elements: thermometer sensor, timestamp, temperature_value in Celsius] clause listing actual components",
-    "Enhanced 'so that' clause from generic 'data available' to 'continuous monitoring for detecting anomalies within 5 minutes'",
-    "Changed user type from generic 'user' to specific 'weather station operator'",
-    "Increased acceptance criteria from 1 to 5, all using Given-When-Then format with actual field names",
-    "Made all acceptance criteria testable and measurable with concrete expected outcomes",
-    "Added error/edge case scenarios (sensor disconnection, out-of-range values)",
-    "Made Definition of Done items specific with measurable outcomes",
-    "Reduced story points from 8 to 3 by focusing scope on core recording functionality"
+    "<one line per listed issue, naming the issue and what you changed to fix it>"
   ]
 }}}}
 
+The angle brackets above mark placeholders describing WHERE content goes. Fill
+every one from the ORIGINAL STORY at the top of this prompt. Do not copy the
+placeholder text, and do not invent subject matter that is not already in the
+original story or its requirement.
+
 CRITICAL RULES:
-1. Fix ALL issues listed in the review feedback
-2. MUST include [specific elements: ...] clause if it was flagged as missing
-3. MUST add/improve "so that" clause if flagged
-4. MUST add/improve acceptance criteria to 3-5 items if flagged
-5. Use actual field names, sensors, components from the requirement
-6. Make every criterion testable and measurable
-7. Keep changes minimal - only fix what's needed to achieve ≥70 score
-8. Preserve epic_id, epic_name, story_id and requirement_id{estimate_preserve}
+1. Change ONLY what the listed issues require. Anything not listed comes through
+   unchanged, word for word
+2. The subject stays the same: same actor, same capability, same components. A
+   repaired story about something else is a failed repair
+3. Fix EVERY listed issue -- a partial repair will be sent back
+4. Use only field names, components and behaviour already present in the
+   original story or its requirement. Invent nothing
+5. Make every criterion testable, using the original's own values
+6. Preserve epic_id, epic_name, story_id and requirement_id{estimate_preserve}
+7. If an issue cannot be fixed without inventing content, leave that part as it
+   is and say so in changes_made
 
 RESPOND WITH JSON ONLY."""
