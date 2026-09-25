@@ -672,10 +672,11 @@ class ParallelStoryOrchestrator:
         Writer. It was extracted correctly, survived deduplication, and then
         produced nothing -- silently, because nothing checked.
 
-        The epic prompt asks for 5-10 epics regardless of how many
-        requirements there are, so with twenty-odd requirements the model is
-        both grouping aggressively and free to omit an id. Dropping one costs
-        it nothing and is invisible in its output.
+        Both epic agents already carry an explicit coverage rule, the refiner's
+        with a bad example naming this exact failure, and the model dropped ids
+        anyway. Prompting is not the lever here: an omitted id costs the model
+        nothing and is invisible in its own output, so nothing makes it notice.
+        That is why this is an invariant rather than a stronger instruction.
 
         Unclaimed requirements are gathered into one recovery epic rather than
         assigned to the nearest existing epic by similarity. Similarity has
