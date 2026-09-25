@@ -796,3 +796,126 @@ class TestEstimateToggle:
                    re.findall(r"^(\d+)\.", writer[writer.find("CRITICAL RULES"):], re.M)]
 
         assert numbers == list(range(1, len(numbers) + 1)), numbers
+
+
+class TestRetryBehaviour:
+    """Agent calls are retried, and parse/validation happen INSIDE the retried
+    unit.
+
+    Retry is invisible when it works, so nothing in the output reveals that it
+    has been removed. The subtle property is composition: validating after
+    invoke() returns looks tidier but leaves schema violations -- the most
+    common failure -- unretried.
+
+    These tests substitute the model BEFORE BaseAgent composes its chain, so
+    the composition under test is the real one. Replacing `agent._chain`
+    afterwards would test LangChain's retry rather than this code, and would
+    pass even with retry removed entirely.
+    """
+
+    GOOD = '{"epics":[{"epic_id":"EPIC-001","epic_name":"Data","epic_description":"d","requirement_ids":[]}]}'
+    MISSING_ID = '{"epics":[{"epic_name":"no id"}]}'
+
+    @staticmethod
+    def _agent_with_scripted_model(monkeypatch, responses, output_model=None):
+        """Build a real agent whose model returns `responses` in order.
+
+        Returns (agent, calls) where calls["n"] counts model invocations.
+        """
+        import agents.base_agent as base_agent
+        from langchain_core.runnables import RunnableLambda
+
+        calls = {"n": 0}
+
+        def fake_chat_ollama(**kwargs):
+            def call(_prompt):
+                index = calls["n"]
+                calls["n"] += 1
+                item = responses[min(index, len(responses) - 1)]
+                if isinstance(item, Exception):
+                    raise item
+                return item
+            return RunnableLambda(call)
+
+        monkeypatch.setattr(base_agent, "ChatOllama", fake_chat_ollama)
+
+        class _Agent(base_agent.BaseAgent):
+            def get_system_prompt(self, context):
+                return "prompt"
+
+        return _Agent("Test Agent", "role", "goal",
+                      output_model=output_model), calls
+
+    def test_transient_failure_is_retried_and_then_succeeds(self, monkeypatch):
+        agent, calls = self._agent_with_scripted_model(
+            monkeypatch, [RuntimeError("connection reset"), '{"requirements": []}'])
+
+        result = agent.run("task", {})
+
+        assert result["success"] is True
+        assert calls["n"] == 2, "the failed attempt was not retried"
+
+    def test_persistent_failure_stops_after_max_attempts(self, monkeypatch):
+        agent, calls = self._agent_with_scripted_model(
+            monkeypatch, [RuntimeError("ollama is down")])
+
+        result = agent.run("task", {})
+
+        assert result["success"] is False
+        assert result["attempts"] == agent.max_attempts
+        assert calls["n"] == agent.max_attempts, "retried the wrong number of times"
+        assert result["error_type"] == "RuntimeError"
+
+    def test_schema_violation_is_retried_not_just_transport_failure(self, monkeypatch):
+        """The property most easily lost in a refactor: validation must sit
+        inside the retried unit, not after it."""
+        from agents.schemas import EpicsOutput
+
+        agent, calls = self._agent_with_scripted_model(
+            monkeypatch, [self.MISSING_ID, self.GOOD], output_model=EpicsOutput)
+
+        result = agent.run("task", {})
+
+        assert result["success"] is True, "a contract violation was not retried"
+        assert calls["n"] == 2
+
+    def test_exhausted_schema_violation_names_the_offending_field(self, monkeypatch):
+        from agents.schemas import EpicsOutput
+
+        agent, _ = self._agent_with_scripted_model(
+            monkeypatch, [self.MISSING_ID], output_model=EpicsOutput)
+
+        result = agent.run("task", {})
+
+        assert result["success"] is False
+        assert "epic_id" in result["error"], result["error"]
+
+    def test_attempt_count_is_configurable(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_MAX_ATTEMPTS", "2")
+
+        agent, calls = self._agent_with_scripted_model(
+            monkeypatch, [RuntimeError("down")])
+        agent.run("task", {})
+
+        assert agent.max_attempts == 2
+        assert calls["n"] == 2
+
+    def test_calls_are_bounded_by_a_timeout(self, monkeypatch):
+        """A stalled call never raises, so it can never be retried. The
+        transport timeout is what turns a hang into a retryable failure.
+
+        Uses the real ChatOllama: construction opens no connection.
+        """
+        monkeypatch.setenv("OLLAMA_TIMEOUT", "42")
+        monkeypatch.setenv("OLLAMA_CONNECT_TIMEOUT", "7")
+
+        from agents.base_agent import BaseAgent
+
+        class _Agent(BaseAgent):
+            def get_system_prompt(self, context):
+                return "prompt"
+
+        timeout = _Agent("Test", "role", "goal").llm.client_kwargs["timeout"]
+
+        assert timeout.read == 42.0
+        assert timeout.connect == 7.0
