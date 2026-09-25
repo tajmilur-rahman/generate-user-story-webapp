@@ -32,6 +32,7 @@ def orchestrator():
     orch = ParallelStoryOrchestrator.__new__(ParallelStoryOrchestrator)
     orch.failures = []
     orch._failures_lock = Lock()
+    orch.unclaimed_requirements = []
     orch.run_id = None
     orch.run_dir = None
     orch.completed_phases = []
@@ -1302,3 +1303,87 @@ class TestRewriterPrompt:
         source = inspect.getsource(RewriterAgent.__init__)
 
         assert "temperature=0.0" in source, "repair must not sample"
+
+
+class TestUnclaimedRequirementRecovery:
+    """
+    Every extracted requirement must reach story generation.
+
+    Phase 3 selects an epic's requirements by id, so a requirement that no
+    epic lists is never passed to a Story Writer. It produced no story and
+    nothing reported it -- the run looked complete while silently covering
+    less of the specification than was extracted.
+    """
+
+    REQUIREMENTS = [
+        {"id": "REQ-001", "description": "Collect temperature readings"},
+        {"id": "REQ-002", "description": "Store readings with a timestamp"},
+        {"id": "REQ-003", "description": "Resist damage by animals"},
+    ]
+
+    def test_unclaimed_requirement_is_recovered_into_an_epic(self, orchestrator):
+        epics = [{"epic_id": "EPIC-001", "epic_name": "Data Collection",
+                  "requirement_ids": ["REQ-001", "REQ-002"]}]
+
+        result = orchestrator._recover_unclaimed_requirements(
+            self.REQUIREMENTS, epics)
+
+        claimed = {rid for e in result for rid in e["requirement_ids"]}
+        assert claimed == {"REQ-001", "REQ-002", "REQ-003"}, (
+            "REQ-003 reaches no Story Writer and produces no story")
+
+    def test_recovery_is_reported_not_silent(self, orchestrator):
+        epics = [{"epic_id": "EPIC-001", "epic_name": "Data Collection",
+                  "requirement_ids": ["REQ-001", "REQ-002"]}]
+
+        orchestrator._recover_unclaimed_requirements(self.REQUIREMENTS, epics)
+
+        assert len(orchestrator.unclaimed_requirements) == 1
+        assert orchestrator.unclaimed_requirements[0]["id"] == "REQ-003"
+        assert orchestrator.unclaimed_requirements[0]["description"]
+
+    def test_complete_epics_are_left_untouched(self, orchestrator):
+        epics = [{"epic_id": "EPIC-001", "epic_name": "Data Collection",
+                  "requirement_ids": ["REQ-001", "REQ-002"]},
+                 {"epic_id": "EPIC-002", "epic_name": "Durability",
+                  "requirement_ids": ["REQ-003"]}]
+
+        result = orchestrator._recover_unclaimed_requirements(
+            self.REQUIREMENTS, epics)
+
+        assert result == epics, "no recovery epic when nothing is unclaimed"
+        assert orchestrator.unclaimed_requirements == []
+
+    def test_every_requirement_recovered_when_epic_formation_returns_nothing(
+            self, orchestrator):
+        result = orchestrator._recover_unclaimed_requirements(
+            self.REQUIREMENTS, [])
+
+        claimed = {rid for e in result for rid in e["requirement_ids"]}
+        assert claimed == {"REQ-001", "REQ-002", "REQ-003"}
+
+    def test_recovery_epic_carries_the_fields_story_generation_reads(
+            self, orchestrator):
+        # _process_single_epic indexes epic["requirement_ids"] and
+        # epic["epic_name"]; a recovery epic missing either raises KeyError
+        # and loses the very requirements it was built to save.
+        result = orchestrator._recover_unclaimed_requirements(
+            self.REQUIREMENTS, [])
+        recovered = result[-1]
+
+        for field in ("epic_id", "epic_name", "epic_description",
+                      "requirement_ids"):
+            assert recovered[field], f"recovery epic is missing {field}"
+
+    def test_recovery_runs_before_stories_are_generated(self):
+        # Ordering is the whole point: recovering after Phase 3 recovers
+        # nothing. Assert the call sits between epic refinement and the
+        # epics checkpoint that precedes story generation.
+        import inspect
+        source = inspect.getsource(ParallelStoryOrchestrator.generate_stories)
+
+        recovery = source.index("_recover_unclaimed_requirements")
+        checkpoint = source.index('_checkpoint("02_epics"')
+        phase_three = source.index("[PHASE 3]")
+
+        assert recovery < checkpoint < phase_three

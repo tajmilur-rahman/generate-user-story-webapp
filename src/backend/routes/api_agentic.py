@@ -185,6 +185,29 @@ def generate_stories_agentic():
 
             logger.info(f"Generated: {len(requirements)} requirements, {len(epics)} epics, {len(stories)} stories, {len(test_cases)} test cases")
 
+            # Coverage is the question the counts above do not answer: a run can
+            # report plenty of stories while some requirements produced none.
+            # Terminal only -- nothing here reaches the UI.
+            covered = {str(s.get("requirement_id", "") or "").strip()
+                       for s in stories if isinstance(s, dict)}
+            uncovered = [r for r in requirements
+                         if str(r.get("id", "") or "").strip() not in covered]
+            if uncovered:
+                logger.warning(
+                    f"Coverage: {len(requirements) - len(uncovered)}/"
+                    f"{len(requirements)} requirements produced a story"
+                )
+                for r in uncovered:
+                    logger.warning(
+                        f"    no story for {r.get('id', '?')}: "
+                        f"{str(r.get('description', ''))[:70]}"
+                    )
+            else:
+                logger.info(
+                    f"Coverage: all {len(requirements)} requirements "
+                    f"produced a story"
+                )
+
             # Convert to format expected by old story_service
             # The orchestrator returns structured data; convert to the JSON string
             # format story_service expects.

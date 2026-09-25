@@ -70,6 +70,10 @@ class ParallelStoryOrchestrator:
         self.failures = []
         self._failures_lock = Lock()
 
+        # Requirements no epic claimed, recovered before story generation.
+        # Reported so a gap in epic formation is visible rather than silent.
+        self.unclaimed_requirements = []
+
         # Set per run by generate_stories()
         self.run_id = None
         self.run_dir = None
@@ -475,6 +479,7 @@ class ParallelStoryOrchestrator:
         # Reset per-run state: the orchestrator may be reused across requests.
         with self._failures_lock:
             self.failures = []
+        self.unclaimed_requirements = []
 
         self.run_id = (
             f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
@@ -538,6 +543,12 @@ class ParallelStoryOrchestrator:
 
         epics = epic_refine_result["output"]["epics"]
         logger.info(f"✓ Refined to {len(epics)} final epics ({time.time() - phase_start:.1f}s)")
+
+        # Requirements reach story generation only through an epic's
+        # requirement_ids, so any requirement no epic claims produces no story
+        # at all. Recover them before Phase 3 rather than losing them.
+        epics = self._recover_unclaimed_requirements(requirements, epics)
+
         self._checkpoint("02_epics", epics)
 
         # PHASE 3: Story Generation (PARALLEL EPICS) ⚡
@@ -642,8 +653,82 @@ class ParallelStoryOrchestrator:
             "test_cases": all_test_cases,
             "execution_time": total_time,
             "failures": list(self.failures),
-            "partial": bool(self.failures)
+            "partial": bool(self.failures),
+            "unclaimed_requirements": list(self.unclaimed_requirements)
         }
+
+    RECOVERY_EPIC_ID = "EPIC-UNCLAIMED"
+
+    def _recover_unclaimed_requirements(self, requirements, epics):
+        """
+        Ensure every requirement reaches story generation.
+
+        Phase 3 dispatches work per epic and selects each epic's requirements
+        by id:
+
+            epic_reqs = [r for r in requirements if r["id"] in epic["requirement_ids"]]
+
+        A requirement that no epic lists is therefore never seen by a Story
+        Writer. It was extracted correctly, survived deduplication, and then
+        produced nothing -- silently, because nothing checked.
+
+        The epic prompt asks for 5-10 epics regardless of how many
+        requirements there are, so with twenty-odd requirements the model is
+        both grouping aggressively and free to omit an id. Dropping one costs
+        it nothing and is invisible in its output.
+
+        Unclaimed requirements are gathered into one recovery epic rather than
+        assigned to the nearest existing epic by similarity. Similarity has
+        been measured on this data not to separate related from unrelated text,
+        and a wrong assignment would bury a requirement under a misleading epic.
+        Grouping them plainly is weaker context for the Story Writer than a
+        well-matched epic, and far better than no story.
+
+        Args:
+            requirements: All requirements after deduplication
+            epics: Epics produced by the refiner
+
+        Returns:
+            The epics, plus a recovery epic when anything was unclaimed
+        """
+        if not requirements:
+            return epics
+
+        claimed = set()
+        for epic in epics or []:
+            if isinstance(epic, dict):
+                claimed.update(epic.get("requirement_ids") or [])
+
+        unclaimed = [r for r in requirements
+                     if isinstance(r, dict) and r.get("id") not in claimed]
+        if not unclaimed:
+            logger.info("✓ Every requirement is claimed by an epic")
+            return epics
+
+        logger.warning(
+            f"⚠ {len(unclaimed)} requirement(s) claimed by no epic; "
+            f"recovering so stories are still generated"
+        )
+        for requirement in unclaimed:
+            logger.warning(
+                f"    {requirement.get('id', '?')}: "
+                f"{str(requirement.get('description', ''))[:70]}"
+            )
+            self.unclaimed_requirements.append({
+                "id": requirement.get("id", ""),
+                "description": requirement.get("description", ""),
+            })
+
+        recovery_epic = {
+            "epic_id": self.RECOVERY_EPIC_ID,
+            "epic_name": "Unclaimed Requirements",
+            "epic_description": (
+                "Requirements that epic formation did not assign to any epic. "
+                "Grouped here so that stories are still generated for them."
+            ),
+            "requirement_ids": [r.get("id") for r in unclaimed if r.get("id")],
+        }
+        return list(epics or []) + [recovery_epic]
 
     def _quality_review_loop(self, stories: list) -> list:
         """LOOP 4: Iterative quality improvement with PARALLEL rewrites"""
