@@ -98,3 +98,4 @@ SECRET_KEY.txt
 # Per-run pipeline artifacts (checkpoints)
 data/runs/*
 !data/runs/.gitkeep
+.gstack/

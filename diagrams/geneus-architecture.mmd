@@ -1,0 +1,35 @@
+graph LR
+    User([User<br/>Google OAuth])
+    Doc[/Word / txt / md<br/>document/]
+
+    Upload[Upload view]
+    Auth[OAuth session<br/>file validation]
+    Parse[Python doc parser<br/>txt / md direct]
+
+    P1[P1 Requirements<br/>Extractor]
+    P2[P2 Epic Extractor<br/>to Epic Refiner]
+    P34[P3 Story Writer x5<br/>P4 Test Cases x5<br/>parallel workers]
+    P5[P5 Reviewer + Rewriter<br/>INVEST rubric + judge]
+    Runtime[(Ollama mistral:7b<br/>schema / retry / timeout<br/>checkpoints)]
+
+    Extract[JSON extraction]
+    Dedup[Two-stage<br/>deduplication]
+
+    Review[Two-pane review UI<br/>+ multiselect curation]
+    Out[/GitHub Issues<br/>Word export<br/>JSON export/]
+
+    User --> Upload
+    Doc --> Upload
+    Upload --> Auth --> Parse --> P1 --> P2 --> P34 --> P5
+    Runtime --- P34
+    P5 --> Extract --> Dedup --> Review --> Out
+
+    classDef frontend fill:#dbeafe,stroke:#2563eb,color:#1e3a5f
+    classDef middleware fill:#f3e8ff,stroke:#9333ea,color:#4c1d95
+    classDef engine fill:#ffedd5,stroke:#ea580c,color:#7c2d12
+    classDef io fill:#f1f5f9,stroke:#64748b,color:#0f172a
+
+    class Upload,Review frontend
+    class Auth,Parse,Extract,Dedup middleware
+    class P1,P2,P34,P5,Runtime engine
+    class User,Doc,Out io
