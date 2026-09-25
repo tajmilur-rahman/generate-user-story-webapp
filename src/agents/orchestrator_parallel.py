@@ -633,7 +633,6 @@ class ParallelStoryOrchestrator:
 
         total_time = time.time() - start_time
 
-        self._log_summary(total_time)
 
         return {
             "run_id": self.run_id,
@@ -645,25 +644,6 @@ class ParallelStoryOrchestrator:
             "failures": list(self.failures),
             "partial": bool(self.failures)
         }
-
-    def _log_summary(self, total_time):
-        """
-        Report the total run time.
-
-        Per-phase timings and deduplication counts are already logged inline as
-        each phase completes, so this reports only the final figure.
-
-        Args:
-            total_time: Total pipeline wall-clock time in seconds
-        """
-        if total_time < 60:
-            elapsed = f"{total_time:.1f}s"
-        else:
-            elapsed = f"{int(total_time // 60)}m {total_time % 60:04.1f}s"
-
-        logger.info("\n" + "=" * 62)
-        logger.info(f"Pipeline complete in {elapsed}")
-        logger.info("=" * 62)
 
     def _quality_review_loop(self, stories: list) -> list:
         """LOOP 4: Iterative quality improvement with PARALLEL rewrites"""

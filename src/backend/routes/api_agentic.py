@@ -8,6 +8,7 @@ Expected speedup: 8-10x faster than old autoAgile approach (25 min → 2-3 min)
 import os
 import json
 import tempfile
+import time
 import logging
 import traceback
 from datetime import datetime
@@ -101,6 +102,10 @@ def generate_stories_agentic():
     logger.info(f"Workers: {MAX_WORKERS}, Model: {OLLAMA_MODEL}")
     logger.info("=" * 60)
 
+    # Wall clock for the whole request: upload, parsing, generation and
+    # conversion. Reported once at the end, after the conversion output.
+    request_started = time.time()
+
     try:
         # Check if file is present
         if 'file' not in request.files:
@@ -178,7 +183,6 @@ def generate_stories_agentic():
                 for f in failures:
                     logger.warning(f"  [{f['phase']}] {f['detail']}: {f['error']}")
 
-            logger.info(f"Pipeline complete in {execution_time:.1f}s ({execution_time/60:.1f} min)")
             logger.info(f"Generated: {len(requirements)} requirements, {len(epics)} epics, {len(stories)} stories, {len(test_cases)} test cases")
 
             # Convert to format expected by old story_service
@@ -259,6 +263,13 @@ def generate_stories_agentic():
             )
 
             logger.info(f"Converted to {len(frontend_stories)} frontend stories")
+
+            total_seconds = time.time() - request_started
+            elapsed = (f"{total_seconds:.1f}s" if total_seconds < 60
+                       else f"{int(total_seconds // 60)}m {total_seconds % 60:04.1f}s")
+            logger.info("=" * 60)
+            logger.info(f"Completed in {elapsed}")
+            logger.info("=" * 60)
 
             if not frontend_stories or len(frontend_stories) == 0:
                 logger.error("WARNING: No stories generated after conversion!")
