@@ -11,12 +11,14 @@ class RewriterAgent(BaseAgent):
             name="Story Rewriter",
             role="Story Improvement Specialist",
             goal="Repair the listed defects in a story without changing anything else",
-            # Low on purpose. This is a repair, not composition: the task is to
-            # reproduce the original with specific defects corrected, and
-            # sampling variance here shows up as drift away from the original
-            # subject. A run at 0.5 returned a story the judge had scored 94 as
-            # one it scored 64.
-            temperature=0.2,
+            # Zero on purpose. This is a repair, not composition: the task is to
+            # reproduce the original with specific defects corrected, so there is
+            # nothing here that benefits from sampling. Variance shows up only as
+            # drift away from the original subject -- a run at 0.5 returned a
+            # story the judge had scored 94 as one it scored 64. Greedy decoding
+            # also makes a repair reproducible, so the same defect and the same
+            # story yield the same correction every time.
+            temperature=0.0,
             output_model=RewriteOutput
         )
 

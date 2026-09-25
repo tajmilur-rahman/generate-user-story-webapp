@@ -1292,11 +1292,13 @@ class TestRewriterPrompt:
         assert "route_flagger.flag()" in prompt
         assert "Story does not follow the As-a form" in prompt
 
-    def test_rewriter_runs_at_low_temperature(self):
-        """Sampling variance in a repair shows up as drift from the original."""
-        from agents.rewriter_agent import RewriterAgent
+    def test_rewriter_decodes_greedily(self):
+        """A repair reproduces the original with defects corrected, so there is
+        nothing for sampling to contribute -- variance is only drift."""
         import inspect
+
+        from agents.rewriter_agent import RewriterAgent
 
         source = inspect.getsource(RewriterAgent.__init__)
 
-        assert "temperature=0.2" in source, "repair should not sample freely"
+        assert "temperature=0.0" in source, "repair must not sample"
