@@ -1600,3 +1600,115 @@ class TestRewriteRatchet:
 
         assert all(s["user_story"].startswith("original") for s in result), (
             "every story degraded; none of the originals survived")
+
+
+class TestStoryBatchRetry:
+    """
+    A batch could return fewer stories than it was given requirements, and
+    nothing compared the two. An observed run sent 4 requirements into one
+    batch and received 3: REQ-001 was extracted, assigned to an epic, and then
+    never written up. Epic-level recovery cannot see this -- the requirement
+    WAS claimed by an epic.
+    """
+
+    EPIC = {"epic_id": "EPIC-001", "epic_name": "Glucose Monitoring",
+            "requirement_ids": ["REQ-001", "REQ-002", "REQ-003"]}
+    BATCH = [{"id": "REQ-001", "description": "Collect glucose every minute"},
+             {"id": "REQ-002", "description": "Calculate the insulin dose"},
+             {"id": "REQ-003", "description": "Store the calculated dose"}]
+
+    @staticmethod
+    def _story(req_id):
+        return {"requirement_id": req_id, "user_story": f"story for {req_id}"}
+
+    def _agent(self, orchestrator, result):
+        class FakeStoryAgent:
+            calls = []
+
+            def run(self, task, context):
+                FakeStoryAgent.calls.append(context["requirements_batch"])
+                return result
+
+        FakeStoryAgent.calls = []
+        orchestrator.story_agent = FakeStoryAgent()
+        return FakeStoryAgent
+
+    def test_missing_requirement_is_requested_again(self, orchestrator):
+        agent = self._agent(orchestrator, {
+            "success": True,
+            "output": {"stories": [self._story("REQ-001")]}})
+
+        returned = [self._story("REQ-002"), self._story("REQ-003")]
+        result = orchestrator._retry_missing_requirements(
+            self.EPIC, self.BATCH, returned, "batch 1")
+
+        assert len(agent.calls) == 1, "the missing requirement was not retried"
+        assert [r["id"] for r in agent.calls[0]] == ["REQ-001"], (
+            "the retry must ask only for what is missing")
+        assert {s["requirement_id"] for s in result} == {
+            "REQ-001", "REQ-002", "REQ-003"}
+
+    def test_a_complete_batch_costs_no_extra_call(self, orchestrator):
+        agent = self._agent(orchestrator, {"success": True,
+                                           "output": {"stories": []}})
+
+        returned = [self._story(r["id"]) for r in self.BATCH]
+        result = orchestrator._retry_missing_requirements(
+            self.EPIC, self.BATCH, returned, "batch 1")
+
+        assert agent.calls == [], "retried a batch that was already complete"
+        assert result == returned
+
+    def test_retry_output_for_already_covered_requirements_is_dropped(
+            self, orchestrator):
+        # A retry that re-answers a covered requirement would add a duplicate
+        # sharing its requirement id -- which dedup blocking cannot remove,
+        # since blocking only compares stories that share one.
+        self._agent(orchestrator, {
+            "success": True,
+            "output": {"stories": [self._story("REQ-001"),
+                                   self._story("REQ-002")]}})
+
+        returned = [self._story("REQ-002"), self._story("REQ-003")]
+        result = orchestrator._retry_missing_requirements(
+            self.EPIC, self.BATCH, returned, "batch 1")
+
+        req_ids = [s["requirement_id"] for s in result]
+        assert req_ids.count("REQ-002") == 1, "retry introduced a duplicate"
+
+    def test_unattributable_batch_is_not_retried(self, orchestrator):
+        # No story names a requirement, so nothing identifies what is missing.
+        # Retrying the whole batch would duplicate the stories that did arrive.
+        agent = self._agent(orchestrator, {"success": True,
+                                           "output": {"stories": []}})
+
+        returned = [{"user_story": "a story with no requirement id"}]
+        result = orchestrator._retry_missing_requirements(
+            self.EPIC, self.BATCH, returned, "batch 1")
+
+        assert agent.calls == []
+        assert result == returned
+
+    def test_a_failed_retry_is_recorded_not_swallowed(self, orchestrator):
+        self._agent(orchestrator, {"success": False, "error": "timeout"})
+
+        returned = [self._story("REQ-002"), self._story("REQ-003")]
+        result = orchestrator._retry_missing_requirements(
+            self.EPIC, self.BATCH, returned, "batch 1")
+
+        assert result == returned
+        assert any("retry" in f["detail"] for f in orchestrator.failures), (
+            "a failed retry must leave the run marked partial")
+
+    def test_retry_is_attempted_once_not_until_success(self, orchestrator):
+        # The retry returns nothing useful; the run must still finish.
+        agent = self._agent(orchestrator, {"success": True,
+                                           "output": {"stories": []}})
+
+        returned = [self._story("REQ-002"), self._story("REQ-003")]
+        result = orchestrator._retry_missing_requirements(
+            self.EPIC, self.BATCH, returned, "batch 1")
+
+        assert len(agent.calls) == 1
+        assert result == returned
+        assert orchestrator.failures, "an unrecoverable gap must be reported"

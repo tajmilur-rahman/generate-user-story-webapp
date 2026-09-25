@@ -280,6 +280,7 @@ class ParallelStoryOrchestrator:
 
         for i in range(0, len(epic_reqs), batch_size):
             batch = epic_reqs[i:i+batch_size]
+            batch_label = f"epic {epic['epic_name']} batch {i//batch_size + 1}"
 
             story_result = self.story_agent.run(
                 f"Generate stories for batch {i//batch_size + 1}",
@@ -288,13 +289,23 @@ class ParallelStoryOrchestrator:
 
             if not story_result["success"]:
                 self._record_failure(
-                    "stories", f"epic {epic['epic_name']} batch {i//batch_size + 1}",
+                    "stories", batch_label,
                     story_result.get("error", "unknown")
                 )
                 continue
 
             if story_result["success"]:
                 batch_stories = story_result["output"]["stories"]
+
+                # A batch can come back with fewer stories than it was given
+                # requirements, and nothing used to compare the two. An
+                # observed run sent 4 requirements into one batch and received
+                # 3 stories: REQ-001 was correctly extracted, correctly
+                # assigned to an epic, and then simply never written up. Asking
+                # again for the ones that are missing is the whole fix.
+                batch_stories = self._retry_missing_requirements(
+                    epic, batch, batch_stories, batch_label)
+
                 # Add epic context.
                 #
                 # Each epic is a separate Story Writer call with no starting
@@ -312,6 +323,90 @@ class ParallelStoryOrchestrator:
 
         logger.info(f"  [PARALLEL] ✓ Completed epic: {epic['epic_name']} ({len(stories)} stories)")
         return stories
+
+    def _retry_missing_requirements(self, epic, batch, batch_stories,
+                                    batch_label):
+        """
+        Ask again for requirements a batch produced no story for.
+
+        Stories carry the requirement_id they implement, so a requirement in
+        the batch that no returned story claims produced nothing. One retry is
+        made with only those requirements, which both narrows the task and
+        makes the omission impossible to repeat by accident.
+
+        The retry is skipped when the batch cannot be attributed -- if no
+        returned story carries a requirement_id there is no way to tell which
+        requirement is missing, and retrying the whole batch would duplicate
+        the stories that did come back. Retrying once, not until success: a
+        model that omits the same requirement twice is not going to be talked
+        round on a third attempt, and the run should finish.
+
+        Args:
+            epic: The epic being processed, passed through to the Story Writer
+            batch: Requirements sent in this batch
+            batch_stories: Stories the batch returned
+            batch_label: Human-readable batch name, for logs and failures
+
+        Returns:
+            batch_stories, plus any stories the retry recovered
+        """
+        claimed = {str(s.get("requirement_id", "") or "").strip()
+                   for s in batch_stories if isinstance(s, dict)}
+        if not any(claimed):
+            if len(batch_stories) < len(batch):
+                logger.warning(
+                    f"  ⚠ {batch_label}: {len(batch_stories)} stories for "
+                    f"{len(batch)} requirements, and no story names a "
+                    f"requirement id -- cannot tell which is missing"
+                )
+            return batch_stories
+
+        missing = [r for r in batch
+                   if str(r.get("id", "") or "").strip() not in claimed]
+        if not missing:
+            return batch_stories
+
+        missing_ids = ", ".join(r.get("id", "?") for r in missing)
+        logger.warning(
+            f"  ⚠ {batch_label}: no story for {missing_ids} -- retrying"
+        )
+
+        retry_result = self.story_agent.run(
+            f"Generate stories for {missing_ids}",
+            {"requirements_batch": missing, "epic": epic}
+        )
+
+        if not retry_result["success"]:
+            self._record_failure(
+                "stories", f"{batch_label} retry for {missing_ids}",
+                retry_result.get("error", "unknown")
+            )
+            return batch_stories
+
+        recovered = retry_result["output"]["stories"]
+
+        # Keep only stories for the requirements that were actually missing.
+        # A retry that returns a story for a requirement already covered would
+        # otherwise add a duplicate the dedup pass cannot remove, since the two
+        # share a requirement id and differ in wording.
+        wanted = {str(r.get("id", "") or "").strip() for r in missing}
+        kept = [s for s in recovered
+                if isinstance(s, dict)
+                and str(s.get("requirement_id", "") or "").strip() in wanted]
+
+        if kept:
+            logger.info(
+                f"  ✓ {batch_label}: recovered {len(kept)} story(s) on retry"
+            )
+        else:
+            logger.warning(
+                f"  ⚠ {batch_label}: retry produced no story for {missing_ids}"
+            )
+            self._record_failure(
+                "stories", batch_label,
+                f"no story generated for {missing_ids} after retry")
+
+        return list(batch_stories) + kept
 
     def _process_tc_batch(self, batch_info):
         """
