@@ -968,9 +968,24 @@ _TITLE_STOP_WORDS = {
     "needs", "able", "i", "we", "they", "he", "she", "you",
 }
 
-# Words a title must not end on: a title ending in a preposition or conjunction
-# has been cut mid-phrase. Produced "... Conditions Using" and "... Animals Using".
-_TITLE_TRAILING = _TITLE_STOP_WORDS | {"when", "while", "where", "if", "than", "then"}
+# Coordinators are kept inside a title rather than skipped over. Skipping "and"
+# in "record and store security footage" joined the two verbs into "Record
+# Store Security Footage", which reads as a noun phrase about a shop.
+_TITLE_COORDINATORS = {"and", "or"}
+
+# Auxiliary and light verbs carry no meaning on their own, so a title ending on
+# one has stopped before saying anything: "ensure the system has a backup
+# supply" produced "Ensure System Has". They are not stop words -- skipping
+# them mid-phrase would be wrong too -- but they cannot end a title.
+_TITLE_AUXILIARIES = {"has", "have", "had", "having", "do", "does", "did",
+                      "get", "gets", "make", "makes", "provide", "provides"}
+
+# Words a title must not end on: a title ending in a preposition, conjunction
+# or auxiliary has been cut mid-phrase. Produced "... Conditions Using",
+# "... Animals Using" and "Ensure System Has".
+_TITLE_TRAILING = (_TITLE_STOP_WORDS
+                   | {"when", "while", "where", "if", "than", "then"}
+                   | _TITLE_AUXILIARIES)
 
 # Generic subjects. Dropped only in LEADING position, where they carry no
 # meaning ("the system to calculate averages"); kept elsewhere, where they can
@@ -1032,11 +1047,26 @@ def derive_title(story_text, max_words=_TITLE_MAX_WORDS):
             continue
         key = word.lower()
         if key in _TITLE_STOP_WORDS:
+            # "record AND store security footage": dropping the coordinator
+            # welds two verbs together and produced "Record Store Security
+            # Footage". Keep it, so the title reads as the phrase it came from.
+            if (key in _TITLE_COORDINATORS and words
+                    and words[-1].lower() not in _TITLE_COORDINATORS
+                    and len(words) < max_words - 1):
+                words.append(word)
+                continue
+
             # Once the title has enough words, a function word marks the end of
             # the phrase. Skipping past it strands whatever followed: "at rest"
             # became "... Records Rest", "on behalf of a member" became
             # "... Item Behalf Member". Stop instead of collecting fragments.
-            if len(words) >= _TITLE_MIN_PHRASE:
+            #
+            # Unless the phrase so far ends on a word that cannot end it. "the
+            # system has a backup supply" broke at "a" and left "Ensure System
+            # Has" -- a title that stops before saying what the system has.
+            # Carry on to the object instead.
+            if (len(words) >= _TITLE_MIN_PHRASE
+                    and words[-1].lower() not in _TITLE_TRAILING):
                 break
             continue
         if key in seen:
@@ -1056,7 +1086,12 @@ def derive_title(story_text, max_words=_TITLE_MAX_WORDS):
     if not words:
         return ""
 
-    return " ".join(_title_case_word(w) for w in words)
+    # A coordinator kept inside the title stays lowercase, as title case
+    # requires: "Record and Store Security Footage", not "Record And Store".
+    return " ".join(
+        w.lower() if i and w.lower() in _TITLE_COORDINATORS
+        else _title_case_word(w)
+        for i, w in enumerate(words))
 
 
 def _title_case_word(word):

@@ -2034,3 +2034,83 @@ class TestRatchetPrefersValidStories:
         result = orchestrator._quality_review_loop([story])
 
         assert result[0]["user_story"] == better
+
+
+class TestTitleHeuristicPhrasing:
+    """
+    Two derived titles in a generated 28-story suite read as broken English:
+
+        Ensure System Has                 stopped before naming the object
+        Record Store Security Footage     "and" dropped, welding two verbs
+
+    Both come from the fallback heuristic used when the model supplies no
+    title, so they are fixed where the title is built rather than patched
+    afterwards -- a truncated title has already discarded the words needed to
+    complete it.
+    """
+
+    def test_a_title_does_not_stop_on_an_auxiliary(self):
+        from backend.services.story_service import derive_title
+
+        title = derive_title(
+            "As a facilities manager, I want to ensure the system has a "
+            "backup power supply, so that operations continue")
+
+        assert title.split()[-1].lower() not in {"has", "have", "is", "are"}
+        assert "Backup" in title, "the title stopped before naming the object"
+
+    def test_a_coordinator_between_two_verbs_is_kept(self):
+        from backend.services.story_service import derive_title
+
+        title = derive_title(
+            "As a security analyst, I want to record and store security "
+            "footage, so that I can review incidents")
+
+        assert title == "Record and Store Security Footage"
+
+    def test_the_coordinator_stays_lower_case(self):
+        from backend.services.story_service import derive_title
+
+        title = derive_title(
+            "As an operator, I want to capture and transmit sensor readings, "
+            "so that data reaches the server")
+
+        assert " and " in title and " And " not in title
+
+    def test_the_repair_is_not_tied_to_particular_verbs(self):
+        # A lookup table of known bad pairs would fix only the pairs already
+        # seen. This must work for verb pairs nobody has listed.
+        from backend.services.story_service import derive_title
+
+        for verbs, expected in (
+                ("validate and persist", "Validate and Persist"),
+                ("flag and escalate", "Flag and Escalate"),
+                ("encrypt and archive", "Encrypt and Archive")):
+            title = derive_title(
+                f"As an admin, I want to {verbs} user records, "
+                f"so that data stays consistent")
+            assert title.startswith(expected), title
+
+    def test_a_title_never_ends_on_a_coordinator(self):
+        from backend.services.story_service import derive_title
+
+        title = derive_title(
+            "As an operator, I want to monitor and, so that something")
+
+        assert not title.lower().endswith(" and")
+
+    def test_an_empty_story_still_returns_empty(self):
+        # Post-processing that indexes split()[-1] raises IndexError here.
+        from backend.services.story_service import derive_title
+
+        assert derive_title("") == ""
+        assert derive_title("   ") == ""
+
+    def test_repeated_words_are_still_collapsed(self):
+        from backend.services.story_service import derive_title
+
+        title = derive_title(
+            "As an analyst, I want to receive aggregated weather data weather "
+            "readings, so that I can report")
+
+        assert title.lower().split().count("weather") == 1
