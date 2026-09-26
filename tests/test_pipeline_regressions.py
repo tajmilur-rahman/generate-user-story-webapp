@@ -1791,3 +1791,95 @@ class TestDuplicateReviewCollapse:
         # 3 iterations, the last of which does not rewrite -> 2 calls, not 6.
         assert rewrites == ["EPIC-006-STORY-006"] * 2, (
             f"one story was rewritten {len(rewrites)} times")
+
+
+class TestReviewBatchSize:
+    """
+    The reviewer runs on a smaller model than the story writer, so the judge is
+    not scoring its own output. At four stories per call that model did not
+    reliably emit one review per story: measured rounds returned 0 reviews for
+    a batch of 4, 26 reviews for 29 stories, and once 30 for 29.
+    """
+
+    def test_default_batch_is_small_enough_for_the_reviewer_model(
+            self, orchestrator, monkeypatch):
+        monkeypatch.delenv("REVIEW_BATCH_SIZE", raising=False)
+        sizes = []
+
+        def fake_review_batch(batch):
+            sizes.append(len(batch))
+            return [{"story_id": s["story_id"], "total_score": 95,
+                     "issues": []} for s in batch]
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+
+        stories = [{"story_id": f"EPIC-001-STORY-{i:03d}",
+                    "requirement_id": "REQ-001",
+                    "user_story": "As a user, I want a thing, so that benefit",
+                    "acceptance_criteria": ["Given a, When b, Then c"]}
+                   for i in range(1, 10)]
+        orchestrator._quality_review_loop(stories)
+
+        assert sizes, "no review batches were dispatched"
+        assert max(sizes) <= 2, f"review batches of {max(sizes)} are too wide"
+
+    def test_batch_size_is_configurable(self, orchestrator, monkeypatch):
+        monkeypatch.setenv("REVIEW_BATCH_SIZE", "5")
+        sizes = []
+
+        def fake_review_batch(batch):
+            sizes.append(len(batch))
+            return [{"story_id": s["story_id"], "total_score": 95,
+                     "issues": []} for s in batch]
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+
+        stories = [{"story_id": f"EPIC-001-STORY-{i:03d}",
+                    "requirement_id": "REQ-001",
+                    "user_story": "As a user, I want a thing, so that benefit",
+                    "acceptance_criteria": ["Given a, When b, Then c"]}
+                   for i in range(1, 11)]
+        orchestrator._quality_review_loop(stories)
+
+        assert max(sizes) == 5
+
+    def test_a_zero_or_negative_setting_cannot_produce_empty_batches(
+            self, orchestrator, monkeypatch):
+        # range(0, n, 0) raises, and a negative step loops forever. Neither
+        # should be reachable from a typo in the environment.
+        monkeypatch.setenv("REVIEW_BATCH_SIZE", "0")
+        sizes = []
+
+        def fake_review_batch(batch):
+            sizes.append(len(batch))
+            return [{"story_id": s["story_id"], "total_score": 95,
+                     "issues": []} for s in batch]
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+
+        stories = [{"story_id": "EPIC-001-STORY-001",
+                    "requirement_id": "REQ-001",
+                    "user_story": "As a user, I want a thing, so that benefit",
+                    "acceptance_criteria": ["Given a, When b, Then c"]}]
+        orchestrator._quality_review_loop(stories)
+
+        assert sizes == [1]
+
+    def test_every_story_still_reaches_a_batch(self, orchestrator, monkeypatch):
+        seen = []
+
+        def fake_review_batch(batch):
+            seen.extend(s["story_id"] for s in batch)
+            return [{"story_id": s["story_id"], "total_score": 95,
+                     "issues": []} for s in batch]
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+
+        stories = [{"story_id": f"EPIC-001-STORY-{i:03d}",
+                    "requirement_id": "REQ-001",
+                    "user_story": "As a user, I want a thing, so that benefit",
+                    "acceptance_criteria": ["Given a, When b, Then c"]}
+                   for i in range(1, 8)]   # odd count, to catch a lost tail
+        orchestrator._quality_review_loop(stories)
+
+        assert set(seen) == {s["story_id"] for s in stories}

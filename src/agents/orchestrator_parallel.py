@@ -958,7 +958,20 @@ class ParallelStoryOrchestrator:
             # the serial bottleneck of this phase (~22% of total runtime), and
             # its prompt grew without bound as the story count rose, risking
             # truncated or degraded scoring on larger documents.
-            review_batch_size = 4
+            #
+            # Two, not four. The reviewer runs on a deliberately smaller model
+            # than the one that wrote the stories, so the judge is not scoring
+            # its own output, and at four stories per call that model was not
+            # reliably emitting one review per story: measured rounds returned
+            # 0 reviews for a batch of 4, 26 for 29 stories, and once 30 for 29.
+            # Halving the batch halves the structured output each call has to
+            # produce. Batch count roughly doubles, but batches run across
+            # max_workers threads, so the added cost is a round or two of
+            # scheduling rather than double the time.
+            #
+            # Tunable because the right size depends on the reviewer model: a
+            # larger judge handles wider batches, a smaller one may need 1.
+            review_batch_size = max(1, int(os.getenv('REVIEW_BATCH_SIZE', '2')))
             batches = [stories[i:i + review_batch_size]
                        for i in range(0, len(stories), review_batch_size)]
 
