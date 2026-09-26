@@ -1712,3 +1712,82 @@ class TestStoryBatchRetry:
         assert len(agent.calls) == 1
         assert result == returned
         assert orchestrator.failures, "an unrecoverable gap must be reported"
+
+
+class TestDuplicateReviewCollapse:
+    """
+    Review batches run in parallel and the reviewer does not reliably return
+    one review per story. A measured run produced 30 reviews for 29 stories,
+    and the duplicate reached the rewrite list three times -- three Story
+    Rewriter calls on the same story in one iteration, racing to overwrite
+    each other.
+    """
+
+    STORIES = [{"story_id": "EPIC-006-STORY-006", "user_story": "a"},
+               {"story_id": "EPIC-006-STORY-005", "user_story": "b"}]
+
+    def test_a_story_reviewed_twice_yields_one_review(self, orchestrator):
+        reviews = [{"story_id": "EPIC-006-STORY-006", "total_score": 51},
+                   {"story_id": "EPIC-006-STORY-005", "total_score": 80},
+                   {"story_id": "EPIC-006-STORY-006", "total_score": 51}]
+
+        result = orchestrator._deduplicate_reviews(reviews, self.STORIES)
+
+        ids = [r["story_id"] for r in result]
+        assert ids.count("EPIC-006-STORY-006") == 1
+        assert len(result) == 2
+
+    def test_the_lowest_score_wins(self, orchestrator):
+        # A story one reviewer flagged must not escape rewriting because a
+        # duplicate review happened to be generous.
+        reviews = [{"story_id": "EPIC-006-STORY-006", "total_score": 92},
+                   {"story_id": "EPIC-006-STORY-006", "total_score": 41}]
+
+        result = orchestrator._deduplicate_reviews(reviews, self.STORIES)
+
+        assert len(result) == 1
+        assert result[0]["total_score"] == 41
+
+    def test_reviews_for_unknown_stories_are_dropped(self, orchestrator):
+        reviews = [{"story_id": "EPIC-006-STORY-006", "total_score": 51},
+                   {"story_id": "EPIC-099-STORY-001", "total_score": 10},
+                   {"total_score": 20}]
+
+        result = orchestrator._deduplicate_reviews(reviews, self.STORIES)
+
+        assert [r["story_id"] for r in result] == ["EPIC-006-STORY-006"]
+
+    def test_order_is_preserved(self, orchestrator):
+        reviews = [{"story_id": "EPIC-006-STORY-005", "total_score": 80},
+                   {"story_id": "EPIC-006-STORY-006", "total_score": 51}]
+
+        result = orchestrator._deduplicate_reviews(reviews, self.STORIES)
+
+        assert [r["story_id"] for r in result] == [
+            "EPIC-006-STORY-005", "EPIC-006-STORY-006"]
+
+    def test_no_story_is_rewritten_twice_in_one_iteration(
+            self, orchestrator, monkeypatch):
+        # End to end through the loop: the reviewer returns a duplicate, and
+        # the rewriter must still be called once for that story.
+        stories = [{"story_id": "EPIC-006-STORY-006", "requirement_id": "REQ-001",
+                    "user_story": "As a user, I want a thing, so that benefit",
+                    "acceptance_criteria": ["Given a, When b, Then c"]}]
+        rewrites = []
+
+        def fake_review_batch(batch):
+            return [{"story_id": s["story_id"], "total_score": 51,
+                     "issues": ["x"]} for s in batch] * 3
+
+        def fake_rewrite(story, review):
+            rewrites.append(story["story_id"])
+            return dict(story)
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+        monkeypatch.setattr(orchestrator, "_rewrite_single_story", fake_rewrite)
+
+        orchestrator._quality_review_loop(stories)
+
+        # 3 iterations, the last of which does not rewrite -> 2 calls, not 6.
+        assert rewrites == ["EPIC-006-STORY-006"] * 2, (
+            f"one story was rewritten {len(rewrites)} times")

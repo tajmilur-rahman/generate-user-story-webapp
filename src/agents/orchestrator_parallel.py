@@ -827,6 +827,82 @@ class ParallelStoryOrchestrator:
         }
         return list(epics or []) + [recovery_epic]
 
+    def _deduplicate_reviews(self, story_reviews, stories):
+        """
+        Reduce a round of reviews to one per story.
+
+        Review batches run in parallel and the reviewer does not always return
+        one review per story it was given. A measured run produced 30 reviews
+        for 29 stories, and the duplicate reached the rewrite list three times:
+        three Story Rewriter calls on the same story in the same iteration,
+        racing to overwrite each other, with the last arrival winning
+        arbitrarily. The duplicate also entered the ratchet twice, where the
+        second copy of an identical score can read as a regression against the
+        first.
+
+        The lowest score wins when a story is reviewed more than once. A story
+        one reviewer flagged should not escape rewriting because a duplicate
+        review happened to be generous, and for the ratchet the lower score is
+        the safer basis -- it keeps the existing best version rather than
+        promoting a new one on the strength of the kinder of two opinions.
+
+        Reviews naming a story that does not exist are dropped. Nothing
+        downstream can act on them: the rewrite step looks the id up in the
+        story map and silently skips a miss, and in the ratchet they would
+        contribute a score for a story no one delivers.
+
+        Args:
+            story_reviews: Reviews collected from every batch this iteration
+            stories: The stories actually under review
+
+        Returns:
+            At most one review per story, in first-seen order
+        """
+        known = {s.get("story_id") for s in stories
+                 if isinstance(s, dict) and s.get("story_id")}
+
+        best = {}
+        order = []
+        unknown = 0
+        duplicates = 0
+
+        for review in story_reviews:
+            if not isinstance(review, dict):
+                continue
+            story_id = review.get("story_id")
+            if not story_id or story_id not in known:
+                unknown += 1
+                continue
+
+            if story_id not in best:
+                best[story_id] = review
+                order.append(story_id)
+                continue
+
+            duplicates += 1
+            if review.get("total_score", 0) < best[story_id].get("total_score", 0):
+                best[story_id] = review
+
+        if duplicates:
+            logger.info(
+                f"  Collapsed {duplicates} duplicate review(s); keeping the "
+                f"lowest score for each story"
+            )
+        if unknown:
+            logger.warning(
+                f"  ⚠ Ignored {unknown} review(s) naming a story that is not "
+                f"in this run"
+            )
+
+        missing = len(known) - len(best)
+        if missing > 0:
+            logger.warning(
+                f"  ⚠ {missing} of {len(known)} story(s) were not reviewed "
+                f"this iteration and keep their previous best version"
+            )
+
+        return [best[story_id] for story_id in order]
+
     def _quality_review_loop(self, stories: list) -> list:
         """
         Iterative quality improvement, as a ratchet.
@@ -894,6 +970,8 @@ class ParallelStoryOrchestrator:
                         story_reviews.extend(future.result())
                     except Exception as e:
                         self._record_failure("review", "review batch", e)
+
+            story_reviews = self._deduplicate_reviews(story_reviews, stories)
 
             if not story_reviews:
                 logger.error("  Review failed, skipping quality loop")
