@@ -2114,3 +2114,59 @@ class TestTitleHeuristicPhrasing:
             "readings, so that I can report")
 
         assert title.lower().split().count("weather") == 1
+
+
+class TestWordExportMarkdown:
+    """
+    Test cases are assembled as Markdown because the GitHub integration posts
+    them as an Issue body, which renders it. A Word document does not, so
+    "**TC27**" reached the page as literal asterisks -- 288 of them in one
+    28-story export, roughly ten per story, in the artifacts sent to
+    evaluators.
+    """
+
+    @staticmethod
+    def _runs(text):
+        from docx import Document
+        from backend.routes.api import _add_markdown_text
+
+        paragraph = Document().add_paragraph()
+        _add_markdown_text(paragraph, text)
+        return [(bool(r.bold), r.text) for r in paragraph.runs]
+
+    def test_emphasis_becomes_bold_not_asterisks(self):
+        runs = self._runs("**TC27**: Verify the camera records entries")
+
+        assert (True, "TC27") in runs
+        assert all("**" not in text for _, text in runs)
+
+    def test_surrounding_text_is_not_bold(self):
+        runs = self._runs("**Expected**: New entry recorded")
+
+        plain = [t for bold, t in runs if not bold]
+        assert any("New entry recorded" in t for t in plain)
+
+    def test_line_structure_survives(self):
+        # Steps are one per line; collapsing them would make the test cases a
+        # wall of text.
+        runs = self._runs("**Steps**:\n  1. First step\n  2. Second step")
+
+        joined = "".join(t for _, t in runs)
+        assert joined.count("\n") == 2
+        assert "  1. First step" in joined
+
+    def test_unpaired_asterisks_are_left_alone(self):
+        # More likely content than broken markup; deleting them silently
+        # would be worse than showing them.
+        runs = self._runs("A rating of 2 ** was recorded")
+
+        assert "".join(t for _, t in runs) == "A rating of 2 ** was recorded"
+
+    def test_text_without_markup_is_unchanged(self):
+        runs = self._runs("Plain test case with no emphasis")
+
+        assert runs == [(False, "Plain test case with no emphasis")]
+
+    def test_empty_and_none_are_safe(self):
+        assert self._runs("") == []
+        assert self._runs(None) == []

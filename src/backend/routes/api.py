@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import tempfile
 import logging
@@ -616,6 +617,38 @@ def export_json():
             'error': f'Error exporting to JSON: {str(e)}'
         }), 500
 
+# Test cases are assembled as Markdown, because the GitHub integration posts
+# them as an Issue body and GitHub renders Markdown. A Word document does not:
+# python-docx writes the run verbatim, so "**TC27**" reached the page as
+# literal asterisks -- 288 of them in one 28-story export, roughly ten per
+# story. Convert the emphasis to real bold runs on the way into the document,
+# leaving the Markdown intact for every other consumer.
+_MD_BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+
+
+def _add_markdown_text(paragraph, text):
+    """
+    Add text to a Word paragraph, rendering **emphasis** as bold runs.
+
+    Unpaired asterisks are left alone: they are more likely to be content
+    than broken markup, and silently deleting them would be worse than
+    showing them.
+
+    Args:
+        paragraph: python-docx paragraph to append to
+        text: text that may contain Markdown bold markers
+    """
+    text = str(text or "")
+    position = 0
+    for match in _MD_BOLD_RE.finditer(text):
+        if match.start() > position:
+            paragraph.add_run(text[position:match.start()])
+        paragraph.add_run(match.group(1)).bold = True
+        position = match.end()
+    if position < len(text):
+        paragraph.add_run(text[position:])
+
+
 @api_bp.route('/export-docx', methods=['POST'])
 @login_required
 def export_docx():
@@ -676,7 +709,7 @@ def export_docx():
             if story.get('testCases'):
                 tc_para = doc.add_paragraph()
                 tc_para.add_run('Test Cases: ').bold = True
-                tc_para.add_run(str(story['testCases']))
+                _add_markdown_text(tc_para, story['testCases'])
             
             # Add separator between stories
             if idx < len(stories):
