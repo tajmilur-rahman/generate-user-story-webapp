@@ -928,10 +928,12 @@ class ParallelStoryOrchestrator:
         max_iterations = 3
         iteration = 0
 
-        # Best-known version of each story, by judge score. Seeded from the
-        # originals at their first review.
+        # Best-known version of each story. Seeded from the originals at their
+        # first review. Ranked by (structurally valid, judge score) -- see the
+        # ratchet below for why validity comes first.
         best_stories = {}
         best_scores = {}
+        best_ranks = {}
 
         while iteration < max_iterations:
             iteration += 1
@@ -1029,10 +1031,29 @@ class ParallelStoryOrchestrator:
                     continue
                 score = review.get("total_score", 0)
 
-                if story_id not in best_scores or score > best_scores[story_id]:
+                # Rank on structural validity FIRST, judge score second.
+                #
+                # Ranking on the judge alone shipped a story reading "...if the
+                # network connection between buildings fails using" -- no "so
+                # that" clause, a dangling preposition, and a garbled title
+                # derived from it. The rubric scored it 65 and sent it for
+                # rewrite; the judge happened to score the broken original
+                # above its repairs, so the ratchet kept the broken one. Before
+                # the ratchet existed a repair would at least have landed.
+                #
+                # The deterministic rubric cannot return a false pass, so when
+                # it says a version is malformed that is a fact, not an
+                # opinion. A valid version therefore never loses to an invalid
+                # one whatever the judge thinks, and the judge only ranks
+                # versions that are already well formed.
+                rubric_score = rubric.get(story_id, {}).get("score", 100)
+                rank = (rubric_score >= 70, score)
+
+                if story_id not in best_ranks or rank > best_ranks[story_id]:
+                    best_ranks[story_id] = rank
                     best_scores[story_id] = score
                     best_stories[story_id] = copy.deepcopy(story)
-                elif score < best_scores[story_id]:
+                elif rank < best_ranks[story_id]:
                     reverted.append((story_id, score, best_scores[story_id]))
                     # The review describes the rejected version, so the issues
                     # it lists do not apply to the one being restored. Score it

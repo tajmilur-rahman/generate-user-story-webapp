@@ -1883,3 +1883,154 @@ class TestReviewBatchSize:
         orchestrator._quality_review_loop(stories)
 
         assert set(seen) == {s["story_id"] for s in stories}
+
+
+class TestElementScaffoldingIsUnwrapped:
+    """
+    The Story Writer is told to name the fields a story touches, as
+    "using [specific elements: a, b, c]". Naming them makes the story testable
+    and is worth keeping; the bracketed label is prompt scaffolding that reads
+    as an unfilled template. It reached the delivered document in 20 of 27
+    stories of one generated suite.
+    """
+
+    def test_field_names_survive_and_the_label_does_not(self):
+        from backend.services.story_service import inline_specific_elements
+
+        out = inline_specific_elements(
+            "As a parking garage attendant, I want the system to capture "
+            "license plate information using [specific elements: "
+            "license_plate_number, timestamp, entry_gate_id], so that I can "
+            "track vehicles")
+
+        assert "specific elements" not in out
+        assert "[" not in out and "]" not in out
+        for field in ("license_plate_number", "timestamp", "entry_gate_id"):
+            assert field in out, f"{field} was lost"
+        assert "timestamp and entry_gate_id" in out, "list should read as prose"
+
+    def test_a_single_element_needs_no_conjunction(self):
+        from backend.services.story_service import inline_specific_elements
+
+        out = inline_specific_elements(
+            "I want a thing using [specific elements: employee_id], so that x")
+
+        assert "using employee_id, so that x" in out
+        assert " and " not in out
+
+    def test_an_empty_list_leaves_no_dangling_connective(self):
+        from backend.services.story_service import inline_specific_elements
+
+        out = inline_specific_elements(
+            "I want a thing using [specific elements: ], so that y")
+
+        assert out == "I want a thing, so that y"
+
+    def test_text_without_scaffolding_is_untouched(self):
+        from backend.services.story_service import inline_specific_elements
+
+        original = ("As a driver, I want to view the vehicle heading, "
+                    "so that I can navigate")
+        assert inline_specific_elements(original) == original
+
+    def test_acceptance_criteria_are_cleaned_too(self):
+        from backend.services.story_service import inline_specific_elements
+
+        out = inline_specific_elements(
+            "Given [specific elements: area_id, alert_type] are present, "
+            "When an alert fires, Then it is logged")
+
+        assert "area_id and alert_type are present" in out
+
+    def test_a_story_with_no_definition_of_done_is_still_cleaned(self):
+        # sanitize_story_output returns early when there is no DoD; the
+        # description still reaches the page and must still be unwrapped.
+        from backend.services.story_service import sanitize_story_output
+
+        story = sanitize_story_output({
+            "description": "I want a thing using [specific elements: a, b], "
+                           "so that x",
+            "definitionOfDone": "",
+        })
+
+        assert "specific elements" not in story["description"]
+        assert "a and b" in story["description"]
+
+
+class TestRatchetPrefersValidStories:
+    """
+    Ranking rewrites on the judge score alone shipped a malformed story:
+
+      "...if the network connection between buildings fails using"
+
+    No "so that" clause, a dangling preposition, and a garbled derived title.
+    The deterministic rubric scored it 65 and sent it for rewrite, but the
+    judge scored the broken original above its repairs, so the ratchet kept
+    the broken one. Before the ratchet a repair would at least have landed.
+    """
+
+    BROKEN = ("As a system administrator, I want the system to operate "
+              "independently using locally cached access rules using")
+    REPAIRED = ("As a system administrator, I want the system to operate "
+                "independently using locally cached access rules, so that "
+                "access continues during a network outage")
+
+    def test_a_structurally_valid_repair_beats_a_higher_judge_score(
+            self, orchestrator, monkeypatch):
+        story = {"story_id": "EPIC-009-STORY-001", "requirement_id": "REQ-026",
+                 "user_story": self.BROKEN,
+                 "acceptance_criteria": ["Given a, When b, Then c"],
+                 "deliverables": {"Api Endpoints": ["an endpoint"]}}
+
+        # The judge prefers the broken original; only the rubric knows better.
+        scores = {self.BROKEN: 88, self.REPAIRED: 61}
+
+        def fake_review_batch(batch):
+            return [{"story_id": s["story_id"],
+                     "total_score": scores.get(s["user_story"], 50),
+                     "issues": ["no so-that clause"]} for s in batch]
+
+        def fake_rewrite(s, review):
+            out = dict(s)
+            out["user_story"] = self.REPAIRED
+            return out
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+        monkeypatch.setattr(orchestrator, "_rewrite_single_story", fake_rewrite)
+
+        result = orchestrator._quality_review_loop([story])
+
+        assert result[0]["user_story"] == self.REPAIRED, (
+            "a story failing the deterministic story-form check was kept "
+            "because the judge scored it higher")
+
+    def test_the_judge_still_ranks_two_valid_versions(
+            self, orchestrator, monkeypatch):
+        # Validity is a gate, not a replacement for the judge: among stories
+        # that are all well formed, the higher judge score must still win.
+        good = ("As a user, I want to export a report, so that I can share it")
+        better = ("As a compliance officer, I want to export a monthly audit "
+                  "report, so that I can file it with the regulator")
+        story = {"story_id": "EPIC-009-STORY-002", "requirement_id": "REQ-027",
+                 "user_story": good,
+                 "acceptance_criteria": ["Given a, When b, Then c"],
+                 "deliverables": {"Api Endpoints": ["an endpoint"]}}
+
+        scores = {good: 55, better: 91}
+
+        def fake_review_batch(batch):
+            return [{"story_id": s["story_id"],
+                     "total_score": scores.get(s["user_story"], 50),
+                     "issues": ["vague"]} for s in batch]
+
+        def fake_rewrite(s, review):
+            out = dict(s)
+            out["user_story"] = better
+            return out
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+        monkeypatch.setattr(orchestrator, "_rewrite_single_story", fake_rewrite)
+
+        result = orchestrator._quality_review_loop([story])
+
+        assert result[0]["user_story"] == better

@@ -210,6 +210,18 @@ def sanitize_story_output(story):
     Clean up story output before returning.
     Removes internal metadata, Python dict syntax, and incomplete templates.
     """
+    # Unwrap the prompt's element-list scaffolding wherever it reaches the
+    # page. Done before the early return below, which skips everything else
+    # when a story has no Definition of Done -- the scaffolding still shows in
+    # that story's description and must still be cleaned.
+    for field in ("description", "title", "definitionOfDone", "testCases"):
+        value = story.get(field)
+        if isinstance(value, str):
+            story[field] = inline_specific_elements(value)
+        elif isinstance(value, list):
+            story[field] = [inline_specific_elements(v) if isinstance(v, str)
+                            else v for v in value]
+
     dod = story.get("definitionOfDone", "")
     
     if not dod or not isinstance(dod, str):
@@ -612,6 +624,63 @@ def is_template_test_case(test_case_text):
             return True
     
     return False
+
+# The Story Writer is told to name the concrete fields a story touches, in the
+# form "using [specific elements: a, b, c]". Naming them is what makes a story
+# testable and is worth keeping. The bracketed label around them is prompt
+# scaffolding, and in the delivered document it reads as a template nobody
+# filled in -- it appeared in 20 of 27 stories of one generated suite.
+#
+# Unwrapped at render time rather than removed from the prompt: the prompt
+# needs an unambiguous marker so the model reliably emits the list at all, and
+# the reviewer and rewriter both check for that marker. Changing the contract
+# would mean retuning three agents to fix a presentation problem.
+_ELEMENTS_RE = re.compile(
+    r"\[\s*specific\s+elements\s*:\s*(?P<items>[^\]]*?)\s*\]",
+    re.IGNORECASE)
+
+
+def _join_elements(items):
+    """Render a comma-separated element list as readable prose."""
+    parts = [p.strip() for p in items.split(",") if p.strip()]
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+def inline_specific_elements(text):
+    """
+    Unwrap "[specific elements: a, b, c]" to "a, b and c".
+
+    Keeps every field name and drops only the bracketed label. An empty list
+    leaves nothing behind but the connective it followed, so "using [specific
+    elements: ]" becomes "using" with the stray word removed too.
+
+    Args:
+        text: Story text, acceptance criterion, or any rendered string
+
+    Returns:
+        The text with element lists read as prose
+    """
+    if not text or not isinstance(text, str):
+        return text
+    if "specific elements" not in text.lower():
+        return text
+
+    def _replace(match):
+        return _join_elements(match.group("items"))
+
+    out = _ELEMENTS_RE.sub(_replace, text)
+
+    # An empty list leaves "using ," or "with ," behind.
+    out = re.sub(r"\b(using|with|via|through)\s*(?=[,.])", "", out,
+                 flags=re.IGNORECASE)
+    out = re.sub(r"\s+([,.])", r"\1", out)
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    return out.strip()
+
 
 def tidy_whitespace(text):
     """
