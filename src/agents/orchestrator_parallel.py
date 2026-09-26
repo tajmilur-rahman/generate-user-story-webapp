@@ -925,7 +925,18 @@ class ParallelStoryOrchestrator:
         to separate a good rewrite from a bad one. It still gates which stories
         are sent for rewrite; it cannot decide whether one worked.
         """
-        max_iterations = 3
+        # Two, not three. The final iteration reviews but does not rewrite,
+        # so three iterations buy two rounds of repair. Measured on a 27-story
+        # document, the second round produced 14 repairs of which 10 were
+        # rejected at the next review -- a third of total runtime for a low
+        # yield. The rewriter is also greedy, so a story whose repair was
+        # rejected reverts to the same text and the next round regenerates the
+        # same rejected repair: one story was discarded twice at an identical
+        # 51 against 62.
+        #
+        # Configurable because the right number depends on how often repairs
+        # land, which varies with the generating model.
+        max_iterations = max(1, int(os.getenv('REVIEW_ITERATIONS', '2')))
         iteration = 0
 
         # Best-known version of each story. Seeded from the originals at their

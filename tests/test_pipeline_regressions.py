@@ -976,9 +976,13 @@ class TestTestCaseMatching:
         result = self._convert()
 
         assert len(result) == len(self.STORIES)
+        # Identifiers are renumbered by story order at presentation, so the
+        # link is checked through the test case text, which names the
+        # requirement it was generated from.
         for story, (requirement_id, _) in zip(result, self.STORIES):
-            assert f"TC-{requirement_id}" in story["testCases"], (
-                f"{requirement_id} got: {story['testCases'][:60]}")
+            expected = self.REQUIREMENTS[requirement_id]
+            assert expected in story["testCases"], (
+                f"{requirement_id} got: {story['testCases'][:80]}")
 
     def test_no_story_is_left_without_test_cases(self):
         result = self._convert()
@@ -1019,7 +1023,7 @@ class TestTestCaseMatching:
             json.dumps(payload), json.dumps(test_cases), "REQ-001: Collect readings")
 
         assert len(result) == 2
-        assert all("TC-1" in s["testCases"] for s in result)
+        assert all("Verify collection" in s["testCases"] for s in result)
 
 
 class TestTitleDerivation:
@@ -1558,6 +1562,7 @@ class TestRewriteRatchet:
             return [{"story_id": s["story_id"], "total_score": 50,
                      "issues": ["x"]} for s in batch]
 
+        monkeypatch.setenv("REVIEW_ITERATIONS", "3")
         monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
         monkeypatch.setattr(orchestrator, "_rewrite_single_story", fake_rewrite)
 
@@ -1783,6 +1788,7 @@ class TestDuplicateReviewCollapse:
             rewrites.append(story["story_id"])
             return dict(story)
 
+        monkeypatch.setenv("REVIEW_ITERATIONS", "3")
         monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
         monkeypatch.setattr(orchestrator, "_rewrite_single_story", fake_rewrite)
 
@@ -2170,3 +2176,151 @@ class TestWordExportMarkdown:
     def test_empty_and_none_are_safe(self):
         assert self._runs("") == []
         assert self._runs(None) == []
+
+
+class TestTestCaseNumbering:
+    """
+    Test cases are generated per requirement batch in parallel, so identifiers
+    are assigned in requirement order after fan-in. Stories are delivered in a
+    different order, which produced a document reading TC26-TC28 on story 1 and
+    TC11 on story 5. The identifiers were unique and correct, and looked
+    arbitrary to the reader.
+    """
+
+    @staticmethod
+    def _convert(story_specs, tc_specs):
+        import json
+        from backend.routes.api_agentic import _build_deliverables
+
+        deliverables = _build_deliverables({"deliverables": {"unit_tests": ["t"]}})
+        payload = {"User Stories": [
+            {"User Story": text, "Requirement ID": rid, "Deliverables": deliverables}
+            for rid, text in story_specs]}
+        test_cases = {"test_cases": [
+            {"requirement_id": rid, "requirement": desc,
+             "test_cases": [{"id": generated_id, "description": f"Verify {desc}",
+                             "steps": ["s"], "expected_result": "ok"}
+                            for generated_id in ids]}
+            for rid, desc, ids in tc_specs]}
+        requirements = "\n".join(f"{rid}: {desc}" for rid, desc, _ in tc_specs)
+        return convert_stories_to_frontend_format(
+            json.dumps(payload), json.dumps(test_cases), requirements)
+
+    STORIES = [
+        ("REQ-001", "As an operator, I want readings recorded, so that data exists"),
+        ("REQ-002", "As an analyst, I want trends displayed, so that I can report"),
+    ]
+
+    def test_numbering_follows_the_delivered_order(self):
+        # Generation assigned TC26/TC27 to the first story and TC11 to the
+        # second -- the out-of-order case observed in a real export.
+        result = self._convert(self.STORIES, [
+            ("REQ-001", "Record readings", ["TC26", "TC27"]),
+            ("REQ-002", "Display trends", ["TC11"]),
+        ])
+
+        assert "**TC1**" in result[0]["testCases"]
+        assert "**TC2**" in result[0]["testCases"]
+        assert "**TC3**" in result[1]["testCases"]
+
+    def test_generated_identifiers_do_not_reach_the_page(self):
+        result = self._convert(self.STORIES, [
+            ("REQ-001", "Record readings", ["TC26", "TC27"]),
+            ("REQ-002", "Display trends", ["TC11"]),
+        ])
+
+        page = " ".join(s["testCases"] for s in result)
+        for stale in ("TC26", "TC27", "TC11"):
+            assert stale not in page, f"{stale} survived renumbering"
+
+    def test_numbers_are_unique_and_contiguous(self):
+        import re
+        result = self._convert(self.STORIES, [
+            ("REQ-001", "Record readings", ["TC26", "TC27"]),
+            ("REQ-002", "Display trends", ["TC11"]),
+        ])
+
+        numbers = [int(n) for s in result
+                   for n in re.findall(r"\*\*TC(\d+)\*\*", s["testCases"])]
+        assert numbers == list(range(1, len(numbers) + 1))
+
+    def test_test_case_content_is_unchanged(self):
+        # Renumbering is presentation only; the matching it depends on must
+        # still put each requirement's test cases on its own story.
+        result = self._convert(self.STORIES, [
+            ("REQ-001", "Record readings", ["TC26"]),
+            ("REQ-002", "Display trends", ["TC11"]),
+        ])
+
+        assert "Record readings" in result[0]["testCases"]
+        assert "Display trends" in result[1]["testCases"]
+
+
+class TestReviewIterationBudget:
+    """
+    The final iteration reviews but does not rewrite, so three iterations buy
+    two rounds of repair. Measured on a 27-story document the second round
+    produced 14 repairs of which 10 were rejected at the next review -- a third
+    of total runtime for a low yield.
+    """
+
+    @staticmethod
+    def _story(story_id):
+        return {"story_id": story_id, "requirement_id": "REQ-001",
+                "user_story": "As a user, I want a thing, so that benefit",
+                "acceptance_criteria": ["Given a, When b, Then c"]}
+
+    def _drive(self, orchestrator, monkeypatch):
+        rewrites = []
+
+        def fake_review_batch(batch):
+            return [{"story_id": s["story_id"], "total_score": 50,
+                     "issues": ["x"]} for s in batch]
+
+        def fake_rewrite(story, review):
+            rewrites.append(story["story_id"])
+            return dict(story)
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+        monkeypatch.setattr(orchestrator, "_rewrite_single_story", fake_rewrite)
+        return rewrites
+
+    def test_default_is_two_iterations(self, orchestrator, monkeypatch):
+        monkeypatch.delenv("REVIEW_ITERATIONS", raising=False)
+        rewrites = self._drive(orchestrator, monkeypatch)
+
+        orchestrator._quality_review_loop([self._story("EPIC-001-STORY-001")])
+
+        # 2 iterations, the last of which does not rewrite -> 1 repair round.
+        assert len(rewrites) == 1
+
+    def test_budget_is_configurable(self, orchestrator, monkeypatch):
+        monkeypatch.setenv("REVIEW_ITERATIONS", "4")
+        rewrites = self._drive(orchestrator, monkeypatch)
+
+        orchestrator._quality_review_loop([self._story("EPIC-001-STORY-001")])
+
+        assert len(rewrites) == 3
+
+    def test_a_single_iteration_never_rewrites(self, orchestrator, monkeypatch):
+        # One iteration means one review and no repair that could be verified.
+        monkeypatch.setenv("REVIEW_ITERATIONS", "1")
+        rewrites = self._drive(orchestrator, monkeypatch)
+
+        orchestrator._quality_review_loop([self._story("EPIC-001-STORY-001")])
+
+        assert rewrites == []
+
+    def test_zero_or_negative_cannot_disable_review(self, orchestrator, monkeypatch):
+        monkeypatch.setenv("REVIEW_ITERATIONS", "0")
+        reviewed = []
+
+        def fake_review_batch(batch):
+            reviewed.extend(s["story_id"] for s in batch)
+            return [{"story_id": s["story_id"], "total_score": 95,
+                     "issues": []} for s in batch]
+
+        monkeypatch.setattr(orchestrator, "_review_batch", fake_review_batch)
+        orchestrator._quality_review_loop([self._story("EPIC-001-STORY-001")])
+
+        assert reviewed, "review must still run at least once"

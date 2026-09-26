@@ -1259,6 +1259,17 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
         # Track which TC groups have been claimed so each group goes to exactly one story
         claimed_tc_groups = set()
 
+        # Test cases are generated per requirement batch, in parallel, so their
+        # identifiers are assigned in requirement order after fan-in. Stories
+        # are presented in a different order, which made the delivered document
+        # read as TC26-TC28 on story 1 and TC11 on story 5. The numbers are
+        # correct and unique, but to a reader they look arbitrary.
+        #
+        # Renumbering happens here rather than at generation because story
+        # order is not known until matching is complete, and the generated
+        # identifiers are what matching itself relies on.
+        next_test_number = 1
+
         for idx, story in enumerate(valid_stories):
             # Extract user story title/description
             story_text = story.get('User Story', '').strip()
@@ -1420,17 +1431,17 @@ def convert_stories_to_frontend_format(epics_json, test_cases_json, requirements
                 formatted_tests = []
                 for test in matching_test_cases:
                     if isinstance(test, dict):
-                        test_id = test.get('id', '')
+                        # Number by position in the delivered document, not
+                        # by the requirement batch that produced it.
+                        test_id = f"TC{next_test_number}"
+                        next_test_number += 1
                         test_desc = test.get('description', '')
                         test_steps = test.get('steps', [])
                         test_expected = test.get('expected_result', '')
 
                         # Format nicely with ID, description, steps, and expected result
                         test_formatted_parts = []
-                        if test_id:
-                            test_formatted_parts.append(f"**{test_id}**: {test_desc}")
-                        else:
-                            test_formatted_parts.append(f"**Test**: {test_desc}")
+                        test_formatted_parts.append(f"**{test_id}**: {test_desc}")
 
                         if test_steps and isinstance(test_steps, list):
                             test_formatted_parts.append("**Steps**:")
