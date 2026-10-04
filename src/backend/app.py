@@ -8,6 +8,7 @@ import tempfile
 import sys
 from flask import Flask
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_login import LoginManager
 from dotenv import load_dotenv
 
@@ -67,6 +68,19 @@ def create_app():
                 static_url_path='/assets',
                 template_folder=template_folder,
                 instance_path=instance_folder)
+
+    # Behind a reverse proxy or tunnel, the request reaches Flask over plain
+    # HTTP on a local port, so url_for(..., _external=True) builds an http://
+    # callback. Google rejects a non-HTTPS redirect URI for any host other than
+    # localhost, which made OAuth fail with redirect_uri_mismatch while the
+    # hostname itself was correct.
+    #
+    # ProxyFix makes Flask honour X-Forwarded-Proto and X-Forwarded-Host. One
+    # trusted hop only: the app binds 127.0.0.1, so the sole client able to set
+    # those headers is the proxy on the same machine. Binding 0.0.0.0 with this
+    # enabled would let anyone on the network forge the scheme.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
     CORS(app)  # Enable CORS for frontend
 
     # Configuration
