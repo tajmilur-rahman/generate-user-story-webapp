@@ -6,6 +6,7 @@ import os
 import logging
 import tempfile
 import sys
+from datetime import timedelta
 from flask import Flask
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -54,7 +55,7 @@ sys.path.insert(0, os.path.join(project_root, 'src'))  # For new backend imports
 
 # Import from new structure
 from backend.routes import register_routes
-from backend.models import db, init_db, User
+from backend.models import db, run_migrations, User
 from backend.routes.auth import init_oauth
 
 def create_app():
@@ -79,7 +80,9 @@ def create_app():
     # trusted hop only: the app binds 127.0.0.1, so the sole client able to set
     # those headers is the proxy on the same machine. Binding 0.0.0.0 with this
     # enabled would let anyone on the network forge the scheme.
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    # x_for too: without it every request appears to come from the proxy, so
+    # per-address login throttling would lump all clients into one bucket.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     CORS(app)  # Enable CORS for frontend
 
@@ -113,7 +116,18 @@ def create_app():
     # Session configuration
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['SESSION_COOKIE_SECURE'] = False  # Set to True if using HTTPS
+    # Set SESSION_COOKIE_SECURE=true wherever the app is served over HTTPS (the
+    # Tailscale Funnel deployment is), so the session cookie is never sent in
+    # clear. Left off by default so plain-http://localhost development works.
+    app.config['SESSION_COOKIE_SECURE'] = os.environ.get(
+        'SESSION_COOKIE_SECURE', 'false').strip().lower() in ('1', 'true', 'yes', 'on')
+    app.config['REMEMBER_COOKIE_SECURE'] = app.config['SESSION_COOKIE_SECURE']
+    app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+    app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+    # "Keep me signed in" lasts a fortnight: long enough that a survey reviewer
+    # coming back over several days is not asked again, short enough to expire
+    # well before the accounts stop being needed.
+    app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=14)
     app.config['SESSION_COOKIE_DOMAIN'] = None  # Allow localhost/127.0.0.1
     app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
     
@@ -133,7 +147,10 @@ def create_app():
     # Initialize OAuth
     init_oauth(app)
     
-    # Create database tables
+    # Bring an existing database up to the current schema, then create any
+    # table that does not exist yet. create_all() alone cannot alter a table
+    # that is already there, so the migration has to run first.
+    run_migrations(app)
     with app.app_context():
         db.create_all()
         # Only log to file, not console

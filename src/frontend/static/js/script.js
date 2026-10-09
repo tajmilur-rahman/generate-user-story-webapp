@@ -43,9 +43,15 @@ function displayUserProfile() {
     // User avatar and name
     const userInfo = document.createElement('div');
     userInfo.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+    // Only Google accounts carry a picture. Password accounts have none, so
+    // fall back to an initial rather than rendering a broken image.
+    const displayName = currentUser.name || currentUser.email || 'User';
+    const avatar = currentUser.picture
+        ? `<img src="${currentUser.picture}" alt="${displayName}" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #007AFF;">`
+        : `<div aria-hidden="true" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #007AFF; background: #007AFF; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600;">${displayName.trim().charAt(0).toUpperCase()}</div>`;
     userInfo.innerHTML = `
-        <img src="${currentUser.picture}" alt="${currentUser.name}" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #007AFF;">
-        <span style="font-size: 14px; color: #333; font-weight: 500;">${currentUser.name}</span>
+        ${avatar}
+        <span style="font-size: 14px; color: #333; font-weight: 500;">${displayName}</span>
     `;
 
     // Logout button

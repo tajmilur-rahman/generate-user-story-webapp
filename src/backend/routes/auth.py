@@ -1,14 +1,18 @@
 """
 Authentication routes for Google OAuth and GitHub OAuth
 """
-import os
+import hmac
 import logging
-from flask import Blueprint, redirect, url_for, request, jsonify, render_template
+import os
+import secrets
+from flask import Blueprint, redirect, url_for, request, jsonify, render_template, session
 from flask_login import login_user, logout_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
 from datetime import datetime
 from backend.models import User, db
 from backend.services.email_service import email_service
+from backend.services.login_throttle import login_throttle
+from backend.features import google_login_enabled
 
 auth_bp = Blueprint('auth', __name__)
 logger = logging.getLogger(__name__)
@@ -53,13 +57,110 @@ def init_oauth(app):
     else:
         logger.warning("GitHub OAuth not configured (GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET missing)")
 
+def _csrf_token():
+    """
+    Issue (or reuse) this session's CSRF token.
+
+    The synchroniser-token pattern: a value the server put in the session has to
+    come back in the form body. An attacker's page can make the browser POST
+    here, but cannot read our session to learn the token.
+
+    SESSION_COOKIE_SAMESITE is already 'Lax', which blocks cross-site form POSTs
+    in current browsers. This is the second lock, for older ones.
+    """
+    token = session.get('csrf_token')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['csrf_token'] = token
+    return token
+
+
+def _csrf_ok(submitted):
+    expected = session.get('csrf_token')
+    return bool(expected) and hmac.compare_digest(str(submitted or ''), expected)
+
+
+def _throttle_keys(email):
+    """
+    Throttle on the client address and the email separately.
+
+    Address alone lets one attacker lock out a shared NAT; email alone lets a
+    botnet spread guesses across addresses. Counting both closes each gap.
+    """
+    keys = [f"ip:{request.remote_addr or 'unknown'}"]
+    if email:
+        keys.append(f"email:{email}")
+    return keys
+
+
+def _render_login(error=None, email=None, status=200):
+    return render_template(
+        'login.html',
+        show_google_login=google_login_enabled(),
+        csrf_token=_csrf_token(),
+        error=error,
+        email=email,
+    ), status
+
+
 @auth_bp.route('/login')
 def login():
     """Render login page"""
     # If user is already logged in, redirect to index
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('login.html')
+    body, status = _render_login()
+    return body, status
+
+
+@auth_bp.route('/login', methods=['POST'])
+def password_login():
+    """Sign in with email and password."""
+    if current_user.is_authenticated:
+        return redirect('/')
+
+    if not _csrf_ok(request.form.get('csrf_token')):
+        logger.warning("Rejected login POST with a bad or missing CSRF token")
+        return _render_login(error='Your session expired. Please try again.')
+
+    email = (request.form.get('email') or '').strip().lower()
+    password = request.form.get('password') or ''
+    keys = _throttle_keys(email)
+
+    wait = login_throttle.retry_after(keys)
+    if wait:
+        minutes = max(1, round(wait / 60))
+        logger.warning(f"Throttled login attempt for {email!r} from {request.remote_addr}")
+        return _render_login(
+            error=f'Too many failed attempts. Try again in about {minutes} minute'
+                  f'{"s" if minutes != 1 else ""}.',
+            email=email,
+            status=429,
+        )
+
+    user = None
+    if email:
+        user = User.query.filter(db.func.lower(User.email) == email).first()
+
+    # One message for every failure. Distinguishing "no such account" from
+    # "wrong password" would let anyone enumerate who has signed up, and a
+    # Google-only account must not reveal that it exists but has no password.
+    if user is None or not user.check_password(password):
+        login_throttle.record_failure(keys)
+        logger.info(f"Failed password login for {email!r} from {request.remote_addr}")
+        return _render_login(error='Incorrect email or password.', email=email, status=401)
+
+    login_throttle.record_success(keys)
+
+    # Replace the session id on privilege change so a token planted before
+    # sign-in cannot be reused afterwards (session fixation).
+    session.clear()
+
+    user.last_login = datetime.utcnow()
+    db.session.commit()
+    login_user(user, remember=bool(request.form.get('remember')))
+    logger.info(f"User logged in with password: {user.email}")
+    return redirect('/')
 
 @auth_bp.route('/google')
 def google_login():
@@ -92,7 +193,16 @@ def google_callback():
         # Find or create user in database
         user = User.query.filter_by(google_id=google_id).first()
         is_new_user = False
-        
+
+        if not user and email:
+            # An account may already exist from a password sign-in. Email is the
+            # shared identity, so attach the Google id to that row rather than
+            # inserting a second account and colliding on the unique email.
+            user = User.query.filter(db.func.lower(User.email) == email.lower()).first()
+            if user:
+                user.google_id = google_id
+                logger.info(f"Linked Google sign-in to existing account: {email}")
+
         if not user:
             # Create new user (first-time login)
             is_new_user = True

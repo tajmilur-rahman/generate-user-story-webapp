@@ -75,6 +75,11 @@ document.addEventListener('click', function(event) {
 
 // GitHub integration helpers
 async function loadGitHubConfig() {
+    // The panel is omitted entirely when SHOW_GITHUB_INTEGRATION is off, so
+    // bail before touching elements that are not on the page.
+    if (!document.getElementById('githubIntegrationPanel')) {
+        return;
+    }
     try {
         const res = await fetch('/api/github-config');
         if (!res.ok) {

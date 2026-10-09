@@ -75,7 +75,8 @@ __pycache__/
 # Database
 users.db
 *.db
-instance/users.db
+# The whole instance dir: SQLite database, backups, password hashes.
+instance/
 src/instance/
 
 # Data files (keep structure, ignore content)
@@ -99,3 +100,6 @@ SECRET_KEY.txt
 data/runs/*
 !data/runs/.gitkeep
 .gstack/
+# Credential sheets from scripts/create_user.py --bulk. Plaintext passwords.
+reviewer-accounts.csv
+*-accounts.csv

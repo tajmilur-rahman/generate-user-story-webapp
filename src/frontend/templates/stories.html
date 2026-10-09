@@ -26,6 +26,10 @@
         <div class="main-layout">
             <div class="sidebar">
                 <h2 class="sidebar-header">User Stories</h2>
+                {# GitHub integration is implemented and its routes stay registered.
+                   This panel is hidden unless SHOW_GITHUB_INTEGRATION=true, so it
+                   comes back by setting that one environment variable. #}
+                {% if show_github_integration %}
                 <div id="githubIntegrationPanel" style="padding: 0 12px 8px 12px; margin-bottom: 8px; font-size: 12px; border-bottom: 1px solid #eee;">
                     <div id="githubStatus" style="margin-bottom: 6px; color: #666;">GitHub: Not connected</div>
                     <div id="githubConnectButtons" style="display: flex; gap: 6px; margin-bottom: 6px;">
@@ -47,6 +51,7 @@
                             onclick="saveGitHubConfig()">Save Config</button>
                     </div>
                 </div>
+                {% endif %}
                 <div style="display: flex; gap: 8px; margin-bottom: 12px; padding: 0 12px;">
                     <button class="btn" onclick="selectAllStories()"
                         style="flex: 1; padding: 8px; font-size: 13px; background: #f0f0f0;">Select All</button>
@@ -70,7 +75,12 @@
                             <button onclick="exportSelectedToWord(); toggleExportDropdown();">Export as Word</button>
                         </div>
                     </div>
+                    {# "Integrate Selected" opens a GitHub issue per story, so it
+                       hides with the rest of the integration. The per-story
+                       "Integrate" below writes a local JSON file and stays. #}
+                    {% if show_github_integration %}
                     <button class="btn btn-integrate-all" onclick="integrateSelected()">Integrate Selected</button>
+                    {% endif %}
                 </div>
             </div>
             <div class="content-panel">
