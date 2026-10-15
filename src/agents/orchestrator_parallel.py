@@ -47,12 +47,16 @@ class ParallelStoryOrchestrator:
     Expected total speedup: 8-10x (25 min → 2-3 min)
     """
 
-    def __init__(self, max_workers=None):
+    def __init__(self, max_workers=None, progress_callback=None):
         """
         Initialize orchestrator with parallel execution capability
 
         Args:
             max_workers: Maximum parallel workers (default: 5 for optimal GPU utilization)
+            progress_callback: Optional fn(phase_number, label), called as each
+                phase begins. A run takes minutes, so a caller serving it
+                asynchronously needs to report how far it has got. Never
+                allowed to break the run -- see _report_phase.
         """
         self.requirements_agent = RequirementsAgent()
         self.epic_extractor = EpicExtractorAgent()
@@ -74,6 +78,8 @@ class ParallelStoryOrchestrator:
         # Requirements no epic claimed, recovered before story generation.
         # Reported so a gap in epic formation is visible rather than silent.
         self.unclaimed_requirements = []
+
+        self._progress_callback = progress_callback
 
         # Set per run by generate_stories()
         self.run_id = None
@@ -214,6 +220,20 @@ class ParallelStoryOrchestrator:
             logger.info(f"✅ Removed {len(duplicates_found)} duplicate stories ({len(stories)} → {len(unique)})")
 
         return unique
+
+    def _report_phase(self, number, label):
+        """
+        Tell the caller which phase has just begun.
+
+        Progress reporting is cosmetic, so a callback that raises must not take
+        down a run that is otherwise fine.
+        """
+        if not self._progress_callback:
+            return
+        try:
+            self._progress_callback(number, label)
+        except Exception as e:
+            logger.debug(f"Progress callback failed (ignored): {e}")
 
     def _checkpoint(self, phase, payload):
         """
@@ -595,6 +615,7 @@ class ParallelStoryOrchestrator:
         # PHASE 1: Requirements Extraction
         phase_start = time.time()
         logger.info("\n[PHASE 1] Extracting Requirements...")
+        self._report_phase(1, "Extracting requirements")
         req_result = self.requirements_agent.run(
             "Extract and refine all requirements",
             {"document": document_text}
@@ -615,6 +636,7 @@ class ParallelStoryOrchestrator:
         # PHASE 2: Epic Generation (LOOP 2 - Extract → Refine)
         phase_start = time.time()
         logger.info("\n[PHASE 2] Generating Epics (Two-Pass)...")
+        self._report_phase(2, "Forming epics")
 
         # Pass 1: Extract
         epic_extract_result = self.epic_extractor.run(
@@ -650,6 +672,7 @@ class ParallelStoryOrchestrator:
         # PHASE 3: Story Generation (PARALLEL EPICS) ⚡
         phase_start = time.time()
         logger.info(f"\n[PHASE 3] Generating Stories (PARALLEL - {self.max_workers} workers)...")
+        self._report_phase(3, "Generating user stories")
         all_stories = []
 
         # Process epics in parallel
@@ -701,6 +724,7 @@ class ParallelStoryOrchestrator:
         # PHASE 4: Test Case Generation (PARALLEL BATCHES) ⚡
         phase_start = time.time()
         logger.info(f"\n[PHASE 4] Generating Test Cases (PARALLEL - {self.max_workers} workers)...")
+        self._report_phase(4, "Generating test cases")
 
         # Pre-calculate TC ranges
         tc_ranges = self._calculate_tc_ranges(requirements, batch_size=4)
@@ -734,6 +758,7 @@ class ParallelStoryOrchestrator:
         # PHASE 5: Quality Review Loop (PARALLEL REWRITES) ⚡
         phase_start = time.time()
         logger.info(f"\n[PHASE 5] Quality Review Loop (PARALLEL - {self.max_workers} workers)...")
+        self._report_phase(5, "Reviewing and repairing")
         all_stories = self._quality_review_loop(all_stories)
         logger.info(f"✓ Quality review complete ({time.time() - phase_start:.1f}s)")
         self._checkpoint("05_reviewed_stories", all_stories)

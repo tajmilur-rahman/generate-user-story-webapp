@@ -8,6 +8,7 @@ Expected speedup: 8-10x faster than old autoAgile approach (25 min → 2-3 min)
 import os
 import json
 import tempfile
+import uuid
 import time
 import logging
 import traceback
@@ -18,11 +19,18 @@ from werkzeug.utils import secure_filename
 
 from backend.utils.helpers import allowed_file
 from backend.services.story_service import convert_stories_to_frontend_format
+from backend.services.job_queue import job_queue
 from autoAgile.utils.prompts import extract_text_from_docx
 from agents import ParallelStoryOrchestrator
 from autoAgile.save_output import save_json_output
 
 api_agentic_bp = Blueprint('api_agentic', __name__)
+
+
+def _set_phase(job, number, label):
+    """Record which phase a running job has reached, for the poller."""
+    job.phase_num = number
+    job.phase = label
 logger = logging.getLogger(__name__)
 
 # Configuration
@@ -91,10 +99,74 @@ def health_check():
 @login_required
 def generate_stories_agentic():
     """
-    Generate user stories using parallel multi-agent architecture
+    Accept a document and queue a generation run.
 
-    This endpoint is 8-10x faster than the old autoAgile approach.
-    Expected time: 2-3 minutes (vs 25 minutes with old approach)
+    Returns 202 and a job id straight away rather than holding the request open.
+    A run takes three to ten minutes and Cloudflare closes any proxied request
+    whose origin has not answered in roughly 100 seconds, so the work cannot
+    happen inside the request that asks for it. Poll /jobs/<job_id>.
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'File type not allowed. Please upload .docx, .doc, .txt, or .md files'}), 400
+
+    filename = secure_filename(file.filename)
+
+    # Handle macOS resource fork files (._filename) - skip them
+    if filename.startswith('._'):
+        return jsonify({'error': 'Invalid file: macOS resource fork file detected. Please upload the actual document file.'}), 400
+
+    upload_folder = current_app.config.get('UPLOAD_FOLDER', tempfile.gettempdir())
+
+    # Prefix the saved copy with a unique token: the worker runs after this
+    # request has returned, so two uploads of the same filename must not
+    # collide on disk.
+    filepath = os.path.join(upload_folder, f"{uuid.uuid4().hex}_{filename}")
+    file.save(filepath)
+
+    if not os.path.exists(filepath):
+        return jsonify({'error': f'Failed to save uploaded file to {filepath}'}), 500
+
+    if os.path.getsize(filepath) == 0:
+        os.remove(filepath)
+        return jsonify({'error': 'Uploaded file is empty'}), 400
+
+    logger.info(f"File saved: {filepath} ({os.path.getsize(filepath)} bytes)")
+
+    job = job_queue.submit(
+        lambda j: _run_generation(j, filepath, filename), filename)
+    position = job_queue.position_of(job.id)
+    return jsonify(job.to_dict(position=position)), 202
+
+
+@api_agentic_bp.route('/jobs/<job_id>', methods=['GET'])
+@login_required
+def generation_job_status(job_id):
+    """
+    Report a queued, running or finished run.
+
+    While queued, queue_position says how many runs must finish first. One run
+    executes at a time: a single run already saturates Ollama's parallel slots
+    on one GPU, so overlapping them makes both slower rather than either faster.
+    """
+    job = job_queue.get(job_id)
+    if job is None:
+        return jsonify({'error': 'Unknown or expired job id'}), 404
+    return jsonify(job.to_dict(position=job_queue.position_of(job_id)))
+
+
+def _run_generation(job, filepath, filename):
+    """
+    Run the pipeline for one queued job.
+
+    Returns (payload, http_status) rather than a Flask response: this executes
+    on the worker thread, outside any request.
     """
     logger.info("=" * 60)
     logger.info("API CALL RECEIVED: /api/agentic/generate-stories-agentic")
@@ -107,43 +179,6 @@ def generate_stories_agentic():
     request_started = time.time()
 
     try:
-        # Check if file is present
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
-
-        file = request.files['file']
-
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-
-        if not allowed_file(file.filename):
-            return jsonify({'error': 'File type not allowed. Please upload .docx, .doc, .txt, or .md files'}), 400
-
-        # Save uploaded file temporarily
-        filename = secure_filename(file.filename)
-
-        # Handle macOS resource fork files (._filename) - skip them
-        if filename.startswith('._'):
-            return jsonify({'error': 'Invalid file: macOS resource fork file detected. Please upload the actual document file.'}), 400
-
-        upload_folder = current_app.config.get('UPLOAD_FOLDER', tempfile.gettempdir())
-        filepath = os.path.join(upload_folder, filename)
-
-        # Save the file
-        file.save(filepath)
-
-        # Verify file was saved and exists
-        if not os.path.exists(filepath):
-            return jsonify({'error': f'Failed to save uploaded file to {filepath}'}), 500
-
-        # Verify file is not empty
-        if os.path.getsize(filepath) == 0:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-            return jsonify({'error': 'Uploaded file is empty'}), 400
-
-        logger.info(f"File saved: {filepath} ({os.path.getsize(filepath)} bytes)")
-
         # Declared before the try so the failure handler can report the run id
         # and which phases completed, making the on-disk artifacts findable.
         orchestrator = None
@@ -160,7 +195,9 @@ def generate_stories_agentic():
 
             # Initialize parallel orchestrator
             logger.info(f"Initializing ParallelStoryOrchestrator with {MAX_WORKERS} workers...")
-            orchestrator = ParallelStoryOrchestrator(max_workers=MAX_WORKERS)
+            orchestrator = ParallelStoryOrchestrator(
+                max_workers=MAX_WORKERS,
+                progress_callback=lambda n, label: _set_phase(job, n, label))
 
             # Generate stories using parallel agents
             logger.info("Starting parallel story generation pipeline...")
@@ -296,12 +333,12 @@ def generate_stories_agentic():
 
             if not frontend_stories or len(frontend_stories) == 0:
                 logger.error("WARNING: No stories generated after conversion!")
-                return jsonify({
+                return {
                     'success': False,
                     'error': 'No user stories were generated. Please check the server logs for details.',
                     'stories': [],
                     'count': 0
-                }), 500
+                }, 500
 
             # Save output to JSON file
             output_file_path = None
@@ -316,7 +353,7 @@ def generate_stories_agentic():
             except Exception as save_error:
                 logger.error(f"Could not save JSON output: {save_error}")
 
-            return jsonify({
+            return {
                 'success': True,
                 'stories': frontend_stories,
                 'count': len(frontend_stories),
@@ -337,7 +374,7 @@ def generate_stories_agentic():
                     'test_cases_count': len(test_cases),
                     'workers_used': MAX_WORKERS
                 }
-            })
+            }, 200
 
         finally:
             # Clean up temporary file
@@ -360,9 +397,9 @@ def generate_stories_agentic():
                 f"Partial results retained in {getattr(orchestrator, 'run_dir', '?')}"
             )
 
-        return jsonify({
+        return {
             'error': f'Error generating stories: {str(e)}',
             'details': traceback.format_exc().split(chr(10))[-5:],
             'run_id': run_id,
             'completed_phases': completed
-        }), 500
+        }, 500

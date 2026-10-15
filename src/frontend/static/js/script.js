@@ -95,6 +95,56 @@ function handleFileSelect(event) {
 }
 
 // Generate User Stories - send file to backend API
+// How often to ask the server how a queued run is getting on. Two seconds is
+// well inside any proxy timeout and cheap: the reply is a few hundred bytes.
+const JOB_POLL_INTERVAL_MS = 2000;
+
+/**
+ * Wait for a queued generation, updating the button as it progresses.
+ *
+ * Resolves to a Response-shaped object so the caller can keep handling the
+ * payload exactly as it did when the endpoint answered synchronously.
+ */
+async function pollGenerationJob(jobId, button) {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    for (;;) {
+        const res = await fetch(`/api/agentic/jobs/${jobId}`);
+        if (!res.ok) {
+            throw new Error(res.status === 404
+                ? 'The generation job expired. Please try again.'
+                : `Could not read job status (${res.status}).`);
+        }
+        const job = await res.json();
+
+        if (job.status === 'queued') {
+            const ahead = job.queue_position || 0;
+            // One run executes at a time: a single run already saturates the
+            // GPU, so overlapping them would slow both rather than speed either.
+            button.textContent = ahead > 0
+                ? `Queued (${ahead} ahead)...`
+                : 'Starting...';
+        } else if (job.status === 'running') {
+            const mins = Math.floor(job.elapsed_seconds / 60);
+            const secs = String(Math.floor(job.elapsed_seconds % 60)).padStart(2, '0');
+            button.textContent =
+                `${job.phase} (${job.phase_num}/${job.total_phases}) ${mins}:${secs}`;
+        } else {
+            // done or failed: hand back something the caller can read like a
+            // fetch Response.
+            const body = JSON.stringify(
+                job.result || { error: job.error || 'Generation failed' });
+            return {
+                ok: job.status === 'done',
+                status: job.status === 'done' ? 200 : 500,
+                text: async () => body,
+            };
+        }
+
+        await sleep(JOB_POLL_INTERVAL_MS);
+    }
+}
+
 async function generateUserStories() {
     const input = document.getElementById('projectDescription');
     const fileInput = document.getElementById('fileInput');
@@ -118,11 +168,25 @@ async function generateUserStories() {
         const formData = new FormData();
         formData.append('file', file);
 
-        // Send file to backend API (using PARALLEL agentic endpoint for 8-10x speedup)
-        const response = await fetch('/api/agentic/generate-stories-agentic', {
+        // Queue the run and poll for it. A generation takes minutes, and
+        // Cloudflare closes any proxied request whose origin has not answered
+        // within about 100 seconds, so the result cannot be waited for inside
+        // the upload request itself.
+        const queued = await fetch('/api/agentic/generate-stories-agentic', {
             method: 'POST',
             body: formData
         });
+
+        if (!queued.ok) {
+            let msg = `Server error: ${queued.status}`;
+            try {
+                msg = (await queued.json()).error || msg;
+            } catch (e) { /* non-JSON error page */ }
+            throw new Error(msg);
+        }
+
+        const { job_id: jobId } = await queued.json();
+        const response = await pollGenerationJob(jobId, generateBtn);
 
         // Get response text first to check content type
         const responseText = await response.text();

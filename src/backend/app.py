@@ -57,6 +57,7 @@ sys.path.insert(0, os.path.join(project_root, 'src'))  # For new backend imports
 from backend.routes import register_routes
 from backend.models import db, run_migrations, User
 from backend.routes.auth import init_oauth
+from backend.services.job_queue import job_queue
 
 def create_app():
     # Configure Flask to serve static files and templates from new locations
@@ -156,6 +157,11 @@ def create_app():
         # Only log to file, not console
         logger.debug("Database tables created")
     
+    # Start the generation worker. Runs are queued and executed one at a
+    # time on a background thread, so no request is held open for the
+    # minutes a run takes.
+    job_queue.init_app(app)
+
     # Register routes
     register_routes(app)
     
