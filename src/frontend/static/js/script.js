@@ -38,27 +38,26 @@ function displayUserProfile() {
     // Create user profile element
     const userProfile = document.createElement('div');
     userProfile.id = 'userProfile';
-    userProfile.style.cssText = 'display: flex; align-items: center; gap: 12px; margin-left: auto; margin-right: 12px;';
+    userProfile.className = 'user-profile';
 
     // User avatar and name
     const userInfo = document.createElement('div');
-    userInfo.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+    userInfo.className = 'user-info';
     // Only Google accounts carry a picture. Password accounts have none, so
     // fall back to an initial rather than rendering a broken image.
     const displayName = currentUser.name || currentUser.email || 'User';
     const avatar = currentUser.picture
-        ? `<img src="${currentUser.picture}" alt="${displayName}" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #007AFF;">`
-        : `<div aria-hidden="true" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #007AFF; background: #007AFF; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600;">${displayName.trim().charAt(0).toUpperCase()}</div>`;
+        ? `<img class="user-avatar" src="${currentUser.picture}" alt="${displayName}">`
+        : `<div class="user-avatar-initial" aria-hidden="true">${displayName.trim().charAt(0).toUpperCase()}</div>`;
     userInfo.innerHTML = `
         ${avatar}
-        <span style="font-size: 14px; color: #333; font-weight: 500;">${displayName}</span>
+        <span class="user-name">${displayName}</span>
     `;
 
     // Logout button
     const logoutBtn = document.createElement('button');
     logoutBtn.textContent = 'Logout';
-    logoutBtn.className = 'btn';
-    logoutBtn.style.cssText = 'padding: 8px 16px; font-size: 14px; background: #f5f5f5; color: #333; border: 1px solid #d0d0d0;';
+    logoutBtn.className = 'btn btn-logout';
     logoutBtn.onclick = () => {
         window.location.href = '/auth/logout';
     };
@@ -307,7 +306,6 @@ function renderStoryList() {
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'story-checkbox';
-        checkbox.style.cssText = 'margin-right: 8px; cursor: pointer;';
         checkbox.onclick = (e) => {
             e.stopPropagation(); // Prevent triggering the listItem click
             toggleStorySelection(index);
@@ -316,7 +314,7 @@ function renderStoryList() {
         // Create text span for story title
         const textSpan = document.createElement('span');
         textSpan.textContent = `User story ${index + 1}`;
-        textSpan.style.cssText = 'cursor: pointer; flex: 1;';
+        textSpan.className = 'story-item-text';
 
         // Clicking the story text/area only highlights and views (does NOT select checkbox)
         listItem.onclick = () => {

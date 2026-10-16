@@ -5,6 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generate User Stories</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/styles.css">
 </head>
 
@@ -14,7 +17,12 @@
             <div class="title-text">User Stories Dashboard</div>
             <button class="btn btn-dashboard" onclick="goToMainPage()"
                 title="Go back to main page to generate new stories">
-                <span class="btn-icon">🏠</span>
+                {# Monochrome icon rather than an emoji: it inherits the button's
+                   colour, and it is what remains visible once .btn-text is
+                   hidden at narrow widths. #}
+                <svg class="btn-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7A1 1 0 003 11h1v6a1 1 0 001 1h3a1 1 0 001-1v-4h2v4a1 1 0 001 1h3a1 1 0 001-1v-6h1a1 1 0 00.707-1.707l-7-7z" />
+                </svg>
                 <span class="btn-text">Dashboard</span>
             </button>
             <div class="window-controls">
@@ -30,45 +38,37 @@
                    This panel is hidden unless SHOW_GITHUB_INTEGRATION=true, so it
                    comes back by setting that one environment variable. #}
                 {% if show_github_integration %}
-                <div id="githubIntegrationPanel" style="padding: 0 12px 8px 12px; margin-bottom: 8px; font-size: 12px; border-bottom: 1px solid #eee;">
-                    <div id="githubStatus" style="margin-bottom: 6px; color: #666;">GitHub: Not connected</div>
-                    <div id="githubConnectButtons" style="display: flex; gap: 6px; margin-bottom: 6px;">
-                        <button class="btn" style="flex: 1; padding: 6px; font-size: 12px; background: #f0f0f0;"
-                            onclick="connectGitHub()">Connect GitHub</button>
+                <div id="githubIntegrationPanel" class="github-panel">
+                    <div id="githubStatus" class="github-status">GitHub: Not connected</div>
+                    <div id="githubConnectButtons" class="github-buttons">
+                        <button class="btn btn-secondary btn-xs" onclick="connectGitHub()">Connect GitHub</button>
                     </div>
-                    <div id="githubManageButtons" style="display: none; gap: 6px; margin-bottom: 6px;">
-                        <button class="btn" style="flex: 1; padding: 6px; font-size: 12px; background: #e7f3ff; color: #0066cc;"
-                            onclick="toggleGitHubConfig()">Configure</button>
-                        <button class="btn" style="flex: 1; padding: 6px; font-size: 12px; background: #ffe7e7; color: #cc0000;"
-                            onclick="disconnectGitHub()">Disconnect</button>
+                    <div id="githubManageButtons" class="github-buttons" style="display: none;">
+                        <button class="btn btn-secondary btn-xs" onclick="toggleGitHubConfig()">Configure</button>
+                        <button class="btn btn-secondary btn-xs" onclick="disconnectGitHub()">Disconnect</button>
                     </div>
                     <div id="githubConfigForm" style="display: none;">
-                        <input id="githubOwner" type="text" placeholder="Owner/Organization (e.g. my-org or username)"
-                            style="width: 100%; margin-bottom: 4px; padding: 4px 6px; font-size: 12px;">
-                        <input id="githubRepo" type="text" placeholder="Repository (e.g. my-backlog)"
-                            style="width: 100%; margin-bottom: 4px; padding: 4px 6px; font-size: 12px;">
-                        <button class="btn" style="width: 100%; padding: 6px; font-size: 12px; background: #e0e0e0;"
-                            onclick="saveGitHubConfig()">Save Config</button>
+                        <input id="githubOwner" class="github-input" type="text"
+                            placeholder="Owner/Organization (e.g. my-org or username)">
+                        <input id="githubRepo" class="github-input" type="text" placeholder="Repository (e.g. my-backlog)">
+                        <button class="btn btn-secondary btn-xs btn-block" onclick="saveGitHubConfig()">Save Config</button>
                     </div>
                 </div>
                 {% endif %}
-                <div style="display: flex; gap: 8px; margin-bottom: 12px; padding: 0 12px;">
-                    <button class="btn" onclick="selectAllStories()"
-                        style="flex: 1; padding: 8px; font-size: 13px; background: #f0f0f0;">Select All</button>
-                    <button class="btn" onclick="deselectAllStories()"
-                        style="flex: 1; padding: 8px; font-size: 13px; background: #f0f0f0;">Deselect All</button>
+                <div class="sidebar-toolbar">
+                    <button class="btn btn-secondary btn-sm" onclick="selectAllStories()">Select All</button>
+                    <button class="btn btn-secondary btn-sm" onclick="deselectAllStories()">Deselect All</button>
                 </div>
                 <ul class="story-list" id="storyList">
                     <!-- Stories will be dynamically generated here -->
                 </ul>
-                <div style="padding: 12px; border-top: 1px solid #ddd; background: #f9f9f9;">
-                    <div style="font-size: 13px; color: #666; margin-bottom: 8px;">
+                <div class="sidebar-footer">
+                    <div class="selection-count">
                         <span id="selectedCount">0</span> selected
                     </div>
-                    <div class="export-dropdown" style="position: relative; margin-bottom: 10px;">
-                        <button class="btn btn-export" onclick="toggleExportDropdown()"
-                            style="width: 100%; background-color: #34A853; color: white; padding: 12px; font-size: 14px;">
-                            Export Selected ▼
+                    <div class="export-dropdown">
+                        <button class="btn btn-export" onclick="toggleExportDropdown()">
+                            Export Selected ▾
                         </button>
                         <div id="exportMenu" class="export-menu" style="display: none;">
                             <button onclick="exportSelectedToJSON(); toggleExportDropdown();">Export as JSON</button>
@@ -86,19 +86,19 @@
             <div class="content-panel">
                 <div class="story-details" id="storyDetails">
                     <div class="detail-section">
-                        <div class="detail-label">Title:</div>
+                        <div class="detail-label">Title</div>
                         <div class="detail-value" id="storyTitle">Select a user story to view details</div>
                     </div>
                     <div class="detail-section">
-                        <div class="detail-label">Description:</div>
+                        <div class="detail-label">Description</div>
                         <div class="detail-value" id="storyDescription">-</div>
                     </div>
                     <div class="detail-section">
-                        <div class="detail-label">Definition of Done:</div>
+                        <div class="detail-label">Definition of Done</div>
                         <div class="detail-value" id="storyDoD">-</div>
                     </div>
                     <div class="detail-section">
-                        <div class="detail-label">Test Cases:</div>
+                        <div class="detail-label">Test Cases</div>
                         <div class="detail-value" id="storyTestCases">-</div>
                     </div>
                     <button class="btn btn-integrate" onclick="integrateStory()">Integrate</button>

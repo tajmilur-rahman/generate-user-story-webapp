@@ -1,3 +1,50 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   GeneUS — single stylesheet for every page.
+
+   One accent colour, set once in --accent and tinted from the same hue for
+   hover, selection and focus. No gradients and no second accent: a button,
+   a selected row and a focus ring are all the same blue at different
+   strengths. Changing --accent (and the two values derived from it) restyles
+   the whole application.
+
+   Neutrals carry everything else. The only colour outside the accent family
+   is --danger, used solely for the login error banner, where a failure has
+   to be distinguishable from information at a glance.
+   ────────────────────────────────────────────────────────────────────────── */
+
+:root {
+    /* the one colour */
+    --accent: #2563EB;
+    --accent-strong: #1D4ED8;   /* hover / pressed: same hue, darker */
+    --accent-weak: #EFF4FE;     /* selected rows, soft fills */
+    --accent-ring: rgba(37, 99, 235, 0.18);
+
+    /* neutrals */
+    --bg: #F6F7F9;
+    --surface: #FFFFFF;
+    --surface-2: #FAFBFC;
+    --border: #E4E7EC;
+    --border-strong: #D0D5DD;
+    --text: #101828;
+    --text-muted: #667085;
+    --text-subtle: #98A2B3;
+
+    /* error state only */
+    --danger: #B42318;
+    --danger-bg: #FEF3F2;
+    --danger-border: #FECDCA;
+
+    --r-sm: 6px;
+    --r: 10px;
+    --r-lg: 14px;
+
+    --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --shadow-2: 0 4px 16px rgba(16, 24, 40, 0.08);
+
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+            Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -5,20 +52,25 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background-color: #f0f0f0;
+    font-family: var(--font);
+    background-color: var(--bg);
+    color: var(--text);
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    padding: 20px;
+    padding: 24px;
     font-size: 16px;
+    -webkit-font-smoothing: antialiased;
 }
 
+/* ─── app shell ─────────────────────────────────────────────────────────── */
+
 .window-frame {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-2);
     width: 100%;
     max-width: 900px;
     overflow: hidden;
@@ -27,78 +79,184 @@ body {
 }
 
 .title-bar {
-    background: #f5f5f5;
+    background: var(--surface);
     padding: 14px 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--border);
     gap: 12px;
 }
 
 .title-text {
     font-weight: 600;
-    font-size: 18px;
-    color: #333;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+    color: var(--text);
     flex: 1;
 }
 
-.btn-dashboard {
-    background-color: #007AFF;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    padding: 10px 20px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0, 122, 255, 0.2);
-}
-
-.btn-dashboard:hover {
-    background-color: #0056CC;
-    box-shadow: 0 4px 8px rgba(0, 122, 255, 0.3);
-    transform: translateY(-1px);
-}
-
-.btn-dashboard:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(0, 122, 255, 0.2);
-}
-
-.btn-dashboard .btn-icon {
-    font-size: 16px;
-    line-height: 1;
-}
-
-.btn-dashboard .btn-text {
-    font-weight: 600;
-}
-
+/* Decorative only — these dots are not wired to anything. Kept monochrome so
+   they read as part of the frame rather than as a second accent. */
 .window-controls {
     display: flex;
-    gap: 8px;
+    gap: 7px;
 }
 
 .control-btn {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    border: 1px solid #ccc;
-    cursor: pointer;
+    background-color: var(--border-strong);
+    border: none;
 }
 
-.control-btn.close {
-    background-color: #007AFF;
-    border-color: #007AFF;
+/* ─── signed-in user chip (built in script.js) ──────────────────────────── */
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+    margin-right: 12px;
 }
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--border-strong);
+}
+
+.user-avatar-initial {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.user-name {
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 500;
+}
+
+/* ─── buttons ───────────────────────────────────────────────────────────── */
+
+.btn {
+    padding: 12px 22px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, border-color 0.15s ease,
+                color 0.15s ease;
+}
+
+.btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* solid: the accent */
+.btn-primary,
+.btn-browse,
+.btn-dashboard,
+.btn-export,
+.btn-integrate,
+.btn-integrate-all,
+.submit-btn {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.btn-primary:hover:not(:disabled),
+.btn-browse:hover:not(:disabled),
+.btn-dashboard:hover:not(:disabled),
+.btn-export:hover:not(:disabled),
+.btn-integrate:hover:not(:disabled),
+.btn-integrate-all:hover:not(:disabled),
+.submit-btn:hover {
+    background-color: var(--accent-strong);
+    border-color: var(--accent-strong);
+}
+
+/* quiet: neutral outline, for secondary and destructive actions alike */
+.btn-secondary,
+.btn-logout {
+    background-color: var(--surface);
+    border-color: var(--border-strong);
+    color: var(--text);
+}
+
+.btn-secondary:hover,
+.btn-logout:hover {
+    background-color: var(--surface-2);
+    border-color: var(--text-subtle);
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 15px 28px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.btn-dashboard {
+    padding: 9px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-dashboard .btn-icon {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
+.btn-logout {
+    padding: 8px 14px;
+    font-size: 14px;
+}
+
+.btn-sm {
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+.btn-xs {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.btn-block {
+    width: 100%;
+}
+
+/* ─── generate page ─────────────────────────────────────────────────────── */
 
 .main-content {
-    padding: 50px 40px;
+    padding: 56px 40px;
     min-height: 400px;
     display: flex;
     align-items: center;
@@ -116,63 +274,34 @@ body {
 .input-group {
     display: flex;
     gap: 12px;
-    margin-bottom: 30px;
+    margin-bottom: 28px;
     align-items: stretch;
 }
 
 .project-input {
     flex: 1;
-    padding: 14px 18px;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    font-size: 16px;
+    padding: 12px 16px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-sm);
+    font-family: inherit;
+    font-size: 15px;
+    color: var(--text);
+    background: var(--surface);
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .project-input:focus {
-    border-color: #007AFF;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .project-input::placeholder {
-    color: #999;
+    color: var(--text-subtle);
 }
 
-.btn {
-    padding: 14px 28px;
-    border: none;
-    border-radius: 4px;
-    font-size: 16px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s, opacity 0.2s;
-    white-space: nowrap;
-}
+/* ─── stories page ──────────────────────────────────────────────────────── */
 
-.btn:hover {
-    opacity: 0.9;
-}
-
-.btn:active {
-    opacity: 0.8;
-}
-
-.btn-browse {
-    background-color: #007AFF;
-    color: white;
-    white-space: nowrap;
-}
-
-.btn-primary {
-    background-color: #007AFF;
-    color: white;
-    width: 100%;
-    padding: 16px 28px;
-    font-size: 18px;
-    font-weight: 600;
-}
-
-/* Stories Page Layout */
 .main-layout {
     display: flex;
     min-height: 600px;
@@ -180,33 +309,61 @@ body {
 
 .sidebar {
     width: 33.33%;
-    background: #fafafa;
-    border-right: 1px solid #e0e0e0;
-    padding: 28px 24px;
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+    padding: 22px 0 0 0;
     display: flex;
     flex-direction: column;
 }
 
 .sidebar-header {
-    color: #007AFF;
-    font-size: 20px;
+    color: var(--text);
+    font-size: 15px;
     font-weight: 600;
-    margin-bottom: 24px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    margin: 0 20px 16px 20px;
+}
+
+.sidebar-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 0 20px;
+}
+
+.sidebar-toolbar .btn {
+    flex: 1;
+}
+
+.sidebar-footer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.selection-count {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
 }
 
 .story-list {
     list-style: none;
     flex: 1;
+    padding: 0 12px;
+    overflow-y: auto;
 }
 
 .story-item {
-    padding: 14px 18px;
-    margin-bottom: 10px;
-    border-radius: 4px;
+    padding: 11px 14px;
+    margin-bottom: 4px;
+    border-radius: var(--r-sm);
     cursor: pointer;
-    transition: background-color 0.2s;
-    font-size: 16px;
-    color: #333;
+    transition: background-color 0.15s ease;
+    font-size: 15px;
+    line-height: 1.45;
+    color: var(--text);
     word-wrap: break-word;
     overflow-wrap: break-word;
     display: flex;
@@ -214,48 +371,47 @@ body {
 }
 
 .story-item:hover {
-    background-color: #f0f0f0;
+    background-color: var(--accent-weak);
 }
 
-.story-item.active {
-    background-color: #e3f2fd;
-    color: #007AFF;
-    font-weight: 500;
-}
-
+/* Checked for export: a tint of the accent. */
 .story-item.selected {
-    background-color: #d4edda;
-    border-left: 3px solid #28a745;
+    background-color: var(--accent-weak);
 }
 
-.story-item.selected.active {
-    background-color: #c3e6cb;
-    border-left: 3px solid #28a745;
-    color: #007AFF;
-    font-weight: 500;
+/* Currently open: the same accent as a left bar, plus weight. Selection and
+   focus are told apart by shape rather than by a second colour. */
+.story-item.active {
+    background-color: var(--accent-weak);
+    box-shadow: inset 3px 0 0 var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.story-checkbox,
+.story-item input[type="checkbox"] {
+    accent-color: var(--accent);
+    margin-right: 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.story-item-text {
+    cursor: pointer;
+    flex: 1;
 }
 
 .no-stories {
     padding: 14px 18px;
-    color: #999;
+    color: var(--text-subtle);
     font-style: italic;
     text-align: center;
-    font-size: 16px;
-}
-
-.btn-integrate-all {
-    background-color: #007AFF;
-    color: white;
-    width: 100%;
-    margin-top: auto;
-    padding: 16px 24px;
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 15px;
 }
 
 .content-panel {
     flex: 1;
-    padding: 36px 40px;
+    padding: 32px 36px;
     display: flex;
     flex-direction: column;
 }
@@ -265,51 +421,63 @@ body {
 }
 
 .detail-section {
-    margin-bottom: 28px;
+    margin-bottom: 26px;
 }
 
 .detail-label {
     font-weight: 600;
-    font-size: 17px;
-    color: #333;
-    margin-bottom: 10px;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
 }
 
 .detail-value {
-    font-size: 16px;
-    color: #666;
+    font-size: 15px;
+    color: var(--text);
     line-height: 1.7;
-    padding-left: 4px;
     word-wrap: break-word;
     overflow-wrap: break-word;
     white-space: pre-wrap;
     max-width: 100%;
-    font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: var(--font);
 }
 
-.detail-value ul, .detail-value li {
+.detail-value ul,
+.detail-value li {
     margin-left: 20px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .detail-value strong {
-    color: #333;
+    color: var(--text);
     font-weight: 600;
 }
 
 .btn-integrate {
-    background-color: #007AFF;
-    color: white;
-    padding: 14px 28px;
     margin-top: auto;
     align-self: flex-end;
-    font-size: 16px;
     font-weight: 600;
 }
 
-/* Export dropdown menu */
+.btn-integrate-all {
+    width: 100%;
+    font-weight: 600;
+}
+
+.btn-export {
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* ─── export dropdown ──────────────────────────────────────────────────── */
+
 .export-dropdown {
     position: relative;
+    margin-bottom: 10px;
 }
 
 .export-menu {
@@ -317,51 +485,347 @@ body {
     bottom: 100%;
     left: 0;
     right: 0;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
-    margin-bottom: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    box-shadow: var(--shadow-2);
+    margin-bottom: 6px;
+    overflow: hidden;
     z-index: 100;
 }
 
 .export-menu button {
     display: block;
     width: 100%;
-    padding: 10px 12px;
+    padding: 10px 14px;
     border: none;
-    background: white;
+    background: var(--surface);
     cursor: pointer;
     text-align: left;
+    font-family: inherit;
     font-size: 14px;
-    color: #333;
-    transition: background-color 0.2s;
+    color: var(--text);
+    transition: background-color 0.15s ease;
 }
 
 .export-menu button:hover {
-    background-color: #f0f0f0;
+    background-color: var(--accent-weak);
+    color: var(--accent);
 }
 
-.export-menu button:first-child {
-    border-radius: 4px 4px 0 0;
+/* ─── GitHub panel (hidden unless SHOW_GITHUB_INTEGRATION=true) ─────────── */
+
+.github-panel {
+    padding: 0 20px 14px 20px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
 }
 
-.export-menu button:last-child {
-    border-radius: 0 0 4px 4px;
+.github-status {
+    margin-bottom: 8px;
+    color: var(--text-muted);
 }
 
-/* Responsive adjustments for dashboard button */
+.github-buttons {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.github-buttons .btn {
+    flex: 1;
+}
+
+.github-input {
+    width: 100%;
+    margin-bottom: 6px;
+    padding: 7px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-sm);
+    outline: none;
+}
+
+.github-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* ─── login page ────────────────────────────────────────────────────────── */
+
+.login-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-2);
+    padding: 36px 36px 30px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+}
+
+.logo {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 18px;
+    background: var(--accent);
+    border-radius: var(--r);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo svg {
+    width: 24px;
+    height: 24px;
+    color: #fff;
+}
+
+.login-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 6px;
+}
+
+.login-header p {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 26px;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    text-align: left;
+}
+
+.field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 6px;
+}
+
+.field input {
+    width: 100%;
+    padding: 11px 14px;
+    font-family: inherit;
+    font-size: 15px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-sm);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field input::placeholder {
+    color: var(--text-subtle);
+}
+
+.field input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.remember {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+
+.remember input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.submit-btn {
+    width: 100%;
+    padding: 12px 28px;
+    margin-top: 4px;
+    border-radius: var(--r-sm);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--accent);
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.google-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px 28px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.google-btn:hover {
+    background: var(--surface-2);
+    border-color: var(--text-subtle);
+}
+
+.google-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.error-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 18px;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    border-radius: var(--r-sm);
+    color: var(--danger);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+}
+
+.error-banner svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    margin: 22px 0 16px;
+    color: var(--text-subtle);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+.divider span {
+    padding: 0 12px;
+}
+
+.features {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+}
+
+.feature-icon {
+    width: 18px;
+    height: 18px;
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.feature-text {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.footer-text {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-subtle);
+}
+
+/* ─── responsive ────────────────────────────────────────────────────────── */
+
 @media (max-width: 768px) {
+    body {
+        padding: 12px;
+    }
+
     .btn-dashboard .btn-text {
         display: none;
     }
-    
+
     .btn-dashboard {
-        padding: 10px 12px;
-        min-width: 44px;
+        padding: 9px 12px;
+        min-width: 42px;
     }
-    
+
     .title-text {
         font-size: 16px;
+    }
+
+    .main-layout {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .main-content {
+        padding: 32px 20px;
+    }
+
+    .content-panel {
+        padding: 24px 20px;
+    }
+
+    .input-group {
+        flex-direction: column;
+    }
+
+    .user-name {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .login-container {
+        padding: 28px 22px;
+    }
+
+    .login-header h1 {
+        font-size: 22px;
     }
 }
